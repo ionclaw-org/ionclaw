@@ -12,7 +12,7 @@ import { useApi } from '../composables/useApi'
 import { useToast } from 'primevue/usetoast'
 import { useDark } from '../composables/useDark'
 
-const MARKETPLACE_URL = 'https://ionclaw-marketplace.pages.dev/skills/index.json'
+const MARKETPLACE_URL = 'https://ionclaw.com/marketplace-data.json'
 
 const api = useApi()
 const toast = useToast()

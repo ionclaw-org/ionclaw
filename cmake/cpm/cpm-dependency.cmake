@@ -75,6 +75,7 @@ endif()
 # Android: pass API level to OpenSSL Configure and disable unnecessary modules
 if(ANDROID)
     set(ENV{ANDROID_API} ${ANDROID_NATIVE_API_LEVEL})
+    set(ENV{ANDROID_NDK_ROOT} ${CMAKE_ANDROID_NDK})
     list(APPEND _ossl_cpm_options "OPENSSL_CONFIGURE_OPTIONS no-ui-console\\;no-engine")
 endif()
 

@@ -18,7 +18,7 @@ namespace server
 {
 
 // marketplace base url
-const char *Routes::MARKETPLACE_BASE = "https://ionclaw-marketplace.pages.dev";
+const char *Routes::MARKETPLACE_BASE = "https://ionclaw.com";
 
 void Routes::handleMarketplaceTargets(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp)
 {

@@ -110,19 +110,19 @@ Runs the **Flutter app on Android**. Only builds the native libraries and web cl
 
 Builds the Android native libraries, bundles the web client, and creates a **release appbundle** (`.aab`) for Google Play upload.
 
-Output: `flutter/runner/build/app/outputs/bundle/release/app-release.aab`
+Output: `apps/flutter/runner/build/app/outputs/bundle/release/app-release.aab`
 
 ### `make release-ios`
 
 Builds the iOS XCFramework, bundles the web client, and creates a **release archive** (`.ipa`) for App Store upload.
 
-Output: `flutter/runner/build/ios/archive/Runner.xcarchive`
+Output: `apps/flutter/runner/build/ios/archive/Runner.xcarchive`
 
 ### `make release-macos`
 
 Builds the macOS shared library, bundles the web client, and creates a **release macOS app**.
 
-Output: `flutter/runner/build/macos/Build/Products/Release/`
+Output: `apps/flutter/runner/build/macos/Build/Products/Release/`
 
 ## Setup Commands
 
@@ -162,7 +162,7 @@ Creates a **symlink** from the built iOS `ionclaw.xcframework` to the Flutter pl
 
 ### `make link-flutter-android`
 
-Builds Android native libraries and **copies** the `.so` files to `flutter/plugin/android/src/main/jniLibs/{ABI}/`. Automatically builds all ABIs first.
+Builds Android native libraries and **copies** the `.so` files to `apps/flutter/plugin/android/src/main/jniLibs/{ABI}/`. Automatically builds all ABIs first.
 
 ## Clean Commands
 
@@ -279,4 +279,4 @@ Triggered on tag push (`v*`). Produces downloadable artifacts:
 | `ionclaw-ios-xcframework.tar.gz` | XCFramework + ionclaw.h |
 | `ionclaw-android.tar.gz` | All 4 ABI .so files in jniLibs/ layout |
 
-Android builds all 4 ABIs in parallel (arm64-v8a, armeabi-v7a, x86_64, x86) then packages them together.
+Android builds all 4 ABIs sequentially (arm64-v8a, armeabi-v7a, x86_64, x86) then packages them together.

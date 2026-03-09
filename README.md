@@ -103,7 +103,7 @@ cmake -B build-shared -DIONCLAW_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build build-shared -j$(nproc)
 
 # Run the app
-cd flutter/runner
+cd apps/flutter/runner
 flutter run
 ```
 

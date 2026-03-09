@@ -64,4 +64,4 @@ venv.bak/
 /main/resources/web
 
 # native libs (copied by make link-flutter-*)
-flutter/plugin/android/src/main/jniLibs
+apps/flutter/plugin/android/src/main/jniLibs

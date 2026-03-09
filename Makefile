@@ -17,8 +17,8 @@ BUILD_ANDROID_X86_64    := build/android-x86_64
 BUILD_ANDROID_X86       := build/android-x86
 WEB_SRC_DIR             := apps/web
 WEB_OUT_DIR             := main/resources/web
-FLUTTER_PLUGIN_DIR      := flutter/plugin
-FLUTTER_RUNNER_DIR      := flutter/runner
+FLUTTER_PLUGIN_DIR      := apps/flutter/plugin
+FLUTTER_RUNNER_DIR      := apps/flutter/runner
 FLUTTER_ANDROID_JNILIBS := $(FLUTTER_PLUGIN_DIR)/android/src/main/jniLibs
 
 # --- cmake flags ---
