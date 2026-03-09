@@ -1,0 +1,93 @@
+name: Build iOS
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
+
+env:
+  BUILD_TYPE: Release
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
+
+jobs:
+  build:
+    name: iOS (XCFramework)
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build web client
+        run: |
+          cd apps/web
+          npm install
+          npm run build
+
+      - name: Cache CPM packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CPM_SOURCE_CACHE }}
+          key: cpm-ios-${{ hashFiles('cmake/cpm/cpm-dependency.cmake') }}
+          restore-keys: cpm-ios-
+
+      - name: Build iOS arm64
+        run: |
+          cmake -B build/ios-arm64 -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON \
+            -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DCMAKE_OSX_SYSROOT=iphoneos
+          cmake --build build/ios-arm64 --config ${{ env.BUILD_TYPE }} -j$(sysctl -n hw.ncpu)
+
+      - name: Build iOS simulator arm64
+        run: |
+          cmake -B build/ios-sim-arm64 -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON \
+            -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DCMAKE_OSX_SYSROOT=iphonesimulator
+          cmake --build build/ios-sim-arm64 --config ${{ env.BUILD_TYPE }} -j$(sysctl -n hw.ncpu)
+
+      - name: Build iOS simulator x86_64
+        run: |
+          cmake -B build/ios-sim-x86_64 -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON \
+            -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DCMAKE_OSX_SYSROOT=iphonesimulator
+          cmake --build build/ios-sim-x86_64 --config ${{ env.BUILD_TYPE }} -j$(sysctl -n hw.ncpu)
+
+      - name: Create XCFramework
+        run: |
+          mkdir -p build/xcframework/sim/ionclaw.framework
+          lipo -create \
+            build/ios-sim-arm64/lib/ionclaw.framework/ionclaw \
+            build/ios-sim-x86_64/lib/ionclaw.framework/ionclaw \
+            -output build/xcframework/sim/ionclaw.framework/ionclaw
+          cp build/ios-sim-arm64/lib/ionclaw.framework/Info.plist build/xcframework/sim/ionclaw.framework/
+          xcodebuild -create-xcframework \
+            -framework build/ios-arm64/lib/ionclaw.framework \
+            -framework build/xcframework/sim/ionclaw.framework \
+            -output build/xcframework/ionclaw.xcframework
+
+      - name: Verify XCFramework
+        if: ${{ !inputs.release }}
+        run: ls -la build/xcframework/ionclaw.xcframework/
+
+      - name: Package XCFramework
+        if: ${{ inputs.release }}
+        run: |
+          mkdir -p dist
+          cp -R build/xcframework/ionclaw.xcframework dist/
+          cp main/lib/include/ionclaw/ionclaw.h dist/
+          cp LICENSE.md dist/
+          tar -czf ionclaw-ios-xcframework.tar.gz -C dist .
+
+      - name: Upload artifacts
+        if: ${{ inputs.release }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ionclaw-ios-xcframework
+          path: ionclaw-ios-xcframework.tar.gz

@@ -1,0 +1,85 @@
+name: Build Linux
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
+
+env:
+  BUILD_TYPE: Release
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
+
+jobs:
+  build:
+    name: Linux (x86_64)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build web client
+        run: |
+          cd apps/web
+          npm install
+          npm run build
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev
+
+      - name: Cache CPM packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CPM_SOURCE_CACHE }}
+          key: cpm-${{ runner.os }}-${{ hashFiles('cmake/cpm/cpm-dependency.cmake') }}
+          restore-keys: cpm-${{ runner.os }}-
+
+      - name: Configure
+        run: cmake -B build/release -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      - name: Build
+        run: cmake --build build/release --config ${{ env.BUILD_TYPE }} -j$(nproc)
+
+      - name: Verify binary
+        run: ./build/release/bin/ionclaw-server --help
+
+      - name: Build shared library
+        if: ${{ inputs.release }}
+        run: |
+          cmake -B build/shared -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON
+          cmake --build build/shared --config ${{ env.BUILD_TYPE }} -j$(nproc)
+
+      - name: Package server
+        if: ${{ inputs.release }}
+        run: |
+          mkdir -p dist/ionclaw-linux-x86_64
+          cp build/release/bin/ionclaw-server dist/ionclaw-linux-x86_64/
+          cp LICENSE.md dist/ionclaw-linux-x86_64/
+          tar -czf ionclaw-linux-x86_64.tar.gz -C dist ionclaw-linux-x86_64
+
+      - name: Package shared library
+        if: ${{ inputs.release }}
+        run: |
+          mkdir -p dist/ionclaw-linux-x86_64-shared
+          cp build/shared/lib/libionclaw.so dist/ionclaw-linux-x86_64-shared/
+          cp main/lib/include/ionclaw/ionclaw.h dist/ionclaw-linux-x86_64-shared/
+          cp LICENSE.md dist/ionclaw-linux-x86_64-shared/
+          tar -czf ionclaw-linux-x86_64-shared.tar.gz -C dist ionclaw-linux-x86_64-shared
+
+      - name: Upload artifacts
+        if: ${{ inputs.release }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ionclaw-linux-x86_64
+          path: |
+            ionclaw-linux-x86_64.tar.gz
+            ionclaw-linux-x86_64-shared.tar.gz

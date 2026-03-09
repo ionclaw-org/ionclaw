@@ -1,0 +1,98 @@
+name: Build macOS
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
+
+env:
+  BUILD_TYPE: Release
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (arm64)
+            arch: arm64
+            artifact: ionclaw-macos-arm64
+            cmake_extra: ""
+          - name: macOS (x86_64)
+            arch: x86_64
+            artifact: ionclaw-macos-x86_64
+            cmake_extra: -DCMAKE_OSX_ARCHITECTURES=x86_64
+
+    name: ${{ matrix.name }}
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build web client
+        run: |
+          cd apps/web
+          npm install
+          npm run build
+
+      - name: Cache CPM packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CPM_SOURCE_CACHE }}
+          key: cpm-${{ runner.os }}-${{ hashFiles('cmake/cpm/cpm-dependency.cmake') }}
+          restore-keys: cpm-${{ runner.os }}-
+
+      - name: Configure
+        run: cmake -B build/release -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} ${{ matrix.cmake_extra }}
+
+      - name: Build
+        run: cmake --build build/release --config ${{ env.BUILD_TYPE }} -j$(sysctl -n hw.ncpu)
+
+      - name: Verify binary
+        if: matrix.cmake_extra == ''
+        run: ./build/release/bin/ionclaw-server --help
+
+      - name: Verify binary architecture
+        if: matrix.cmake_extra != ''
+        run: file build/release/bin/ionclaw-server
+
+      - name: Build shared library
+        if: ${{ inputs.release }}
+        run: |
+          cmake -B build/shared -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON ${{ matrix.cmake_extra }}
+          cmake --build build/shared --config ${{ env.BUILD_TYPE }} -j$(sysctl -n hw.ncpu)
+
+      - name: Package server
+        if: ${{ inputs.release }}
+        run: |
+          mkdir -p dist/${{ matrix.artifact }}
+          cp build/release/bin/ionclaw-server dist/${{ matrix.artifact }}/
+          cp LICENSE.md dist/${{ matrix.artifact }}/
+          tar -czf ${{ matrix.artifact }}.tar.gz -C dist ${{ matrix.artifact }}
+
+      - name: Package shared library
+        if: ${{ inputs.release }}
+        run: |
+          mkdir -p dist/${{ matrix.artifact }}-shared
+          cp build/shared/lib/libionclaw.dylib dist/${{ matrix.artifact }}-shared/
+          cp main/lib/include/ionclaw/ionclaw.h dist/${{ matrix.artifact }}-shared/
+          cp LICENSE.md dist/${{ matrix.artifact }}-shared/
+          tar -czf ${{ matrix.artifact }}-shared.tar.gz -C dist ${{ matrix.artifact }}-shared
+
+      - name: Upload artifacts
+        if: ${{ inputs.release }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}.tar.gz
+            ${{ matrix.artifact }}-shared.tar.gz

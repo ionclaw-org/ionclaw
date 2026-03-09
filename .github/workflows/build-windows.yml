@@ -1,0 +1,87 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
+
+env:
+  BUILD_TYPE: Release
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
+
+jobs:
+  build:
+    name: Windows (x86_64)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build web client
+        run: |
+          cd apps/web
+          npm install
+          npm run build
+
+      - name: Setup OpenSSL
+        run: |
+          choco install openssl -y --no-progress
+          echo "OPENSSL_ROOT_DIR=C:\Program Files\OpenSSL" >> $env:GITHUB_ENV
+
+      - name: Cache CPM packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CPM_SOURCE_CACHE }}
+          key: cpm-${{ runner.os }}-${{ hashFiles('cmake/cpm/cpm-dependency.cmake') }}
+          restore-keys: cpm-${{ runner.os }}-
+
+      - name: Configure
+        run: cmake -B build/release -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      - name: Build
+        run: cmake --build build/release --config ${{ env.BUILD_TYPE }} --parallel
+
+      - name: Verify binary
+        run: .\build\release\bin\Release\ionclaw-server.exe --help
+
+      - name: Build shared library
+        if: ${{ inputs.release }}
+        run: |
+          cmake -B build/shared -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON
+          cmake --build build/shared --config ${{ env.BUILD_TYPE }} --parallel
+
+      - name: Package server
+        if: ${{ inputs.release }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/ionclaw-windows-x86_64
+          Copy-Item build/release/bin/Release/ionclaw-server.exe dist/ionclaw-windows-x86_64/
+          Copy-Item LICENSE.md dist/ionclaw-windows-x86_64/
+          Compress-Archive -Path dist/ionclaw-windows-x86_64 -DestinationPath ionclaw-windows-x86_64.zip
+
+      - name: Package shared library
+        if: ${{ inputs.release }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/ionclaw-windows-x86_64-shared
+          Copy-Item build/shared/lib/Release/ionclaw.dll dist/ionclaw-windows-x86_64-shared/
+          Copy-Item main/lib/include/ionclaw/ionclaw.h dist/ionclaw-windows-x86_64-shared/
+          Copy-Item LICENSE.md dist/ionclaw-windows-x86_64-shared/
+          Compress-Archive -Path dist/ionclaw-windows-x86_64-shared -DestinationPath ionclaw-windows-x86_64-shared.zip
+
+      - name: Upload artifacts
+        if: ${{ inputs.release }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ionclaw-windows-x86_64
+          path: |
+            ionclaw-windows-x86_64.zip
+            ionclaw-windows-x86_64-shared.zip

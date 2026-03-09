@@ -1,0 +1,98 @@
+name: Build Android
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
+
+env:
+  BUILD_TYPE: Release
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
+
+jobs:
+  build:
+    name: Android
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Android NDK
+        run: |
+          NDK_VERSION=$(ls -1 $ANDROID_HOME/ndk/ | sort -V | tail -1)
+          echo "ANDROID_NDK=$ANDROID_HOME/ndk/$NDK_VERSION" >> $GITHUB_ENV
+          echo "Using NDK: $NDK_VERSION"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build web client
+        run: |
+          cd apps/web
+          npm install
+          npm run build
+
+      - name: Cache CPM packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CPM_SOURCE_CACHE }}
+          key: cpm-android-${{ hashFiles('cmake/cpm/cpm-dependency.cmake') }}
+          restore-keys: cpm-android-
+
+      - name: Build arm64-v8a
+        run: |
+          cmake -B build/android-arm64-v8a -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-21 -DANDROID_STL=c++_static
+          cmake --build build/android-arm64-v8a --config ${{ env.BUILD_TYPE }} -j$(nproc)
+
+      - name: Verify library
+        if: ${{ !inputs.release }}
+        run: file build/android-arm64-v8a/lib/libionclaw.so
+
+      - name: Build armeabi-v7a
+        if: ${{ inputs.release }}
+        run: |
+          cmake -B build/android-armeabi-v7a -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=armeabi-v7a -DANDROID_PLATFORM=android-21 -DANDROID_STL=c++_static
+          cmake --build build/android-armeabi-v7a --config ${{ env.BUILD_TYPE }} -j$(nproc)
+
+      - name: Build x86_64
+        if: ${{ inputs.release }}
+        run: |
+          cmake -B build/android-x86_64 -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=x86_64 -DANDROID_PLATFORM=android-21 -DANDROID_STL=c++_static
+          cmake --build build/android-x86_64 --config ${{ env.BUILD_TYPE }} -j$(nproc)
+
+      - name: Build x86
+        if: ${{ inputs.release }}
+        run: |
+          cmake -B build/android-x86 -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=x86 -DANDROID_PLATFORM=android-21 -DANDROID_STL=c++_static
+          cmake --build build/android-x86 --config ${{ env.BUILD_TYPE }} -j$(nproc)
+
+      - name: Package libraries
+        if: ${{ inputs.release }}
+        run: |
+          for abi in arm64-v8a armeabi-v7a x86_64 x86; do
+            mkdir -p dist/jniLibs/$abi
+            cp build/android-$abi/lib/libionclaw.so dist/jniLibs/$abi/
+          done
+          cp main/lib/include/ionclaw/ionclaw.h dist/
+          cp LICENSE.md dist/
+          tar -czf ionclaw-android.tar.gz -C dist .
+
+      - name: Upload artifact
+        if: ${{ inputs.release }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ionclaw-android
+          path: ionclaw-android.tar.gz

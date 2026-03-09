@@ -1,0 +1,85 @@
+#include "ionclaw/search/BraveSearchProvider.hpp"
+
+#include <iomanip>
+#include <sstream>
+
+#include "ionclaw/util/HttpClient.hpp"
+#include "nlohmann/json.hpp"
+
+namespace ionclaw
+{
+namespace search
+{
+
+std::string BraveSearchProvider::name() const
+{
+    return "brave";
+}
+
+std::string BraveSearchProvider::search(const std::string &query, int count, const ionclaw::config::CredentialConfig &credential) const
+{
+    std::string token = credential.key.empty() ? credential.token : credential.key;
+    if (token.empty())
+    {
+        return "Error: Brave credential must have key or token (tools.web_search credential in config.yml)";
+    }
+
+    std::ostringstream encoded;
+    for (char c : query)
+    {
+        if (isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.' || c == '~')
+        {
+            encoded << c;
+        }
+        else if (c == ' ')
+        {
+            encoded << '+';
+        }
+        else
+        {
+            encoded << '%' << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
+                    << static_cast<int>(static_cast<unsigned char>(c));
+        }
+    }
+
+    std::string url = "https://api.search.brave.com/res/v1/web/search?q=" + encoded.str() +
+                      "&count=" + std::to_string(count);
+
+    std::map<std::string, std::string> headers = {
+        {"Accept", "application/json"},
+        {"X-Subscription-Token", token},
+    };
+
+    auto response = ionclaw::util::HttpClient::request("GET", url, headers);
+
+    if (response.statusCode != 200)
+    {
+        return "Error: Brave Search API returned HTTP " + std::to_string(response.statusCode) +
+               ": " + response.body.substr(0, 500);
+    }
+
+    auto json = nlohmann::json::parse(response.body);
+    auto results = json.value("web", nlohmann::json::object()).value("results", nlohmann::json::array());
+
+    if (results.empty())
+    {
+        return "No results found for: " + query;
+    }
+
+    std::ostringstream output;
+    int idx = 1;
+    for (const auto &result : results)
+    {
+        std::string title = result.value("title", "");
+        std::string resultUrl = result.value("url", "");
+        std::string description = result.value("description", "");
+        output << idx << ". " << title << "\n"
+               << "   URL: " << resultUrl << "\n"
+               << "   " << description << "\n\n";
+        ++idx;
+    }
+    return output.str();
+}
+
+} // namespace search
+} // namespace ionclaw

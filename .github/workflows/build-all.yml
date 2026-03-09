@@ -1,0 +1,38 @@
+name: Build All
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "README.md"
+      - "LICENSE.md"
+      - "docs/**"
+      - "extras/**"
+      - ".gitignore"
+      - ".editorconfig"
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "README.md"
+      - "LICENSE.md"
+      - "docs/**"
+      - "extras/**"
+      - ".gitignore"
+      - ".editorconfig"
+
+jobs:
+  build-linux:
+    uses: ./.github/workflows/build-linux.yml
+
+  build-macos:
+    uses: ./.github/workflows/build-macos.yml
+
+  build-windows:
+    uses: ./.github/workflows/build-windows.yml
+
+  build-ios:
+    uses: ./.github/workflows/build-ios.yml
+
+  build-android:
+    uses: ./.github/workflows/build-android.yml

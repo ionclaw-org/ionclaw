@@ -1,0 +1,8 @@
+{
+  "name": "IonClaw",
+  "description": "A C++ AI agent orchestrator that runs anywhere as a single native binary — on server, desktop, and mobile.",
+  "repository": "https://github.com/ionclaw-org/ionclaw",
+  "logo": "https://raw.githubusercontent.com/ionclaw-org/ionclaw/main/extras/images/logo.png",
+  "keywords": ["ai", "agent", "assistant", "bot", "llm", "cpp"],
+  "stack": "container"
+}

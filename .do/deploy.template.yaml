@@ -1,0 +1,14 @@
+spec:
+  name: ionclaw
+  services:
+    - name: web
+      git:
+        branch: main
+        repo_clone_url: https://github.com/ionclaw-org/ionclaw.git
+      dockerfile_path: Dockerfile
+      http_port: 8080
+      instance_count: 1
+      instance_size_slug: basic-xxs
+      envs:
+        - key: PORT
+          value: "8080"

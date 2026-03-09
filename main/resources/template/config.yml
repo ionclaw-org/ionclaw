@@ -1,0 +1,187 @@
+bot:
+  name: "My Assistant"
+  description: "A helpful AI assistant"
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  # public_url: "https://my-domain.com"
+  credential: server_secret
+
+credentials:
+  anthropic:
+    type: simple
+    key: ${ANTHROPIC_API_KEY}
+
+  openai:
+    type: simple
+    key: ${OPENAI_API_KEY}
+
+  gemini:
+    type: simple
+    key: ${GEMINI_API_KEY}
+
+  grok:
+    type: simple
+    key: ${GROK_API_KEY}
+
+  openrouter:
+    type: simple
+    key: ${OPENROUTER_API_KEY}
+
+  moonshot:
+    type: simple
+    key: ${MOONSHOT_API_KEY}
+
+  deepseek:
+    type: simple
+    key: ${DEEPSEEK_API_KEY}
+
+  server_secret:
+    type: simple
+    key: ${AUTH_SECRET_KEY}
+
+  web_client:
+    type: login
+    username: "admin"
+    password: "admin"
+
+  # brave:
+  #   type: simple
+  #   key: ${BRAVE_API_KEY}
+
+  # telegram:
+  #   type: simple
+  #   key: ${TELEGRAM_BOT_TOKEN}
+
+  # twitter:
+  #   type: oauth1
+  #   consumer_key: ${TWITTER_CONSUMER_KEY}
+  #   consumer_secret: ${TWITTER_CONSUMER_SECRET}
+  #   access_token: ${TWITTER_ACCESS_TOKEN}
+  #   access_token_secret: ${TWITTER_ACCESS_TOKEN_SECRET}
+
+
+# Supported providers:
+#   anthropic  - Claude models (native API)
+#   openai     - GPT models (native API)
+#   gemini     - Google Gemini (via OpenAI-compatible endpoint)
+#   grok       - xAI Grok models (OpenAI-compatible)
+#   openrouter - Multi-model router (OpenAI-compatible)
+#   kimi       - Moonshot Kimi models (OpenAI-compatible)
+#   deepseek   - DeepSeek models (OpenAI-compatible)
+#
+# Model format: "provider/model-name" (e.g., "anthropic/claude-sonnet-4-20250514")
+# All providers support text and image input, streaming and non-streaming.
+# Audio input supported for OpenAI (GPT-4o+) and OpenAI-compatible providers.
+providers:
+  anthropic:
+    credential: anthropic
+    # base_url: https://api.anthropic.com
+
+  openai:
+    credential: openai
+    # base_url: https://api.openai.com/v1
+
+  gemini:
+    credential: gemini
+    # base_url: https://generativelanguage.googleapis.com/v1beta/openai
+
+  grok:
+    credential: grok
+    # base_url: https://api.x.ai/v1
+
+  openrouter:
+    credential: openrouter
+    # base_url: https://openrouter.ai/api/v1
+    # request_headers:
+    #   HTTP-Referer: "https://your-app.com"
+    #   X-Title: "My App"
+
+  kimi:
+    credential: moonshot
+    # base_url: https://api.moonshot.cn/v1
+
+  deepseek:
+    credential: deepseek
+    # base_url: https://api.deepseek.com/v1
+
+web_client:
+  credential: web_client
+
+agents:
+  main:
+    workspace: "workspace"
+    model: "anthropic/claude-sonnet-4-20250514"
+    description: "General-purpose assistant"
+    instructions: ""
+    tools:
+      - read_file
+      - write_file
+      - edit_file
+      - list_dir
+      - exec
+      - web_search
+      - web_fetch
+      - http_client
+      - rss_reader
+      - browser
+      - generate_image
+      - image_ops
+      - message
+      - spawn
+      - cron
+      - invoke_platform
+      - memory_save
+      - memory_read
+      - memory_search
+    model_params:
+      max_tokens: 8192
+      temperature: 0.1
+    agent_params:
+      max_iterations: 40
+      memory_window: 100
+      # channel_history_limits:
+      #   telegram: 200
+      #   web: 1000
+
+  # Add more agents for multi-agent routing:
+  # creative:
+  #   workspace: "workspace"
+  #   model: "anthropic/claude-sonnet-4-20250514"
+  #   description: "Creative tasks: writing, images, memes, social media"
+  #   tools:
+  #     - read_file
+  #     - write_file
+  #     - generate_image
+  #     - web_search
+  #     - http_client
+  #     - message
+  #     - memory_save
+
+image:
+  model: "gemini/gemini-3.1-flash-image-preview"
+
+transcription:
+  model: "openai/whisper-1"
+
+tools:
+  exec_timeout: 60
+  web_search_provider: brave
+  web_search_credential: brave
+
+channels:
+  telegram:
+    enabled: false
+    # credential: telegram
+    # allowed_users: []
+
+storage:
+  type: "local"
+
+heartbeat:
+  enabled: false
+  # interval: 1800
+
+# classifier:
+#   model: "anthropic/claude-haiku-3-20240307"

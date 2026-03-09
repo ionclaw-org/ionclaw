@@ -1,0 +1,67 @@
+# os
+Thumbs.db
+.DS_Store
+
+# ide
+.idea
+.vscode
+.iml
+.claude
+.cursor
+
+# auto generated
+**/*.pyc
+*.autosave
+*.user
+*.user.*
+.vs
+__pycache__
+Brewfile.lock.json
+.metals
+.ruff_cache
+
+# node
+node_modules
+package-lock.json
+
+# cmake
+CMakeUserPresets.json
+CMakeSettings.json
+CMakeLists.txt.user
+
+# java/kotlin
+.gradle
+.kotlin
+
+# cxx
+.cxx
+
+# flutter
+*.reflectable.dart
+
+# build
+/build/
+
+# python
+*.egg-info
+.pytest_cache
+poetry.lock
+
+# environments
+.env
+.venv
+env/
+venv/
+.venv*/
+ENV/
+env.bak/
+venv.bak/
+
+# temp
+/temp
+
+# web (build artifact)
+/main/resources/web
+
+# native libs (copied by make link-flutter-*)
+flutter/plugin/android/src/main/jniLibs

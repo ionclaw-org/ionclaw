@@ -1,0 +1,61 @@
+#include "ionclaw/tool/builtin/WriteFileTool.hpp"
+
+#include <filesystem>
+#include <fstream>
+
+#include "ionclaw/tool/builtin/ToolHelper.hpp"
+
+namespace ionclaw
+{
+namespace tool
+{
+namespace builtin
+{
+
+std::string WriteFileTool::execute(const nlohmann::json &params, const ToolContext &context)
+{
+    auto rawPath = params.at("path").get<std::string>();
+    auto content = params.at("content").get<std::string>();
+    auto resolvedPath = ToolHelper::validateAndResolvePath(context.workspacePath, rawPath, context.publicPath);
+
+    auto parentDir = std::filesystem::path(resolvedPath).parent_path();
+
+    if (!parentDir.empty() && !std::filesystem::exists(parentDir))
+    {
+        std::error_code ec;
+        std::filesystem::create_directories(parentDir, ec);
+    }
+
+    std::ofstream file(resolvedPath, std::ios::binary | std::ios::trunc);
+
+    if (!file.is_open())
+    {
+        return "Error: cannot write to file: " + rawPath;
+    }
+
+    file << content;
+    file.flush();
+
+    if (file.fail())
+    {
+        return "Error: write failed (disk full or I/O error): " + rawPath;
+    }
+
+    file.close();
+
+    return "File written successfully: " + rawPath;
+}
+
+ToolSchema WriteFileTool::schema() const
+{
+    return {
+        "write_file",
+        "Write content to a file at the given path within the workspace. Creates parent directories if needed.",
+        {{"type", "object"},
+         {"properties", {{"path", {{"type", "string"}, {"description", "The file path to write (absolute or relative to workspace)"}}}, {"content", {{"type", "string"}, {"description", "The content to write to the file"}}}}},
+         {"required", nlohmann::json::array({"path", "content"})}}};
+}
+
+} // namespace builtin
+} // namespace tool
+} // namespace ionclaw
