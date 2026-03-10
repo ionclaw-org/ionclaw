@@ -1,3 +1,4 @@
+# ide
 .git
 .github
 .vscode
@@ -5,18 +6,35 @@
 .idea
 .cursor
 
+# build
 build/
 build-*/
 
+# not needed in docker
 temp/
 docs/
 extras/
-flutter/
 
+# flutter (mobile app, not needed for server build)
+apps/flutter/
+
+# markdown (keep LICENSE)
 *.md
 !LICENSE.md
 
+# config and env
 .gitignore
 .editorconfig
 .clang-format
 .env
+
+# os
+.DS_Store
+Thumbs.db
+
+# node (web client build artifacts handled by multi-stage)
+apps/web/node_modules/
+
+# python
+__pycache__/
+*.pyc
