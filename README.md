@@ -17,8 +17,12 @@
 </p>
 
 <p align="center">
-    A C++ AI agent orchestrator that runs anywhere as a single native binary —<br>
-    Linux, macOS, Windows, iOS, and Android — with zero external dependencies.
+    A C++ AI agent orchestrator that runs anywhere as a native build — Linux, macOS, Windows, iOS, and Android — with zero external dependencies.
+</p>
+
+<p align="center">
+    <strong>The only one that runs on mobile: a true personal assistant.</strong><br>
+    Privacy and security by design — it runs on your smartphone.
 </p>
 
 <p align="center">
@@ -31,9 +35,9 @@
 
 ## What is IonClaw?
 
-IonClaw is an AI agent orchestrator built from the ground up in C++. It compiles to a single native binary that runs directly on any device — no runtime, no interpreter, no container required.
+IonClaw is an AI agent orchestrator built from the ground up in C++. One codebase, compiled natively for each platform — no runtime, no interpreter, no container required.
 
-On a server (Linux, macOS, Windows), it starts with one command and serves a full web panel. On iOS and Android, the Flutter app embeds the same C++ engine and runs everything locally on the device. Same codebase, same capabilities, everywhere.
+On a server (Linux, macOS, Windows), it starts with one command and serves a full web panel. On iOS and Android, the app embeds the same C++ engine and runs everything locally on your smartphone. **It is the only AI agent orchestrator that runs on mobile** — a true personal assistant, with **privacy and security by design**, because it runs on your device. Same codebase, same capabilities, everywhere.
 
 ### Why C++?
 
@@ -82,6 +86,8 @@ Open `http://localhost:8080` in your browser. The web panel is served automatica
 
 ## Documentation
 
+- [About IonClaw](docs/about.md) — Overview, advantages, and audience
+- [How It Works](docs/flow.md) — Complete execution flow from message to response
 - [Architecture](docs/architecture.md) — System design and components
 - [Build](docs/build.md) — Build system and Makefile targets
 - [Configuration](docs/configuration.md) — Full config.yml reference

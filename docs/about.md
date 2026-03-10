@@ -1,52 +1,70 @@
 # About IonClaw
 
-IonClaw is an AI agent orchestrator built from the ground up in C++. It compiles to a single native binary that runs directly on any device — no runtime, no interpreter, no container required.
+IonClaw is an **AI agent orchestrator** built from the ground up in C++. If you are new to the project: an orchestrator is the layer that runs one or more AI agents, gives them tools (files, web, search, etc.), and lets you control and monitor everything from a single place. IonClaw compiles to a single native binary — no Python, no Node server, no Docker required. It runs on Linux, macOS, Windows, iOS, and Android with **zero external dependencies**.
 
-On a server (Linux, macOS, Windows), it starts with one command and serves a full web panel. On a phone or laptop (iOS, Android), the Flutter app embeds the same C++ engine and runs everything locally on the device. Same codebase, same capabilities, everywhere.
+On a server, you start it with one command and it serves a full web panel. On a phone (iOS or Android), the app embeds the same C++ engine and runs everything locally on your device. **It is the only AI agent orchestrator that runs on mobile**, so you get a true personal assistant with **privacy and security by design** — everything runs on your machine. Same codebase, same capabilities, everywhere.
 
-Because it is native C++, IonClaw has fast startup, low memory footprint, zero external dependencies, and true portability. The entire platform — web panel, project templates, built-in skills — is compiled into the binary. You deploy one file and it just works.
+Because it is native C++, IonClaw has fast startup, low memory use, and true portability. The whole platform — web panel, project templates, built-in skills — is compiled into the binary. You deploy one file and it just works.
 
-Rather than being just another autonomous AI agent, IonClaw provides a controlled ecosystem where agents operate inside structured environments, with isolation, governance, and clear operational transparency. It combines orchestration, real-time monitoring, multi-agent architecture, integrated communication, and native tooling into a unified platform.
+Rather than being “just another” autonomous AI, IonClaw is a **controlled ecosystem**: agents run inside structured workspaces, with isolation, clear rules, and full visibility. You get orchestration, real-time monitoring, multi-agent setup, and native tooling in one product.
+
+---
 
 ## Security
 
-IonClaw is designed with security as a priority. It avoids unnecessary port exposure and is architected to be controlled and predictable. Each agent runs inside an isolated workspace with sandbox restrictions, limiting file access and tool permissions. File operations are always confined to the agent's workspace and the shared public directory.
+IonClaw is designed with security as a priority. It avoids unnecessary port exposure and stays predictable and controllable. Each agent runs in an isolated workspace with sandbox limits: file access and tool permissions are restricted. File operations stay inside the agent’s workspace and the shared public directory, so the rest of the system is protected.
+
+---
 
 ## Ease of installation and use
 
-The platform is built to be simple to install and start. The server is started with an explicit command (`ionclaw start`). No complex infrastructure is required. Configuration is driven by a single `config.yml` file with environment variable expansion for secrets.
+The platform is built to be simple to install and start. You start the server with one explicit command (e.g. `ionclaw start`). No complex infrastructure. Configuration is a single `config.yml` file, with environment variable expansion for secrets, so you can keep credentials out of the file.
+
+---
 
 ## Not just for developers
 
-The fully responsive web panel (desktop, tablet, and mobile) allows anyone to manage, monitor, and configure the system. Visual configuration editing with YAML validation makes advanced configuration safer without breaking the system. Sensitive values are masked in the UI and preserved when saving.
+The web panel is fully responsive (desktop, tablet, mobile) so **anyone** can manage, monitor, and configure the system. You edit configuration visually with YAML validation, so advanced settings are safer and you are less likely to break the system. Sensitive values are masked in the UI and preserved when you save.
+
+---
 
 ## Multi-agent orchestration
 
-IonClaw can manage multiple agents. Each agent can have its own workspace, model, and tool set. When multiple agents are configured, an optional classifier routes each message to the best-suited agent. This creates a scalable, structured architecture for complex projects and automations.
+IonClaw can run **multiple agents**. Each agent can have its own workspace, model, and set of tools. When you have several agents, an optional classifier can route each message to the best-suited agent. That gives you a scalable, structured setup for complex projects and automations.
+
+---
 
 ## Real-time web dashboard
 
-The integrated real-time dashboard lets you:
+The built-in real-time dashboard lets you:
 
-- See activity in real time
+- See activity as it happens
 - Manage agents and configuration
 - Monitor tasks and executions
 - Track logs and execution duration
 - Inspect errors and status
 
-All of this is accessible from desktop, tablet, and mobile.
+All of this works from desktop, tablet, and mobile.
+
+---
 
 ## Integrated file browser
 
-A native file browser in the web panel separates public and private files. File operations occur inside sandboxed environments, ensuring safe access and preventing unintended system exposure.
+A file browser in the web panel separates public and private files. All file operations happen inside sandboxed environments, so access is safe and the rest of the system is not exposed.
+
+---
 
 ## Skill system and marketplace
 
-Skills extend the agent with specialized knowledge and workflows. You can add and edit skills through the web dashboard. A built-in marketplace lets you browse and install community skills from the web UI, at project level or per agent.
+**Skills** extend an agent with extra knowledge and workflows (written in simple Markdown). You add and edit skills from the web dashboard. A built-in **marketplace** lets you browse and install community skills from the UI, at project level or per agent, without touching the codebase.
+
+---
 
 ## Web chat
 
-A built-in web chat works without external applications. It supports text and media. Messages are delivered in real time via WebSocket (streaming, tool use, typing indicators). Sessions are persisted and listed in the sidebar.
+The built-in web chat works without any external app. It supports text and media. Messages are delivered in real time over WebSocket — including streaming, tool use, and typing indicators. Sessions are persisted and listed in the sidebar so you can continue conversations later.
+
+---
 
 ## Native tools system
 
@@ -55,28 +73,34 @@ IonClaw includes a native C++ tools system. Built-in capabilities include:
 - Sandboxed file operations (read, write, edit, list)
 - Secure shell execution (exec)
 - Full HTTP client (GET, POST, etc., with auth and file download/upload)
-- Web search (configurable providers: Brave, DuckDuckGo)
+- Web search (configurable providers, e.g. Brave, DuckDuckGo)
 - Web fetch and RSS reader
-- AI image generation (provider-routed: Gemini native API, OpenAI-compatible)
+- AI image generation (provider-routed: e.g. Gemini native API, OpenAI-compatible)
 - Local image operations (create, resize, draw, overlay, watermark)
 - Subagent spawning and cron scheduling
 - Persistent memory and session handling
 
+---
+
 ## Multi-provider LLM support
 
-Multiple LLM providers are supported (Anthropic, OpenAI, Gemini, Grok, OpenRouter, DeepSeek, and others). Model configuration uses the `provider/model` format. Credentials are stored by name and referenced from providers and tools.
+Multiple LLM providers are supported (Anthropic, OpenAI, Gemini, Grok, OpenRouter, DeepSeek, and others). You choose models with the `provider/model` format. Credentials are stored by name and referenced from providers and tools, so you can switch or add providers without rewriting config.
+
+---
 
 ## Summary
 
-IonClaw provides:
+IonClaw gives you:
 
-- Runs anywhere — macOS, Linux, Windows, iOS, Android
-- Zero dependencies — single binary with everything embedded
-- Security-first architecture and sandboxed agent isolation
-- Single-command start, everything from the browser, no coding required
-- Complete real-time visual dashboard
-- Multi-agent support with optional classifier
-- Multi-provider LLM flexibility
-- Native tool ecosystem (files, HTTP, search, images, memory, cron)
-- Skill marketplace and in-app skill editing
-- Full browser-based control and mobile-friendly UI
+- **Runs anywhere** — macOS, Linux, Windows, iOS, Android
+- **Zero dependencies** — one binary with everything embedded
+- **Security-first** — sandboxed agents and isolated workspaces
+- **One command to start** — everything from the browser, no coding required
+- **Real-time dashboard** — full visibility over agents and tasks
+- **Multi-agent** — optional classifier to route work
+- **Multi-provider** — use the LLMs you already have
+- **Native tools** — files, HTTP, search, images, memory, cron, etc.
+- **Skill marketplace** — extend agents from the UI
+- **Browser-based control** — one panel, works on mobile too
+
+For more detail on setup, configuration, and features, see the rest of the [documentation](configuration.md).
