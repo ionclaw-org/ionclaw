@@ -15,9 +15,11 @@ namespace provider
 
 FailoverProvider::FailoverProvider(
     std::vector<std::shared_ptr<LlmProvider>> providers,
-    std::vector<std::string> providerNames)
+    std::vector<std::string> providerNames,
+    std::vector<nlohmann::json> profileModelParams)
     : providers(std::move(providers))
     , providerNames(std::move(providerNames))
+    , profileModelParams(std::move(profileModelParams))
     , maxRetries(computeMaxRetries())
     , cooldownUntil(this->providers.size(), std::chrono::steady_clock::time_point{})
 {
@@ -30,6 +32,9 @@ FailoverProvider::FailoverProvider(
     {
         throw std::invalid_argument("[FailoverProvider] Providers and provider names must have equal size");
     }
+
+    // pad profileModelParams to match providers count if needed
+    this->profileModelParams.resize(this->providers.size());
 }
 
 int FailoverProvider::computeMaxRetries() const
@@ -132,6 +137,24 @@ int FailoverProvider::computeBackoffMs(int consecutiveFailures, const std::strin
     return delayMs + jitter(rng);
 }
 
+ChatCompletionRequest FailoverProvider::applyProfileParams(const ChatCompletionRequest &request, size_t profileIdx) const
+{
+    if (profileIdx >= profileModelParams.size() ||
+        !profileModelParams[profileIdx].is_object() ||
+        profileModelParams[profileIdx].empty())
+    {
+        return request;
+    }
+
+    // profile params override the request's modelParams
+    auto modified = request;
+    auto merged = modified.modelParams.is_object() ? modified.modelParams : nlohmann::json::object();
+    merged.merge_patch(profileModelParams[profileIdx]);
+    modified.modelParams = merged;
+
+    return modified;
+}
+
 ChatCompletionResponse FailoverProvider::chat(const ChatCompletionRequest &request)
 {
     int attempts = 0;
@@ -144,7 +167,8 @@ ChatCompletionResponse FailoverProvider::chat(const ChatCompletionRequest &reque
     {
         try
         {
-            auto response = providers[idx]->chat(request);
+            auto profileRequest = applyProfileParams(request, idx);
+            auto response = providers[idx]->chat(profileRequest);
             markGood(idx);
             currentIndex.store(idx);
             return response;
@@ -202,7 +226,8 @@ void FailoverProvider::chatStream(const ChatCompletionRequest &request, StreamCa
     {
         try
         {
-            providers[idx]->chatStream(request, wrappedCallback);
+            auto profileRequest = applyProfileParams(request, idx);
+            providers[idx]->chatStream(profileRequest, wrappedCallback);
             markGood(idx);
             currentIndex.store(idx);
             return;

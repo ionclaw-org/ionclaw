@@ -80,14 +80,16 @@ agents:
       # - model: "anthropic/claude-sonnet-4-20250514"
       #   credential: "anthropic-key-1"
       #   priority: 1
+      #   model_params:          # dict -- Per-profile model params. Overrides agent-level.
+      #     temperature: 0.5
       # - model: "anthropic/claude-sonnet-4-20250514"
       #   credential: "anthropic-key-2"
       #   priority: 2
     subagent_limits:
-      max_depth: 5               # int  -- Maximum subagent nesting depth.
-      max_children: 5            # int  -- Maximum concurrent child subagents.
+      max_depth: 5                 # int  -- Maximum subagent nesting depth.
+      max_children: 5              # int  -- Maximum concurrent child subagents.
       default_timeout_seconds: 0   # int -- Subagent run timeout. 0 = use registry default (300s).
-      allow_agents: []           # list -- Which agents subagents can route to. Empty = same agent.
+      allow_agents: []             # list -- Which agents subagents can route to. Empty = same agent.
 
 # ---------------------------------------------------------------------------
 # Classifier
@@ -112,7 +114,7 @@ providers:
     base_url: ""                 # str  -- Custom base URL for OpenAI-compatible APIs.
     timeout: 60                  # int  -- Request timeout in seconds.
     request_headers: {}          # dict -- Custom HTTP headers.
-    model_params: {}             # dict -- Default model parameters.
+    model_params: {}             # dict -- Default model parameters (merged as base; agent-level overrides).
 
 # ---------------------------------------------------------------------------
 # Web Client
@@ -147,7 +149,7 @@ channels:
   telegram:
     enabled: false              # bool -- Enable Telegram bot.
     credential: ""              # str  -- Credential name (type: simple) for Bot API token.
-    allowed_users: []            # list -- Telegram usernames or user IDs; empty = allow all.
+    allowed_users: []           # list -- Telegram usernames or user IDs; empty = allow all.
 
 # ---------------------------------------------------------------------------
 # Storage
@@ -159,7 +161,7 @@ storage:
 # Heartbeat
 # ---------------------------------------------------------------------------
 heartbeat:
-  enabled: false                 # bool -- Enable periodic heartbeat.
+  enabled: false                # bool -- Enable periodic heartbeat.
   # interval: 1800              # int  -- Seconds between checks. Default: 1800.
 
 # ---------------------------------------------------------------------------
@@ -175,10 +177,10 @@ messages:
   queue:
     mode: "collect"              # str  -- Default queue mode: steer, followup, collect, steer-backlog, interrupt.
     by_channel:                  # dict -- Per-channel mode override.
-      # telegram: "followup"    #         Key = channel prefix, value = queue mode.
+      # telegram: "followup"     #         Key = channel prefix, value = queue mode.
     debounce_ms: 1000            # int  -- Collect debounce period in milliseconds.
     cap: 20                      # int  -- Max queued messages before drop policy kicks in.
-    drop: "summarize"             # str  -- What to do when cap exceeded: old, new, summarize.
+    drop: "summarize"            # str  -- What to do when cap exceeded: old, new, summarize.
 
 # ---------------------------------------------------------------------------
 # Session Budget
@@ -291,7 +293,13 @@ This is useful for controlling costs or when using models behind proxies that im
 
 ### Model parameters
 
-Agent-level `model_params` (e.g. `max_tokens`, `temperature`) are passed to the LLM provider. Provider-level `model_params` in `providers` act as defaults; agent values override them.
+Model parameters (`max_tokens`, `temperature`, etc.) are resolved with a three-level merge chain. Each level overrides the one before it:
+
+1. **Provider-level** `model_params` — base defaults for all agents using this provider.
+2. **Agent-level** `model_params` — overrides provider defaults.
+3. **Profile-level** `model_params` — overrides agent defaults (failover profiles only).
+
+See [Custom Providers — Model Parameters Merge Order](custom-providers.md#model-parameters-merge-order) for a detailed example.
 
 Special model parameters:
 
@@ -300,12 +308,14 @@ Special model parameters:
 
 ### Auth profile failover
 
-When an agent has multiple `profiles` configured, IonClaw wraps the providers in a `FailoverProvider` that automatically retries across profiles on failure. Each profile specifies a model, credential, and priority.
+When an agent has multiple `profiles` configured, IonClaw wraps the providers in a `FailoverProvider` that automatically retries across profiles on failure. Each profile specifies a model, credential, priority, and optionally its own `model_params`.
 
 ```yaml
 agents:
   main:
     model: "anthropic/claude-sonnet-4-20250514"    # primary model
+    model_params:
+      temperature: 0.5
     profiles:
       - model: "anthropic/claude-sonnet-4-20250514"
         credential: "anthropic-key-1"
@@ -313,13 +323,18 @@ agents:
       - model: "anthropic/claude-sonnet-4-20250514"
         credential: "anthropic-key-2"
         priority: 2
+        model_params:
+          temperature: 0.8    # override for this profile only
       - model: "openai/gpt-4o"
         credential: "openai"
         priority: 3
+        model_params:
+          max_tokens: 16384
 ```
 
 **Failover behavior:**
 
+- Each profile can define its own `model_params` that override the agent-level defaults for that profile only.
 - Retries use exponential backoff: 1s → 2s → 4s → 8s max, with random jitter (0–500ms).
 - Rate-limit errors use a 2s base delay instead of 1s.
 - Each provider has a 60-second cooldown after failure before being retried.

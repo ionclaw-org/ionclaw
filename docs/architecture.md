@@ -208,7 +208,7 @@ Before compaction runs (once per compaction cycle), the agent loop attempts a me
 - **AnthropicProvider** (`provider/AnthropicProvider.hpp`) — Anthropic Claude API implementation. Supports text, image, and audio (document type) content blocks. Extended thinking via `thinking` model param.
 - **OpenAiProvider** (`provider/OpenAiProvider.hpp`) — OpenAI-compatible API implementation. Supports text, image, and audio (`input_audio`) content blocks.
 - **ProviderFactory** (`provider/ProviderFactory.hpp`) — Creates provider instances from config. Maps `anthropic` → AnthropicProvider, all others → OpenAiProvider.
-- **FailoverProvider** (`provider/FailoverProvider.hpp`) — Wraps multiple auth profiles and retries with exponential backoff (1s–8s, 2s base for rate limits) and jitter on transient/rate-limit errors. Tracks per-profile cooldowns (60s). Aborts stream retry if content was already delivered to prevent duplicate partial responses.
+- **FailoverProvider** (`provider/FailoverProvider.hpp`) — Wraps multiple auth profiles and retries with exponential backoff (1s–8s, 2s base for rate limits) and jitter on transient/rate-limit errors. Tracks per-profile cooldowns (60s). Each profile can define its own `model_params` that override agent-level defaults. Aborts stream retry if content was already delivered to prevent duplicate partial responses.
 - **ProviderHelper** (`provider/ProviderHelper.hpp`) — Shared utilities: tool call ID sanitization (ASCII-safe, max 64 chars), malformed JSON argument repair, error classification, error message redaction (API keys, tokens), tool call input sanitization (drops entries with missing id or name), tool call name sanitization, and stream deduplication.
 
 #### Error Classification

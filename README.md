@@ -85,6 +85,7 @@ Open `http://localhost:8080` in your browser. The web panel is served automatica
 - [Architecture](docs/architecture.md) — System design and components
 - [Build](docs/build.md) — Build system and Makefile targets
 - [Configuration](docs/configuration.md) — Full config.yml reference
+- [Custom Providers](docs/custom-providers.md) — Ollama, LM Studio, MiniMax, and other OpenAI-compatible providers
 - [Flutter](docs/flutter.md) — Flutter app, release builds, and signing
 - [Skills](docs/skills.md) — Creating and managing skills
 - [Tools](docs/tools.md) — Built-in tools reference

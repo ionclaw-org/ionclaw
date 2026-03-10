@@ -123,6 +123,7 @@ std::shared_ptr<LlmProvider> ProviderFactory::createFailoverFromProfiles(
 
     std::vector<std::shared_ptr<LlmProvider>> providers;
     std::vector<std::string> names;
+    std::vector<nlohmann::json> profileParams;
 
     for (const auto &profile : sorted)
     {
@@ -156,6 +157,7 @@ std::shared_ptr<LlmProvider> ProviderFactory::createFailoverFromProfiles(
 
             providers.push_back(provider);
             names.push_back(model);
+            profileParams.push_back(profile.modelParams);
 
             spdlog::info("[ProviderFactory] Added failover profile: {} (priority {})", model, profile.priority);
         }
@@ -170,12 +172,14 @@ std::shared_ptr<LlmProvider> ProviderFactory::createFailoverFromProfiles(
         throw std::runtime_error("No valid profiles for failover provider");
     }
 
-    if (providers.size() == 1)
+    // skip FailoverProvider wrapper only if single profile has no custom model params
+    if (providers.size() == 1 &&
+        (!profileParams[0].is_object() || profileParams[0].empty()))
     {
         return providers[0];
     }
 
-    return std::make_shared<FailoverProvider>(std::move(providers), std::move(names));
+    return std::make_shared<FailoverProvider>(std::move(providers), std::move(names), std::move(profileParams));
 }
 
 } // namespace provider

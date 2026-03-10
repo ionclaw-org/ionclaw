@@ -138,8 +138,23 @@ void Orchestrator::start()
                 firstProvider = provider;
             }
 
+            // merge provider-level model_params as defaults under agent-level model_params
+            auto resolvedAgentConfig = agentConfig;
+            auto providerConfig = config.resolveProvider(agentConfig.model);
+
+            if (providerConfig.modelParams.is_object() && !providerConfig.modelParams.empty())
+            {
+                // provider params are the base; agent params override
+                auto merged = providerConfig.modelParams;
+                if (resolvedAgentConfig.modelParams.is_object())
+                {
+                    merged.merge_patch(resolvedAgentConfig.modelParams);
+                }
+                resolvedAgentConfig.modelParams = merged;
+            }
+
             // create memory store and skills loader for this agent
-            auto workspacePath = agentConfig.workspace;
+            auto workspacePath = resolvedAgentConfig.workspace;
             auto memory = std::make_shared<MemoryStore>(workspacePath);
             auto skills = std::make_shared<SkillsLoader>(config.projectPath, workspacePath);
             skillsLoaders[name] = skills;
@@ -155,7 +170,7 @@ void Orchestrator::start()
                 sessionManager,
                 taskManager,
                 dispatcher,
-                agentConfig,
+                resolvedAgentConfig,
                 name);
 
             // set public path for tools

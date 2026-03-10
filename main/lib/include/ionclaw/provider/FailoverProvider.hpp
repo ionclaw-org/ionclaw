@@ -18,7 +18,8 @@ class FailoverProvider : public LlmProvider
 {
 public:
     FailoverProvider(std::vector<std::shared_ptr<LlmProvider>> providers,
-                     std::vector<std::string> providerNames);
+                     std::vector<std::string> providerNames,
+                     std::vector<nlohmann::json> profileModelParams = {});
 
     ChatCompletionResponse chat(const ChatCompletionRequest &request) override;
     void chatStream(const ChatCompletionRequest &request, StreamCallback callback) override;
@@ -27,6 +28,7 @@ public:
 private:
     std::vector<std::shared_ptr<LlmProvider>> providers;
     std::vector<std::string> providerNames;
+    std::vector<nlohmann::json> profileModelParams;
     std::atomic<size_t> currentIndex{0};
     int maxRetries;
 
@@ -37,6 +39,7 @@ private:
     static constexpr int MAX_BACKOFF_MS = 8000;
     static constexpr int JITTER_MS = 500;
 
+    ChatCompletionRequest applyProfileParams(const ChatCompletionRequest &request, size_t profileIdx) const;
     static bool isFailoverableError(const std::string &errorCategory);
     static int computeBackoffMs(int consecutiveFailures, const std::string &errorCategory);
     int computeMaxRetries() const;
