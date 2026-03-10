@@ -698,7 +698,11 @@ double MemoryStore::computeTemporalDecay(const std::string &filePath, const std:
             tm.tm_year = year - 1900;
             tm.tm_mon = month - 1;
             tm.tm_mday = day;
+#if defined(_WIN32)
+            auto fileTime = std::chrono::system_clock::from_time_t(_mkgmtime(&tm));
+#else
             auto fileTime = std::chrono::system_clock::from_time_t(timegm(&tm));
+#endif
 
             auto now = std::chrono::system_clock::now();
             auto ageMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - fileTime).count();

@@ -2,6 +2,14 @@
 
 #include <cstdio>
 
+#if defined(_WIN32)
+#define IONCLAW_POPEN _popen
+#define IONCLAW_PCLOSE _pclose
+#else
+#define IONCLAW_POPEN popen
+#define IONCLAW_PCLOSE pclose
+#endif
+
 namespace ionclaw
 {
 namespace util
@@ -12,7 +20,7 @@ class PipeGuard
 {
 public:
     explicit PipeGuard(const char *command, const char *mode = "r")
-        : pipe_(popen(command, mode))
+        : pipe_(IONCLAW_POPEN(command, mode))
     {
     }
 
@@ -20,7 +28,7 @@ public:
     {
         if (pipe_)
         {
-            pclose(pipe_);
+            IONCLAW_PCLOSE(pipe_);
         }
     }
 
@@ -38,7 +46,7 @@ public:
             return -1;
         }
 
-        auto result = pclose(pipe_);
+        auto result = IONCLAW_PCLOSE(pipe_);
         pipe_ = nullptr;
         return result;
     }
