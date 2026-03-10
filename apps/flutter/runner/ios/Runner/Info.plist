@@ -83,5 +83,7 @@
 	<string>IonClaw needs microphone access for audio recording in the web interface.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>IonClaw needs camera access for the web interface.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

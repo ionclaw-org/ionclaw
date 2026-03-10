@@ -23,8 +23,19 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # options
-set(IONCLAW_VERSION "0.0.0-dev" CACHE STRING "IonClaw version string")
-option(IONCLAW_BUILD_SHARED "Build shared library (FFI)" OFF)
+set(IONCLAW_VERSION "1.0.0" CACHE STRING "IonClaw Version")
+option(IONCLAW_BUILD_SHARED "Build Shared Library (FFI)" OFF)
+
+# Apple platform deployment targets
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "iOS deployment target")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "watchOS")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "8.0" CACHE STRING "watchOS deployment target")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "tvOS")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "tvOS deployment target")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "visionOS")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "1.0" CACHE STRING "visionOS deployment target")
+endif()
 
 # output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")

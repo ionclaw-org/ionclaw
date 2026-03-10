@@ -26,9 +26,6 @@ CMAKE_FLAGS        := -DCMAKE_BUILD_TYPE=Release
 CMAKE_DEBUG_FLAGS  := -DCMAKE_BUILD_TYPE=Debug
 CMAKE_SHARED_FLAGS := $(CMAKE_FLAGS) -DIONCLAW_BUILD_SHARED=ON
 
-# --- ios toolchain ---
-IOS_MIN_VERSION    := 13.0
-
 # --- android toolchain ---
 ANDROID_NDK        ?= $(ANDROID_NDK_ROOT)
 ANDROID_API        := 24
@@ -187,7 +184,6 @@ build-ios-arm64: ## Build iOS arm64 shared library
 	cmake -B $(BUILD_IOS_ARM64) $(CMAKE_SHARED_FLAGS) \
 		-DCMAKE_SYSTEM_NAME=iOS \
 		-DCMAKE_OSX_ARCHITECTURES=arm64 \
-		-DCMAKE_OSX_DEPLOYMENT_TARGET=$(IOS_MIN_VERSION) \
 		-DCMAKE_OSX_SYSROOT=iphoneos
 	cmake --build $(BUILD_IOS_ARM64) -j$(NPROC)
 	@echo "==> Done: $(BUILD_IOS_ARM64)/lib/"
@@ -198,7 +194,6 @@ build-ios-sim-arm64: ## Build iOS simulator arm64 shared library
 	cmake -B $(BUILD_IOS_SIM_ARM64) $(CMAKE_SHARED_FLAGS) \
 		-DCMAKE_SYSTEM_NAME=iOS \
 		-DCMAKE_OSX_ARCHITECTURES=arm64 \
-		-DCMAKE_OSX_DEPLOYMENT_TARGET=$(IOS_MIN_VERSION) \
 		-DCMAKE_OSX_SYSROOT=iphonesimulator
 	cmake --build $(BUILD_IOS_SIM_ARM64) -j$(NPROC)
 	@echo "==> Done: $(BUILD_IOS_SIM_ARM64)/lib/"
@@ -209,7 +204,6 @@ build-ios-sim-x86: ## Build iOS simulator x86_64 shared library
 	cmake -B $(BUILD_IOS_SIM_X86) $(CMAKE_SHARED_FLAGS) \
 		-DCMAKE_SYSTEM_NAME=iOS \
 		-DCMAKE_OSX_ARCHITECTURES=x86_64 \
-		-DCMAKE_OSX_DEPLOYMENT_TARGET=$(IOS_MIN_VERSION) \
 		-DCMAKE_OSX_SYSROOT=iphonesimulator
 	cmake --build $(BUILD_IOS_SIM_X86) -j$(NPROC)
 	@echo "==> Done: $(BUILD_IOS_SIM_X86)/lib/"
