@@ -7,9 +7,6 @@ on:
       release:
         type: boolean
         default: false
-      version:
-        type: string
-        default: "1.0.0"
 
 env:
   BUILD_TYPE: Release
@@ -50,8 +47,7 @@ jobs:
           restore-keys: cpm-${{ runner.os }}-x86_64-
 
       - name: Configure
-        run: cmake -B build/release -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_VERSION=${{ inputs.version || '1.0.0' }}
-
+        run: cmake -B build/release -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
       - name: Build
         run: cmake --build build/release --config ${{ env.BUILD_TYPE }} --parallel
 
@@ -61,7 +57,7 @@ jobs:
       - name: Build shared library
         if: ${{ inputs.release }}
         run: |
-          cmake -B build/shared -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON -DIONCLAW_VERSION=${{ inputs.version || '1.0.0' }}
+          cmake -B build/shared -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON
           cmake --build build/shared --config ${{ env.BUILD_TYPE }} --parallel
 
       - name: Package server
