@@ -15,7 +15,7 @@ namespace builtin
 class ExecTool : public Tool
 {
 public:
-    std::string execute(const nlohmann::json &params, const ToolContext &context) override;
+    ToolResult execute(const nlohmann::json &params, const ToolContext &context) override;
     ToolSchema schema() const override;
     std::set<std::string> supportedPlatforms() const override;
 

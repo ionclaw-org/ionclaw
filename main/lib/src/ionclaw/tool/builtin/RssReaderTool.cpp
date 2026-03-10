@@ -68,7 +68,7 @@ std::string RssReaderTool::stripHtmlTags(const std::string &html)
 }
 
 // execute rss/atom feed fetch and parse
-std::string RssReaderTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult RssReaderTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto url = params.at("url").get<std::string>();
     int count = 10;

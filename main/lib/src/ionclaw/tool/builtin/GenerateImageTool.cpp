@@ -33,7 +33,7 @@ const std::set<std::string> GenerateImageTool::VALID_ASPECT_RATIOS = {
 const std::set<std::string> GenerateImageTool::VALID_SIZES = {"1K", "2K", "4K"};
 
 // execute image generation
-std::string GenerateImageTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult GenerateImageTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     std::string prompt = params.at("prompt").get<std::string>();
     std::string filename = params.at("filename").get<std::string>();
@@ -184,7 +184,7 @@ ToolSchema GenerateImageTool::schema() const
            {"filename", {{"type", "string"}, {"description", "Output filename (e.g. poster.png, banner.jpg)"}}},
            {"aspect_ratio", {{"type", "string"}, {"description", "Image aspect ratio. Options: 1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3, 4:5, 5:4, 21:9. Use 1:1 for social posts, 16:9 for banners, 9:16 for stories."}}},
            {"size", {{"type", "string"}, {"enum", nlohmann::json::array({"1K", "2K", "4K"})}, {"description", "Image resolution. Options: 1K (default), 2K, 4K. Use 2K for social media, 4K for print."}}},
-           {"reference_images", {{"type", "array"}, {"items", {{"type", "string"}}}, {"description", "Paths to reference images. These are sent as visual context BEFORE the prompt. For logos, describe in the prompt how to use them."}}},
+           {"reference_images", {{"type", "array"}, {"items", {{"type", "string"}}}, {"description", "Paths to reference images (use the exact path from [media: path (type)] annotations in the conversation). These are sent as visual context BEFORE the prompt. For logos, describe in the prompt how to use them."}}},
            {"style", {{"type", "string"}, {"description", "Style hint (e.g. photorealistic, illustration, watercolor, minimal, cinematic, digital art, vector, pixel art)"}}},
            {"negative_prompt", {{"type", "string"}, {"description", "What to avoid in the image (e.g. blurry, text, watermark)"}}},
            {"google_search", {{"type", "boolean"}, {"description", "Enable Google Search grounding for real-time data (stock prices, weather, current events, charts)"}}}}},

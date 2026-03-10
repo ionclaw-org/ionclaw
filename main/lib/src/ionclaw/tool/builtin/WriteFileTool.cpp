@@ -12,7 +12,7 @@ namespace tool
 namespace builtin
 {
 
-std::string WriteFileTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult WriteFileTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto rawPath = params.at("path").get<std::string>();
     auto content = params.at("content").get<std::string>();

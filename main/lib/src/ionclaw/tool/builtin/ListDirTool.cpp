@@ -12,7 +12,7 @@ namespace tool
 namespace builtin
 {
 
-std::string ListDirTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult ListDirTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto rawPath = params.at("path").get<std::string>();
     auto resolvedPath = ToolHelper::validateAndResolvePath(context.workspacePath, rawPath, context.publicPath);

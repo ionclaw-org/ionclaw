@@ -21,6 +21,7 @@
 ## Media
 
 - `generate_image(prompt, filename)` - Generate an image from a text prompt
+- `vision(path, url, base64, question, mime_type)` - Analyze and describe images using AI vision
 
 ## Communication
 

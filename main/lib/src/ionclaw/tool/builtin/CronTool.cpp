@@ -15,7 +15,7 @@ namespace tool
 namespace builtin
 {
 
-std::string CronTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult CronTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto action = params.at("action").get<std::string>();
 

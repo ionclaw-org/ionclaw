@@ -36,7 +36,8 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/image/ImageGeneratorHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/image/ImageGeneratorRegistry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/image/GeminiImageGenerator.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/image/OpenAIStyleImageGenerator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/image/GrokImageGenerator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/image/OpenAIImageGenerator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/image/LocalImageGenerator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/transcription/TranscriptionProviderRegistry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/transcription/OpenAITranscriptionProvider.cpp
@@ -62,6 +63,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/SubagentsTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/CronTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/BrowserTool.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/VisionTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/ContextBuilder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/AgentLoop.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/Orchestrator.cpp

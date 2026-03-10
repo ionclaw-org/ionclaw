@@ -128,6 +128,7 @@ agents:
       - browser
       - generate_image
       - image_ops
+      - vision
       - message
       - spawn
       - cron

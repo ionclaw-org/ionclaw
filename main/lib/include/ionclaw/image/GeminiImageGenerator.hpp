@@ -18,7 +18,19 @@ public:
                          const ImageGeneratorContext &context) const override;
 
 private:
-    static std::string extractModelId(const std::string &model);
+    std::string generateContent(const std::string &prompt, const std::string &filename,
+                                const nlohmann::json &params,
+                                const ImageGeneratorContext &context,
+                                const std::string &apiKey, const std::string &baseUrl,
+                                const std::string &modelId) const;
+
+    std::string predict(const std::string &prompt, const std::string &filename,
+                        const nlohmann::json &params,
+                        const ImageGeneratorContext &context,
+                        const std::string &apiKey, const std::string &baseUrl,
+                        const std::string &modelId) const;
+
+    static bool isImagenModel(const std::string &modelId);
 
     std::string name_;
 };

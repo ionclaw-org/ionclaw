@@ -10,7 +10,7 @@ namespace tool
 namespace builtin
 {
 
-std::string SubagentsTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult SubagentsTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     if (!context.subagentRegistry)
     {

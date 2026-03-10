@@ -4,7 +4,7 @@ Tools are the functions the AI agent can call during conversations. This documen
 
 ## Overview
 
-Tools are registered in the `ToolRegistry`. The registry stores tool instances, generates OpenAI-compatible function definitions for the LLM, executes tool calls by name with arguments, and returns string results to the agent loop. Tool results may be truncated to avoid context overflow.
+Tools are registered in the `ToolRegistry`. The registry stores tool instances, generates OpenAI-compatible function definitions for the LLM, and executes tool calls by name with arguments. Tools return `ToolResult` (text + optional media blocks such as images). Tool results may be truncated to avoid context overflow.
 
 Each agent can restrict which tools it has via the `tools` whitelist in its configuration. When the list is empty (default), all tools are available. When set, only tools whose name appears in the list are registered for that agent.
 
@@ -256,7 +256,7 @@ Supports RSS 2.0 and Atom. HTML is stripped from summary fields.
 
 #### generate_image
 
-Generate images using AI models. Provider is chosen by `image.model` (e.g. `gemini/*`, `openai/*`). Saves to the public media directory.
+Generate images using AI models. Provider is chosen by `image.model` (e.g. `gemini/*`, `openai/*`). Saves to the public media directory. See [Image Generation](image-generation.md) for full provider details.
 
 | Parameter | Type | Required | Description |
 |----------|------|----------|-------------|
@@ -269,7 +269,21 @@ Generate images using AI models. Provider is chosen by `image.model` (e.g. `gemi
 | `negative_prompt` | string | No | What to avoid in the generated image |
 | `google_search` | boolean | No | Enable Google Search grounding for real-time data |
 
-Requires `image.model` and a configured credential for the model's provider. Gemini models use the native API (aspect ratio, reference image); others use an OpenAI-compatible endpoint.
+Requires `image.model` and a configured credential for the model's provider. Each provider has a dedicated image generator:
+
+**Supported providers and models:**
+
+| Provider | Models | Generation | Edit (reference images) |
+|----------|--------|-----------|------------------------|
+| `gemini` / `google` | gemini-2.5-flash-image, gemini-3.1-flash-image-preview, imagen-4.0-* | Yes | Yes (Gemini models: inline base64; Imagen: text-to-image only) |
+| `openai` | gpt-image-1, gpt-image-1-mini, gpt-image-1.5, dall-e-3, dall-e-2 | Yes | gpt-image: Yes (multipart, up to 16), dall-e-2: Yes (1 image), dall-e-3: No |
+| `grok` | grok-imagine-image, grok-imagine-image-pro | Yes | Yes (JSON with base64 data URIs, up to 3) |
+
+**Provider-specific behavior:**
+
+- **Gemini** — Uses the `generateContent` API. Reference images are sent as `inlineData` parts before the prompt. Supports `aspect_ratio` and `size` natively. Supports Google Search grounding via `google_search` parameter.
+- **OpenAI** — Generation uses `/v1/images/generations` (JSON). Editing uses `/v1/images/edits` (multipart form). For gpt-image models, `output_format=png` (always returns base64). For dall-e models, `response_format=b64_json`. Aspect ratio is mapped to pixel dimensions (e.g. `16:9` → `1536x1024` for gpt-image, `1792x1024` for dall-e-3). dall-e-2 only supports 256x256, 512x512, and 1024x1024 (defaults to 1024x1024).
+- **Grok (xAI)** — Both generation and editing use JSON (not multipart). Generation supports `response_format=b64_json`; edit does not use `response_format`. Accepts `aspect_ratio` directly. Uses `resolution` (`1k`/`2k`) instead of pixel dimensions. Edit endpoint uses base64 data URIs for reference images. Single image uses `"image"` field; multiple uses `"images"` array.
 
 #### image_ops
 
@@ -295,25 +309,52 @@ Local image operations (no AI): create, resize, draw rectangles, overlay/waterma
 - **draw_rect** — Fill a rectangle with color on an existing image (input_path, output_path, x, y, width, height, color).
 - **overlay** — Paste an image on top at (x, y). Optional `overlay_width`/`overlay_height` to resize the overlay first.
 
+#### vision
+
+Analyze and describe images using the AI model's native vision capabilities. Accepts images from local files, URLs, or base64 data. The image is sent directly to the model as a visual content block — no external vision API needed.
+
+| Parameter | Type | Required | Description |
+|----------|------|----------|-------------|
+| `path` | string | One of path/url/base64 | Absolute path to a local image file |
+| `url` | string | One of path/url/base64 | URL of a remote image to fetch and analyze |
+| `base64` | string | One of path/url/base64 | Base64-encoded image data (with or without data URI prefix) |
+| `question` | string | No | Specific question about the image. If omitted, provides a general description |
+| `mime_type` | string | No | Override MIME type (auto-detected from file extension or URL) |
+
+Supported formats: JPEG, PNG, GIF, WebP, SVG, BMP, ICO, TIFF, AVIF. Max 20MB.
+
+See [vision SKILL.md](../main/resources/skills/vision/SKILL.md) for workflows and examples.
+
 ---
 
 ### Browser
 
 #### browser
 
-Chrome automation via the Chrome DevTools Protocol (CDP): navigate, snapshot, screenshot, click, type, press, inspect, evaluate, wait. Requires Chrome installed. Available on macOS, Linux, and Windows only.
+Full browser automation via Chrome DevTools Protocol (CDP). Navigate pages, interact with UI elements, take screenshots, extract content, manage tabs, emulate devices, handle cookies/storage, monitor network, and control browser state. Requires Chrome/Chromium installed. Available on macOS, Linux, and Windows.
 
-| Parameter | Type | Required | Description |
-|----------|------|----------|-------------|
-| `action` | string | Yes | `navigate`, `snapshot`, `screenshot`, `click`, `type`, `press`, `inspect`, `evaluate`, `wait` |
-| `url` | string | Conditional | Required for `navigate` |
-| `selector` | string | Conditional | CSS selector (click, type) |
-| `text` | string | Conditional | Text to type (type) |
-| `key` | string | Conditional | Key name (press): Enter, Tab, Escape, etc. |
-| `script` | string | Conditional | JavaScript expression (evaluate) |
-| `seconds` | integer | No | Seconds to wait (wait; default 2) |
-| `max_chars` | integer | No | Max characters for snapshot (default 50000) |
-| `headless` | boolean | No | Run headless (default true) |
+**Actions:** `navigate`, `back`, `forward`, `reload`, `scroll`, `wait`, `snapshot`, `screenshot`, `inspect`, `pdf`, `click`, `type`, `press`, `hover`, `select`, `fill`, `drag`, `scroll_into_view`, `resize`, `evaluate`, `console`, `errors`, `requests`, `response_body`, `cookies`, `set_cookie`, `clear_cookies`, `get_storage`, `set_storage`, `clear_storage`, `set_offline`, `set_headers`, `set_credentials`, `set_geolocation`, `set_media`, `set_timezone`, `set_locale`, `set_device`, `dialog`, `upload`, `tabs`, `open`, `focus`, `close`, `status`, `start`, `stop`.
+
+Key parameters (varies per action):
+
+| Parameter | Type | Description |
+|----------|------|-------------|
+| `action` | string | Browser action to perform (required) |
+| `url` | string | URL for navigate/open |
+| `selector` | string | CSS selector for element interactions |
+| `text` | string | Text to type or wait for |
+| `key` | string | Key name for press (Enter, Tab, Escape, etc.) |
+| `script` | string | JavaScript for evaluate |
+| `output_path` | string | File path to save screenshot/PDF (auto-creates parent dirs) |
+| `full_page` | boolean | Full page screenshot |
+| `image_type` | string | Screenshot format: png, jpeg, webp |
+| `quality` | integer | JPEG/WebP quality 0-100 |
+| `max_chars` | integer | Max chars for snapshot/response_body |
+| `headless` | boolean | Run Chrome headless (default false) |
+
+Screenshots return a `ToolResult` with a resized JPEG preview as a media block (visible to the LLM for visual analysis) plus the full-resolution file path. PDFs are saved to disk and the path is returned.
+
+See [browser SKILL.md](../main/resources/skills/browser/SKILL.md) for complete action reference, parameters, workflows, and response formats.
 
 ---
 

@@ -7,7 +7,7 @@ namespace tool
 namespace builtin
 {
 
-std::string MessageTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult MessageTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto content = params.at("content").get<std::string>();
 

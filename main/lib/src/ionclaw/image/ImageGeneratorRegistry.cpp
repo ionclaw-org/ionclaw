@@ -1,7 +1,8 @@
 #include "ionclaw/image/ImageGeneratorRegistry.hpp"
 
 #include "ionclaw/image/GeminiImageGenerator.hpp"
-#include "ionclaw/image/OpenAIStyleImageGenerator.hpp"
+#include "ionclaw/image/GrokImageGenerator.hpp"
+#include "ionclaw/image/OpenAIImageGenerator.hpp"
 
 namespace ionclaw
 {
@@ -12,8 +13,8 @@ ImageGeneratorRegistry::ImageGeneratorRegistry()
 {
     registerGenerator("gemini", std::make_unique<GeminiImageGenerator>("gemini"));
     registerGenerator("google", std::make_unique<GeminiImageGenerator>("google"));
-    registerGenerator("openai", std::make_unique<OpenAIStyleImageGenerator>("openai"));
-    registerGenerator("grok", std::make_unique<OpenAIStyleImageGenerator>("grok"));
+    registerGenerator("openai", std::make_unique<OpenAIImageGenerator>("openai"));
+    registerGenerator("grok", std::make_unique<GrokImageGenerator>("grok"));
 }
 
 ImageGeneratorRegistry &ImageGeneratorRegistry::instance()

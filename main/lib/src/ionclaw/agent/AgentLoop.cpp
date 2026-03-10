@@ -11,6 +11,10 @@
 #include <fstream>
 #include <thread>
 
+#include "stb_image.h"
+#include "stb_image_resize2.h"
+#include "stb_image_write.h"
+
 #include "ionclaw/agent/Compaction.hpp"
 #include "ionclaw/agent/ContextWindow.hpp"
 #include "ionclaw/agent/HookRunner.hpp"
@@ -30,6 +34,22 @@ namespace ionclaw
 {
 namespace agent
 {
+
+namespace
+{
+
+// preview constraints for user-uploaded images
+constexpr int MEDIA_PREVIEW_MAX_WIDTH = 1024;
+constexpr int MEDIA_PREVIEW_JPEG_QUALITY = 50;
+
+void stbWriteCallback(void *context, void *data, int size)
+{
+    auto *vec = static_cast<std::vector<unsigned char> *>(context);
+    auto *bytes = static_cast<unsigned char *>(data);
+    vec->insert(vec->end(), bytes, bytes + size);
+}
+
+} // anonymous namespace
 
 // graduated thinking level downgrade: high→medium→low→(empty = remove)
 std::string pickFallbackThinkingLevel(const std::string &current)
@@ -203,6 +223,8 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
     static const std::set<std::string> AUDIO_EXTENSIONS = {
         ".mp3", ".wav", ".ogg", ".oga", ".opus", ".m4a", ".webm", ".aac", ".flac"};
 
+    spdlog::info("[resolveMedia] {} media path(s), projectRoot={}", paths.size(), projectRoot);
+
     nlohmann::json blocks = nlohmann::json::array();
 
     for (const auto &path : paths)
@@ -290,42 +312,107 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
         }
         else
         {
-            // image: build data URI
-            auto b64 = ionclaw::util::Base64::encodeFromFile(fullPath);
+            // image: read raw bytes, generate LLM-friendly JPEG preview
+            std::ifstream file(fullPath, std::ios::binary);
 
-            if (b64.empty())
+            if (!file.good())
             {
-                spdlog::warn("failed to read media file: {}", fullPath);
+                spdlog::warn("[resolveMedia] failed to open image: {}", fullPath);
                 continue;
             }
 
-            std::string mime = "image/png";
+            std::string rawBytes((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
-            if (ext == ".jpg" || ext == ".jpeg")
+            if (rawBytes.empty())
             {
-                mime = "image/jpeg";
-            }
-            else if (ext == ".gif")
-            {
-                mime = "image/gif";
-            }
-            else if (ext == ".webp")
-            {
-                mime = "image/webp";
-            }
-            else if (ext == ".svg")
-            {
-                mime = "image/svg+xml";
-            }
-            else if (ext == ".bmp")
-            {
-                mime = "image/bmp";
+                spdlog::warn("[resolveMedia] empty image file: {}", fullPath);
+                continue;
             }
 
-            blocks.push_back({{"type", "image"}, {"url", "data:" + mime + ";base64," + b64}});
+            // decode → resize → JPEG preview (same as VisionTool/BrowserTool)
+            int w = 0, h = 0, channels = 0;
+            unsigned char *pixels = stbi_load_from_memory(
+                reinterpret_cast<const unsigned char *>(rawBytes.data()),
+                static_cast<int>(rawBytes.size()), &w, &h, &channels, 3);
+
+            if (!pixels)
+            {
+                // SVG, ICO, TIFF etc. — send raw data with original MIME type
+                std::string mime = "image/png";
+
+                if (ext == ".jpg" || ext == ".jpeg")
+                    mime = "image/jpeg";
+                else if (ext == ".gif")
+                    mime = "image/gif";
+                else if (ext == ".webp")
+                    mime = "image/webp";
+                else if (ext == ".svg")
+                    mime = "image/svg+xml";
+                else if (ext == ".bmp")
+                    mime = "image/bmp";
+
+                auto b64 = ionclaw::util::Base64::encode(rawBytes);
+                spdlog::info("[resolveMedia] image raw (not rasterizable): {} ({}, {}KB)", fullPath, mime, rawBytes.size() / 1024);
+                blocks.push_back({{"type", "image"}, {"url", "data:" + mime + ";base64," + b64}});
+                continue;
+            }
+
+            int previewW = w;
+            int previewH = h;
+            std::vector<unsigned char> resizedPixels;
+            unsigned char *previewData = pixels;
+
+            if (w > MEDIA_PREVIEW_MAX_WIDTH)
+            {
+                previewW = MEDIA_PREVIEW_MAX_WIDTH;
+                previewH = static_cast<int>(static_cast<double>(h) * MEDIA_PREVIEW_MAX_WIDTH / w);
+
+                if (previewH < 1)
+                    previewH = 1;
+
+                resizedPixels.resize(static_cast<size_t>(previewW * previewH * 3));
+                auto *ok = stbir_resize_uint8_linear(
+                    pixels, w, h, 0,
+                    resizedPixels.data(), previewW, previewH, 0, STBIR_RGB);
+
+                if (ok)
+                {
+                    previewData = resizedPixels.data();
+                }
+                else
+                {
+                    spdlog::warn("[resolveMedia] resize failed for {}x{}, using original dimensions", w, h);
+                    previewW = w;
+                    previewH = h;
+                }
+            }
+
+            // encode as JPEG
+            std::vector<unsigned char> jpegBuf;
+            jpegBuf.reserve(static_cast<size_t>(previewW * previewH));
+            stbi_write_jpg_to_func(stbWriteCallback, &jpegBuf, previewW, previewH, 3,
+                                   previewData, MEDIA_PREVIEW_JPEG_QUALITY);
+
+            stbi_image_free(pixels);
+
+            if (jpegBuf.empty())
+            {
+                spdlog::warn("[resolveMedia] JPEG encode failed for {}, skipping", fullPath);
+                continue;
+            }
+
+            auto previewB64 = ionclaw::util::Base64::encode(
+                reinterpret_cast<const unsigned char *>(jpegBuf.data()), jpegBuf.size());
+
+            spdlog::info("[resolveMedia] image preview: {} ({}x{} -> {}x{}, {}KB JPEG from {}KB {})",
+                         fullPath, w, h, previewW, previewH,
+                         jpegBuf.size() / 1024, rawBytes.size() / 1024, ext);
+
+            blocks.push_back({{"type", "image"}, {"url", "data:image/jpeg;base64," + previewB64}});
         }
     }
 
+    spdlog::debug("[resolveMedia] resolved {} block(s)", blocks.size());
     return blocks;
 }
 
@@ -530,9 +617,22 @@ void AgentLoop::processMessage(
     }
 
     toolContext.publicPath = publicPath;
-    toolContext.messageSender = messageSender;
+
+    // wrap messageSender to capture content delivered via message tool
+    // (used as response fallback when model returns empty after tool execution)
+    std::string messageToolDeliveredContent;
+
+    if (messageSender)
+    {
+        toolContext.messageSender = [this, &messageToolDeliveredContent](const std::string &channel, const std::string &chatId, const std::string &content)
+        {
+            messageToolDeliveredContent = content;
+            messageSender(channel, chatId, content);
+        };
+    }
     toolContext.config = configPtr;
     toolContext.taskManager = taskManager.get();
+    toolContext.sessionManager = sessionManager.get();
     toolContext.bus = busPtr;
     toolContext.dispatcher = dispatcher.get();
     toolContext.cronService = cronServicePtr;
@@ -598,6 +698,12 @@ void AgentLoop::processMessage(
         userSessionMsg.content = effectiveContent;
         userSessionMsg.timestamp = ionclaw::util::TimeHelper::now();
         userSessionMsg.agentName = agentName;
+
+        for (const auto &path : message.media)
+        {
+            userSessionMsg.media.push_back(path);
+        }
+
         sessionManager->addMessage(sessionKey, userSessionMsg);
         dispatcher->broadcast("sessions:updated", nlohmann::json::object());
     }
@@ -645,7 +751,71 @@ void AgentLoop::processMessage(
     // strip incomplete trailing directive markers
     effectiveContent = stripTrailingDirectives(effectiveContent);
 
-    auto messages = ContextBuilder::buildMessages(systemPrompt, history, effectiveContent, imageBlocks);
+    // re-resolve media for recent historical user messages so images persist across turns
+    std::map<int, nlohmann::json> historyMediaBlocks;
+
+    {
+        int userCount = 0;
+        // pruneHistoryImages keeps 4 user messages total (1 current + 3 historical),
+        // so we only need to resolve 3 historical messages to avoid wasted work
+        constexpr int HISTORY_MEDIA_KEEP = 3;
+
+        for (int i = static_cast<int>(history.size()) - 1; i >= 0; --i)
+        {
+            if (history[i].role != "user" || history[i].media.empty())
+            {
+                continue;
+            }
+
+            userCount++;
+
+            if (userCount > HISTORY_MEDIA_KEEP)
+            {
+                break;
+            }
+
+            // extract file paths from session media entries
+            std::vector<std::string> paths;
+
+            for (const auto &m : history[i].media)
+            {
+                if (m.is_string())
+                {
+                    paths.push_back(m.get<std::string>());
+                }
+            }
+
+            if (!paths.empty())
+            {
+                auto blocks = resolveMedia(paths, projectRoot);
+
+                // filter to image blocks only (transcriptions are already in content)
+                nlohmann::json imageOnly = nlohmann::json::array();
+
+                for (const auto &block : blocks)
+                {
+                    auto type = block.value("type", "");
+
+                    if (type == "image" || type == "image_url")
+                    {
+                        imageOnly.push_back(block);
+                    }
+                }
+
+                if (!imageOnly.empty())
+                {
+                    historyMediaBlocks[i] = imageOnly;
+                }
+            }
+        }
+
+        if (!historyMediaBlocks.empty())
+        {
+            spdlog::info("[AgentLoop] Re-resolved media for {} historical message(s)", historyMediaBlocks.size());
+        }
+    }
+
+    auto messages = ContextBuilder::buildMessages(systemPrompt, history, effectiveContent, imageBlocks, historyMediaBlocks);
 
     // prompt size validation: defense-in-depth against oversized payloads
     auto promptBytes = estimatePromptBytes(messages);
@@ -661,13 +831,20 @@ void AgentLoop::processMessage(
     {
         auto [responseText, responseBlocks] = runAgentLoop(messages, taskId, sessionKey, sessionKey, agentName, toolContext, callback);
 
-        // silent reply: if the model returns a silent token, use last message-tool content
-        if (responseText == "[SILENT]" && !lastSentContent.empty())
+        // resolve empty/silent responses: prefer message-tool content from this turn,
+        // then fall back to last sent content from a previous turn
+        if (responseText == "[SILENT]")
         {
-            responseText = lastSentContent;
+            responseText = !messageToolDeliveredContent.empty() ? messageToolDeliveredContent
+                           : !lastSentContent.empty()           ? lastSentContent
+                                                                : "";
+        }
+        else if (responseText.empty() && !messageToolDeliveredContent.empty())
+        {
+            responseText = messageToolDeliveredContent;
         }
 
-        // track last sent content for silent reply fallback
+        // track last sent content for future silent-reply fallback
         if (!responseText.empty() && responseText != "[SILENT]")
         {
             lastSentContent = responseText;
@@ -1183,13 +1360,13 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
                     hookCtx.data = {
                         {"tool", tc.name},
                         {"arguments", args},
-                        {"success", result.rfind("Error", 0) != 0},
+                        {"success", result.text.rfind("Error", 0) != 0},
                     };
                     hookRunnerPtr->run(HookPoint::AfterToolCall, hookCtx);
                 }
 
                 // record result hash for no-progress detection
-                loopDetector.recordResult(tc.name, ToolLoopDetector::hashString(result));
+                loopDetector.recordResult(tc.name, ToolLoopDetector::hashString(result.text));
 
                 if (!taskId.empty())
                 {
@@ -1219,8 +1396,8 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
                     {"description", toolSummary},
                 });
 
-                // add tool result to messages
-                ContextBuilder::addToolResult(messages, tc.id, tc.name, result);
+                // add tool result to messages (with optional media blocks)
+                ContextBuilder::addToolResult(messages, tc.id, tc.name, result.text, result.media);
             }
 
             // flush synthetic error results for any tool calls that didn't get executed (abort mid-batch)
@@ -1288,7 +1465,12 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
                 }
             }
 
-            return {response.content.empty() ? "" : response.content, blocks};
+            if (response.content.empty() && iteration > 0)
+            {
+                spdlog::warn("[AgentLoop] Empty response after tool execution at iteration {} (task {})", iteration, taskId);
+            }
+
+            return {response.content, blocks};
         }
     }
 
@@ -1391,6 +1573,12 @@ StreamResult AgentLoop::consumeStream(
 
     // strip reasoning XML tags from content (some models emit <think>/<final> inline)
     result.content = ionclaw::util::StringHelper::stripReasoningTags(contentStream.str());
+
+    // diagnostic: log when stream produced no content and no tool calls
+    if (contentParts.empty() && result.toolCalls.empty())
+    {
+        spdlog::warn("[AgentLoop] consumeStream returned empty: no content, no tool calls (finishReason={})", result.finishReason);
+    }
 
     // assemble reasoning
     std::ostringstream reasoningStream;
@@ -1626,7 +1814,7 @@ void AgentLoop::checkConsolidation(const std::string &sessionKey)
                         memorySaveCalled = true;
                     }
 
-                    ContextBuilder::addToolResult(consolidationMessages, tc.id, tc.name, result);
+                    ContextBuilder::addToolResult(consolidationMessages, tc.id, tc.name, result.text);
                 }
             }
             else

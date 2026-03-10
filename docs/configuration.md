@@ -129,6 +129,9 @@ image:
   model: ""                     # str  -- Model in "provider/model" format.
   aspect_ratio: ""              # str  -- Default aspect ratio.
   size: ""                      # str  -- Default image size.
+  # Provider is auto-detected from model prefix: gemini/, openai/, grok/
+  # Each provider has a dedicated generator with API-specific parameters.
+  # See docs/image-generation.md for full provider details.
 
 # ---------------------------------------------------------------------------
 # Tools

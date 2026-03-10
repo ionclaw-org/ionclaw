@@ -66,7 +66,7 @@ bool ImageOpsTool::parseHexColor(const std::string &hex, unsigned char &r, unsig
 }
 #endif
 
-std::string ImageOpsTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
 #ifndef IONCLAW_HAS_STB_IMAGE_WRITE
     (void)params;

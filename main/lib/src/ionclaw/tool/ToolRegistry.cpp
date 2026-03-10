@@ -22,6 +22,7 @@
 #include "ionclaw/tool/builtin/SpawnTool.hpp"
 #include "ionclaw/tool/builtin/SubagentsTool.hpp"
 #include "ionclaw/tool/builtin/ToolHelper.hpp"
+#include "ionclaw/tool/builtin/VisionTool.hpp"
 #include "ionclaw/tool/builtin/WebFetchTool.hpp"
 #include "ionclaw/tool/builtin/WebSearchTool.hpp"
 #include "ionclaw/tool/builtin/WriteFileTool.hpp"
@@ -75,9 +76,10 @@ void ToolRegistry::registerBuiltinTools()
     registerTool(std::make_shared<builtin::HttpClientTool>());
     registerTool(std::make_shared<builtin::RssReaderTool>());
 
-    // image generation (all platforms)
+    // image tools (all platforms)
     registerTool(std::make_shared<builtin::GenerateImageTool>());
     registerTool(std::make_shared<builtin::ImageOpsTool>());
+    registerTool(std::make_shared<builtin::VisionTool>());
 
     // memory tools (all platforms)
     registerTool(std::make_shared<builtin::MemorySaveTool>());
@@ -96,7 +98,7 @@ void ToolRegistry::registerBuiltinTools()
     spdlog::info("[ToolRegistry] Registered {} built-in tools", tools.size());
 }
 
-std::string ToolRegistry::executeTool(const std::string &name, const nlohmann::json &params, const ToolContext &context)
+ToolResult ToolRegistry::executeTool(const std::string &name, const nlohmann::json &params, const ToolContext &context)
 {
     static const std::string HINT = "\n\n[Analyze the error above and try a different approach.]";
 
@@ -167,15 +169,17 @@ std::string ToolRegistry::executeTool(const std::string &name, const nlohmann::j
     try
     {
         auto result = tool->execute(params, context);
-        spdlog::debug("[ToolRegistry] Tool {} completed, output size: {} bytes", name, result.size());
+        spdlog::debug("[ToolRegistry] Tool {} completed, output size: {} bytes", name, result.text.size());
 
         // append hint to error results
-        if (result.rfind("Error", 0) == 0)
+        if (result.text.rfind("Error", 0) == 0)
         {
-            return result + HINT;
+            result.text += HINT;
+            return result;
         }
 
-        return builtin::ToolHelper::truncateOutput(result, contextWindowTokens);
+        result.text = builtin::ToolHelper::truncateOutput(result.text, contextWindowTokens);
+        return result;
     }
     catch (const std::exception &e)
     {

@@ -12,7 +12,7 @@ namespace tool
 namespace builtin
 {
 
-std::string MemorySearchTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult MemorySearchTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto query = params.at("query").get<std::string>();
 

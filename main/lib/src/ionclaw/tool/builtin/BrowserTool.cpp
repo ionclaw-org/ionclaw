@@ -64,80 +64,126 @@ namespace cdp
 
 namespace page
 {
-    constexpr const char *Enable = "Page" ".enable";
-    constexpr const char *Navigate = "Page" ".navigate";
-    constexpr const char *Reload = "Page" ".reload";
-    constexpr const char *GetNavigationHistory = "Page" ".getNavigationHistory";
-    constexpr const char *NavigateToHistoryEntry = "Page" ".navigateToHistoryEntry";
-    constexpr const char *GetLayoutMetrics = "Page" ".getLayoutMetrics";
-    constexpr const char *CaptureScreenshot = "Page" ".captureScreenshot";
-    constexpr const char *PrintToPDF = "Page" ".printToPDF";
-    constexpr const char *HandleJavaScriptDialog = "Page" ".handleJavaScriptDialog";
-    // events
-    constexpr const char *LoadEventFired = "Page" ".loadEventFired";
-    constexpr const char *FrameStoppedLoading = "Page" ".frameStoppedLoading";
-    constexpr const char *JavascriptDialogOpening = "Page" ".javascriptDialogOpening";
-    constexpr const char *JavascriptDialogClosed = "Page" ".javascriptDialogClosed";
+constexpr const char *Enable = "Page"
+                               ".enable";
+constexpr const char *Navigate = "Page"
+                                 ".navigate";
+constexpr const char *Reload = "Page"
+                               ".reload";
+constexpr const char *GetNavigationHistory = "Page"
+                                             ".getNavigationHistory";
+constexpr const char *NavigateToHistoryEntry = "Page"
+                                               ".navigateToHistoryEntry";
+constexpr const char *GetLayoutMetrics = "Page"
+                                         ".getLayoutMetrics";
+constexpr const char *CaptureScreenshot = "Page"
+                                          ".captureScreenshot";
+constexpr const char *PrintToPDF = "Page"
+                                   ".printToPDF";
+constexpr const char *HandleJavaScriptDialog = "Page"
+                                               ".handleJavaScriptDialog";
+// events
+constexpr const char *LoadEventFired = "Page"
+                                       ".loadEventFired";
+constexpr const char *FrameStoppedLoading = "Page"
+                                            ".frameStoppedLoading";
+constexpr const char *JavascriptDialogOpening = "Page"
+                                                ".javascriptDialogOpening";
+constexpr const char *JavascriptDialogClosed = "Page"
+                                               ".javascriptDialogClosed";
 } // namespace page
 
 namespace runtime
 {
-    constexpr const char *Enable = "Runtime" ".enable";
-    constexpr const char *Evaluate = "Runtime" ".evaluate";
-    // events
-    constexpr const char *ConsoleAPICalled = "Runtime" ".consoleAPICalled";
-    constexpr const char *ExceptionThrown = "Runtime" ".exceptionThrown";
+constexpr const char *Enable = "Runtime"
+                               ".enable";
+constexpr const char *Evaluate = "Runtime"
+                                 ".evaluate";
+// events
+constexpr const char *ConsoleAPICalled = "Runtime"
+                                         ".consoleAPICalled";
+constexpr const char *ExceptionThrown = "Runtime"
+                                        ".exceptionThrown";
 } // namespace runtime
 
 namespace dom
 {
-    constexpr const char *Enable = "DOM" ".enable";
-    constexpr const char *DescribeNode = "DOM" ".describeNode";
-    constexpr const char *SetFileInputFiles = "DOM" ".setFileInputFiles";
+constexpr const char *Enable = "DOM"
+                               ".enable";
+constexpr const char *DescribeNode = "DOM"
+                                     ".describeNode";
+constexpr const char *SetFileInputFiles = "DOM"
+                                          ".setFileInputFiles";
 } // namespace dom
 
 namespace network
 {
-    constexpr const char *Enable = "Network" ".enable";
-    constexpr const char *GetCookies = "Network" ".getCookies";
-    constexpr const char *SetCookie = "Network" ".setCookie";
-    constexpr const char *ClearBrowserCookies = "Network" ".clearBrowserCookies";
-    constexpr const char *EmulateNetworkConditions = "Network" ".emulateNetworkConditions";
-    constexpr const char *SetExtraHTTPHeaders = "Network" ".setExtraHTTPHeaders";
-    constexpr const char *GetResponseBody = "Network" ".getResponseBody";
-    // events
-    constexpr const char *RequestWillBeSent = "Network" ".requestWillBeSent";
-    constexpr const char *ResponseReceived = "Network" ".responseReceived";
-    constexpr const char *LoadingFinished = "Network" ".loadingFinished";
+constexpr const char *Enable = "Network"
+                               ".enable";
+constexpr const char *GetCookies = "Network"
+                                   ".getCookies";
+constexpr const char *SetCookie = "Network"
+                                  ".setCookie";
+constexpr const char *ClearBrowserCookies = "Network"
+                                            ".clearBrowserCookies";
+constexpr const char *EmulateNetworkConditions = "Network"
+                                                 ".emulateNetworkConditions";
+constexpr const char *SetExtraHTTPHeaders = "Network"
+                                            ".setExtraHTTPHeaders";
+constexpr const char *GetResponseBody = "Network"
+                                        ".getResponseBody";
+// events
+constexpr const char *RequestWillBeSent = "Network"
+                                          ".requestWillBeSent";
+constexpr const char *ResponseReceived = "Network"
+                                         ".responseReceived";
+constexpr const char *LoadingFinished = "Network"
+                                        ".loadingFinished";
 } // namespace network
 
 namespace input
 {
-    constexpr const char *DispatchMouseEvent = "Input" ".dispatchMouseEvent";
-    constexpr const char *DispatchKeyEvent = "Input" ".dispatchKeyEvent";
+constexpr const char *DispatchMouseEvent = "Input"
+                                           ".dispatchMouseEvent";
+constexpr const char *DispatchKeyEvent = "Input"
+                                         ".dispatchKeyEvent";
 } // namespace input
 
 namespace emulation
 {
-    constexpr const char *SetDeviceMetricsOverride = "Emulation" ".setDeviceMetricsOverride";
-    constexpr const char *ClearDeviceMetricsOverride = "Emulation" ".clearDeviceMetricsOverride";
-    constexpr const char *SetGeolocationOverride = "Emulation" ".setGeolocationOverride";
-    constexpr const char *ClearGeolocationOverride = "Emulation" ".clearGeolocationOverride";
-    constexpr const char *SetEmulatedMedia = "Emulation" ".setEmulatedMedia";
-    constexpr const char *SetTimezoneOverride = "Emulation" ".setTimezoneOverride";
-    constexpr const char *SetLocaleOverride = "Emulation" ".setLocaleOverride";
-    constexpr const char *SetUserAgentOverride = "Emulation" ".setUserAgentOverride";
+constexpr const char *SetDeviceMetricsOverride = "Emulation"
+                                                 ".setDeviceMetricsOverride";
+constexpr const char *ClearDeviceMetricsOverride = "Emulation"
+                                                   ".clearDeviceMetricsOverride";
+constexpr const char *SetGeolocationOverride = "Emulation"
+                                               ".setGeolocationOverride";
+constexpr const char *ClearGeolocationOverride = "Emulation"
+                                                 ".clearGeolocationOverride";
+constexpr const char *SetEmulatedMedia = "Emulation"
+                                         ".setEmulatedMedia";
+constexpr const char *SetTimezoneOverride = "Emulation"
+                                            ".setTimezoneOverride";
+constexpr const char *SetLocaleOverride = "Emulation"
+                                          ".setLocaleOverride";
+constexpr const char *SetUserAgentOverride = "Emulation"
+                                             ".setUserAgentOverride";
 } // namespace emulation
 
 namespace fetch
 {
-    constexpr const char *Enable = "Fetch" ".enable";
-    constexpr const char *Disable = "Fetch" ".disable";
-    constexpr const char *ContinueWithAuth = "Fetch" ".continueWithAuth";
-    constexpr const char *ContinueRequest = "Fetch" ".continueRequest";
-    // events
-    constexpr const char *AuthRequired = "Fetch" ".authRequired";
-    constexpr const char *RequestPaused = "Fetch" ".requestPaused";
+constexpr const char *Enable = "Fetch"
+                               ".enable";
+constexpr const char *Disable = "Fetch"
+                                ".disable";
+constexpr const char *ContinueWithAuth = "Fetch"
+                                         ".continueWithAuth";
+constexpr const char *ContinueRequest = "Fetch"
+                                        ".continueRequest";
+// events
+constexpr const char *AuthRequired = "Fetch"
+                                     ".authRequired";
+constexpr const char *RequestPaused = "Fetch"
+                                      ".requestPaused";
 } // namespace fetch
 
 } // namespace cdp
@@ -520,7 +566,8 @@ class CdpTab
 {
 public:
     explicit CdpTab(const std::string &wsUrl)
-        : wsUrl_(wsUrl), recvBuffer_(WS_BUFFER_SIZE)
+        : wsUrl_(wsUrl)
+        , recvBuffer_(WS_BUFFER_SIZE)
     {
     }
 
@@ -1037,13 +1084,13 @@ private:
                     try
                     {
                         sendCommandLocked(cdp::fetch::ContinueWithAuth, {
-                            {"requestId", requestId},
-                            {"authChallengeResponse", {
-                                {"response", "ProvideCredentials"},
-                                {"username", user},
-                                {"password", pass},
-                            }},
-                        });
+                                                                            {"requestId", requestId},
+                                                                            {"authChallengeResponse", {
+                                                                                                          {"response", "ProvideCredentials"},
+                                                                                                          {"username", user},
+                                                                                                          {"password", pass},
+                                                                                                      }},
+                                                                        });
                     }
                     catch (const std::exception &e)
                     {
@@ -1055,11 +1102,11 @@ private:
                     try
                     {
                         sendCommandLocked(cdp::fetch::ContinueWithAuth, {
-                            {"requestId", requestId},
-                            {"authChallengeResponse", {
-                                {"response", "CancelAuth"},
-                            }},
-                        });
+                                                                            {"requestId", requestId},
+                                                                            {"authChallengeResponse", {
+                                                                                                          {"response", "CancelAuth"},
+                                                                                                      }},
+                                                                        });
                     }
                     catch (const std::exception &e)
                     {
@@ -1467,6 +1514,12 @@ TabResult ensureTab(bool headless)
     return {tab, ""};
 }
 
+// safe accessor for CDP evaluate results — avoids throws on missing "result" key
+nlohmann::json evalResult(const nlohmann::json &cdpResponse)
+{
+    return cdpResponse.value("result", nlohmann::json::object());
+}
+
 // ── page state helpers ────────────────────────────────────────────────────
 
 struct PageInfo
@@ -1479,10 +1532,10 @@ PageInfo getPageInfo(CdpTab &tab)
 {
     PageInfo info;
     auto result = tab.sendCommand(cdp::runtime::Evaluate, {
-        {"expression", "JSON.stringify({u:location.href,t:document.title})"},
-        {"returnByValue", true},
-    });
-    auto json = nlohmann::json::parse(result["result"].value("value", "{}"), nullptr, false);
+                                                              {"expression", "JSON.stringify({u:location.href,t:document.title})"},
+                                                              {"returnByValue", true},
+                                                          });
+    auto json = nlohmann::json::parse(evalResult(result).value("value", "{}"), nullptr, false);
 
     if (!json.is_discarded())
     {
@@ -1542,17 +1595,17 @@ ElementPos getElementCenter(CdpTab &tab, const std::string &selector)
     auto safeSelector = ToolHelper::escapeForJs(selector);
 
     auto result = tab.sendCommand(cdp::runtime::Evaluate, {
-        {"expression",
-         "(() => { const el = document.querySelector('" + safeSelector + "');"
-         "if (!el) return null;"
-         "if (el.scrollIntoViewIfNeeded) el.scrollIntoViewIfNeeded(true);"
-         "else el.scrollIntoView({block:'center',inline:'center'});"
-         "const r = el.getBoundingClientRect();"
-         "return {x: r.x + r.width/2, y: r.y + r.height/2}; })()"},
-        {"returnByValue", true},
-    });
+                                                              {"expression",
+                                                               "(() => { const el = document.querySelector('" + safeSelector + "');"
+                                                                                                                               "if (!el) return null;"
+                                                                                                                               "if (el.scrollIntoViewIfNeeded) el.scrollIntoViewIfNeeded(true);"
+                                                                                                                               "else el.scrollIntoView({block:'center',inline:'center'});"
+                                                                                                                               "const r = el.getBoundingClientRect();"
+                                                                                                                               "return {x: r.x + r.width/2, y: r.y + r.height/2}; })()"},
+                                                              {"returnByValue", true},
+                                                          });
 
-    auto value = result["result"].value("value", nlohmann::json());
+    auto value = evalResult(result).value("value", nlohmann::json());
 
     if (value.is_null() || !value.contains("x") || !value["x"].is_number())
     {
@@ -1568,34 +1621,50 @@ void performClick(CdpTab &tab, double x, double y, const std::string &button = "
     int buttons = (button == "right") ? 2 : ((button == "middle") ? 4 : 1);
 
     tab.sendCommand(cdp::input::DispatchMouseEvent, {
-        {"type", "mouseMoved"}, {"x", x}, {"y", y},
-    });
+                                                        {"type", "mouseMoved"},
+                                                        {"x", x},
+                                                        {"y", y},
+                                                    });
 
     tab.sendCommand(cdp::input::DispatchMouseEvent, {
-        {"type", "mousePressed"}, {"x", x}, {"y", y},
-        {"button", cdpButton}, {"clickCount", 1}, {"buttons", buttons},
-        {"pointerType", "mouse"},
-    });
+                                                        {"type", "mousePressed"},
+                                                        {"x", x},
+                                                        {"y", y},
+                                                        {"button", cdpButton},
+                                                        {"clickCount", 1},
+                                                        {"buttons", buttons},
+                                                        {"pointerType", "mouse"},
+                                                    });
 
     tab.sendCommand(cdp::input::DispatchMouseEvent, {
-        {"type", "mouseReleased"}, {"x", x}, {"y", y},
-        {"button", cdpButton}, {"clickCount", 1},
-        {"pointerType", "mouse"},
-    });
+                                                        {"type", "mouseReleased"},
+                                                        {"x", x},
+                                                        {"y", y},
+                                                        {"button", cdpButton},
+                                                        {"clickCount", 1},
+                                                        {"pointerType", "mouse"},
+                                                    });
 
     if (doubleClick)
     {
         tab.sendCommand(cdp::input::DispatchMouseEvent, {
-            {"type", "mousePressed"}, {"x", x}, {"y", y},
-            {"button", cdpButton}, {"clickCount", 2}, {"buttons", buttons},
-            {"pointerType", "mouse"},
-        });
+                                                            {"type", "mousePressed"},
+                                                            {"x", x},
+                                                            {"y", y},
+                                                            {"button", cdpButton},
+                                                            {"clickCount", 2},
+                                                            {"buttons", buttons},
+                                                            {"pointerType", "mouse"},
+                                                        });
 
         tab.sendCommand(cdp::input::DispatchMouseEvent, {
-            {"type", "mouseReleased"}, {"x", x}, {"y", y},
-            {"button", cdpButton}, {"clickCount", 2},
-            {"pointerType", "mouse"},
-        });
+                                                            {"type", "mouseReleased"},
+                                                            {"x", x},
+                                                            {"y", y},
+                                                            {"button", cdpButton},
+                                                            {"clickCount", 2},
+                                                            {"pointerType", "mouse"},
+                                                        });
     }
 }
 
@@ -1606,15 +1675,15 @@ void typeCharacters(CdpTab &tab, const std::string &text, bool slowly = false)
         std::string ch(1, c);
 
         tab.sendCommand(cdp::input::DispatchKeyEvent, {
-            {"type", "keyDown"},
-            {"text", ch},
-            {"key", ch},
-        });
+                                                          {"type", "keyDown"},
+                                                          {"text", ch},
+                                                          {"key", ch},
+                                                      });
 
         tab.sendCommand(cdp::input::DispatchKeyEvent, {
-            {"type", "keyUp"},
-            {"key", ch},
-        });
+                                                          {"type", "keyUp"},
+                                                          {"key", ch},
+                                                      });
 
         if (slowly)
         {
@@ -1627,34 +1696,35 @@ std::string pressKey(CdpTab &tab, const std::string &keyName)
 {
     std::string lower = keyName;
     std::transform(lower.begin(), lower.end(), lower.begin(),
-                   [](unsigned char c) { return c < 0x80 ? std::tolower(c) : c; });
+                   [](unsigned char c)
+                   { return c < 0x80 ? std::tolower(c) : c; });
 
     auto it = KEY_MAP.find(lower);
 
     if (it == KEY_MAP.end())
     {
         return "Error: unknown key '" + keyName + "'. Available: Enter, Tab, Escape, Backspace, Delete, "
-               "ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Home, End, PageUp, PageDown, Space, "
-               "Insert, F1-F12";
+                                                  "ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Home, End, PageUp, PageDown, Space, "
+                                                  "Insert, F1-F12";
     }
 
     auto &info = it->second;
 
     tab.sendCommand(cdp::input::DispatchKeyEvent, {
-        {"type", "keyDown"},
-        {"key", info.key},
-        {"code", info.code},
-        {"windowsVirtualKeyCode", info.keyCode},
-        {"nativeVirtualKeyCode", info.keyCode},
-    });
+                                                      {"type", "keyDown"},
+                                                      {"key", info.key},
+                                                      {"code", info.code},
+                                                      {"windowsVirtualKeyCode", info.keyCode},
+                                                      {"nativeVirtualKeyCode", info.keyCode},
+                                                  });
 
     tab.sendCommand(cdp::input::DispatchKeyEvent, {
-        {"type", "keyUp"},
-        {"key", info.key},
-        {"code", info.code},
-        {"windowsVirtualKeyCode", info.keyCode},
-        {"nativeVirtualKeyCode", info.keyCode},
-    });
+                                                      {"type", "keyUp"},
+                                                      {"key", info.key},
+                                                      {"code", info.code},
+                                                      {"windowsVirtualKeyCode", info.keyCode},
+                                                      {"nativeVirtualKeyCode", info.keyCode},
+                                                  });
 
     return "";
 }
@@ -1709,9 +1779,11 @@ std::vector<unsigned char> decodeBase64(const std::string &encoded)
 
     for (char c : encoded)
     {
-        if (c == '=' || c == '\n' || c == '\r') continue;
+        if (c == '=' || c == '\n' || c == '\r')
+            continue;
         auto pos = B64_CHARS.find(c);
-        if (pos == std::string::npos) continue;
+        if (pos == std::string::npos)
+            continue;
         buf4[collected++] = static_cast<unsigned char>(pos);
 
         if (collected == 4)
@@ -1744,8 +1816,10 @@ std::string encodeBase64(const unsigned char *data, size_t len)
     for (size_t i = 0; i < len; i += 3)
     {
         unsigned int b = (static_cast<unsigned int>(data[i]) << 16);
-        if (i + 1 < len) b |= (static_cast<unsigned int>(data[i + 1]) << 8);
-        if (i + 2 < len) b |= static_cast<unsigned int>(data[i + 2]);
+        if (i + 1 < len)
+            b |= (static_cast<unsigned int>(data[i + 1]) << 8);
+        if (i + 2 < len)
+            b |= static_cast<unsigned int>(data[i + 2]);
 
         result.push_back(B64_CHARS[(b >> 18) & 0x3F]);
         result.push_back(B64_CHARS[(b >> 12) & 0x3F]);
@@ -1993,7 +2067,8 @@ std::string actionNavigate(CdpTab &tab, const std::string &url)
     if (!loaded)
     {
         return "Warning: page load timed out (30s). "
-               "Current URL: " + (pageInfo.url.empty() ? "(unknown)" : pageInfo.url) +
+               "Current URL: " +
+               (pageInfo.url.empty() ? "(unknown)" : pageInfo.url) +
                (pageInfo.title.empty() ? "" : " | Title: \"" + pageInfo.title + "\"") +
                " " + ctx + ". The page may still be loading - use action='snapshot' to check.";
     }
@@ -2026,6 +2101,12 @@ std::string actionBack(CdpTab &tab)
     }
 
     auto entries = historyResult.value("entries", nlohmann::json::array());
+
+    if (currentIndex - 1 >= static_cast<int>(entries.size()))
+    {
+        return "Error: navigation history is corrupted (index out of bounds)." + formatPageState(tab);
+    }
+
     int entryId = entries[currentIndex - 1].value("id", 0);
 
     tab.sendCommand(cdp::page::NavigateToHistoryEntry, {{"entryId", entryId}});
@@ -2053,7 +2134,7 @@ std::string actionForward(CdpTab &tab)
     int currentIndex = historyResult.value("currentIndex", 0);
     auto entries = historyResult.value("entries", nlohmann::json::array());
 
-    if (currentIndex >= static_cast<int>(entries.size()) - 1)
+    if (currentIndex + 1 >= static_cast<int>(entries.size()))
     {
         return "Error: no next page in history." + formatPageState(tab);
     }
@@ -2109,33 +2190,38 @@ std::string actionScroll(CdpTab &tab, const nlohmann::json &params)
     if (amount == 0)
     {
         auto result = tab.sendCommand(cdp::runtime::Evaluate, {
-            {"expression", "window.innerHeight"},
-            {"returnByValue", true},
-        });
-        amount = result["result"].value("value", 600);
+                                                                  {"expression", "window.innerHeight"},
+                                                                  {"returnByValue", true},
+                                                              });
+        amount = evalResult(result).value("value", 600);
     }
 
     int scrollX = 0;
     int scrollY = 0;
 
-    if (direction == "down") scrollY = amount;
-    else if (direction == "up") scrollY = -amount;
-    else if (direction == "right") scrollX = amount;
-    else if (direction == "left") scrollX = -amount;
-    else return "Error: unknown direction '" + direction + "'. Use: up, down, left, right";
+    if (direction == "down")
+        scrollY = amount;
+    else if (direction == "up")
+        scrollY = -amount;
+    else if (direction == "right")
+        scrollX = amount;
+    else if (direction == "left")
+        scrollX = -amount;
+    else
+        return "Error: unknown direction '" + direction + "'. Use: up, down, left, right";
 
     tab.sendCommand(cdp::runtime::Evaluate, {
-        {"expression", "window.scrollBy(" + std::to_string(scrollX) + "," + std::to_string(scrollY) + ")"},
-        {"returnByValue", true},
-    });
+                                                {"expression", "window.scrollBy(" + std::to_string(scrollX) + "," + std::to_string(scrollY) + ")"},
+                                                {"returnByValue", true},
+                                            });
 
     auto posResult = tab.sendCommand(cdp::runtime::Evaluate, {
-        {"expression", "JSON.stringify({x:Math.round(scrollX),y:Math.round(scrollY),"
-                       "w:document.body.scrollWidth,h:document.body.scrollHeight,"
-                       "vw:window.innerWidth,vh:window.innerHeight})"},
-        {"returnByValue", true},
-    });
-    auto pos = nlohmann::json::parse(posResult["result"].value("value", "{}"), nullptr, false);
+                                                                 {"expression", "JSON.stringify({x:Math.round(scrollX),y:Math.round(scrollY),"
+                                                                                "w:document.body.scrollWidth,h:document.body.scrollHeight,"
+                                                                                "vw:window.innerWidth,vh:window.innerHeight})"},
+                                                                 {"returnByValue", true},
+                                                             });
+    auto pos = nlohmann::json::parse(evalResult(posResult).value("value", "{}"), nullptr, false);
 
     bool isHorizontal = (direction == "left" || direction == "right");
     int scrollPos = pos.value(isHorizontal ? "x" : "y", 0);
@@ -2193,38 +2279,38 @@ std::string actionWait(CdpTab *tab, const nlohmann::json &params)
             if (!textMet)
             {
                 auto result = tab->sendCommand(cdp::runtime::Evaluate, {
-                    {"expression", "document.body.innerText"},
-                    {"returnByValue", true},
-                });
-                textMet = result["result"].value("value", "").find(waitText) != std::string::npos;
+                                                                           {"expression", "document.body.innerText"},
+                                                                           {"returnByValue", true},
+                                                                       });
+                textMet = evalResult(result).value("value", "").find(waitText) != std::string::npos;
             }
 
             if (!selectorMet)
             {
                 auto safeSelector = ToolHelper::escapeForJs(waitSelector);
                 auto result = tab->sendCommand(cdp::runtime::Evaluate, {
-                    {"expression", "!!document.querySelector('" + safeSelector + "')"},
-                    {"returnByValue", true},
-                });
-                selectorMet = result["result"].value("value", false);
+                                                                           {"expression", "!!document.querySelector('" + safeSelector + "')"},
+                                                                           {"returnByValue", true},
+                                                                       });
+                selectorMet = evalResult(result).value("value", false);
             }
 
             if (!urlMet)
             {
                 auto result = tab->sendCommand(cdp::runtime::Evaluate, {
-                    {"expression", "window.location.href"},
-                    {"returnByValue", true},
-                });
-                urlMet = matchGlob(result["result"].value("value", ""), waitUrl);
+                                                                           {"expression", "window.location.href"},
+                                                                           {"returnByValue", true},
+                                                                       });
+                urlMet = matchGlob(evalResult(result).value("value", ""), waitUrl);
             }
 
             if (!fnMet)
             {
                 auto result = tab->sendCommand(cdp::runtime::Evaluate, {
-                    {"expression", "!!(" + waitFn + ")"},
-                    {"returnByValue", true},
-                });
-                fnMet = result["result"].value("value", false);
+                                                                           {"expression", "!!(" + waitFn + ")"},
+                                                                           {"returnByValue", true},
+                                                                       });
+                fnMet = evalResult(result).value("value", false);
             }
         }
         catch (const std::exception &e)
@@ -2238,10 +2324,15 @@ std::string actionWait(CdpTab *tab, const nlohmann::json &params)
             return "Wait conditions met.";
         }
 
-        // reset conditions that might change between polls (text, url, fn can regress)
-        if (!waitText.empty()) textMet = false;
-        if (!waitUrl.empty()) urlMet = false;
-        if (!waitFn.empty()) fnMet = false;
+        // reset all conditions between polls (any can regress if DOM changes dynamically)
+        if (!waitText.empty())
+            textMet = false;
+        if (!waitSelector.empty())
+            selectorMet = false;
+        if (!waitUrl.empty())
+            urlMet = false;
+        if (!waitFn.empty())
+            fnMet = false;
 
         std::this_thread::sleep_for(std::chrono::milliseconds(250));
     }
@@ -2250,10 +2341,14 @@ std::string actionWait(CdpTab *tab, const nlohmann::json &params)
     std::ostringstream failMsg;
     failMsg << "Error: wait timed out after " << seconds << "s. Conditions not met:";
 
-    if (!waitText.empty() && !textMet) failMsg << " text='" << waitText << "'";
-    if (!waitSelector.empty() && !selectorMet) failMsg << " selector='" << waitSelector << "'";
-    if (!waitUrl.empty() && !urlMet) failMsg << " url='" << waitUrl << "'";
-    if (!waitFn.empty() && !fnMet) failMsg << " fn='" << waitFn << "'";
+    if (!waitText.empty() && !textMet)
+        failMsg << " text='" << waitText << "'";
+    if (!waitSelector.empty() && !selectorMet)
+        failMsg << " selector='" << waitSelector << "'";
+    if (!waitUrl.empty() && !urlMet)
+        failMsg << " url='" << waitUrl << "'";
+    if (!waitFn.empty() && !fnMet)
+        failMsg << " fn='" << waitFn << "'";
 
     return failMsg.str();
 }
@@ -2272,7 +2367,8 @@ std::string actionSnapshot(CdpTab &tab, const nlohmann::json &params)
                 var items = [];
                 var refCount = 0;
                 function walk(node, depth) {
-                    if (depth > )" + std::to_string(MAX_SNAPSHOT_DEPTH) + R"( || items.length > )" + std::to_string(MAX_SNAPSHOT_NODES) + R"() return;
+                    if (depth > )" +
+                  std::to_string(MAX_SNAPSHOT_DEPTH) + R"( || items.length > )" + std::to_string(MAX_SNAPSHOT_NODES) + R"() return;
                     var tag = node.tagName ? node.tagName.toLowerCase() : '';
                     if (!tag || tag === 'script' || tag === 'style' || tag === 'noscript' || tag === 'svg') return;
 
@@ -2325,11 +2421,11 @@ std::string actionSnapshot(CdpTab &tab, const nlohmann::json &params)
         )";
 
         auto result = tab.sendCommand(cdp::runtime::Evaluate, {
-            {"expression", js},
-            {"returnByValue", true},
-        });
+                                                                  {"expression", js},
+                                                                  {"returnByValue", true},
+                                                              });
 
-        auto nodes = result["result"].value("value", nlohmann::json::array());
+        auto nodes = evalResult(result).value("value", nlohmann::json::array());
 
         if (nodes.empty())
         {
@@ -2393,11 +2489,11 @@ std::string actionSnapshot(CdpTab &tab, const nlohmann::json &params)
 
     // default: plain text snapshot
     auto result = tab.sendCommand(cdp::runtime::Evaluate, {
-        {"expression", "document.body.innerText"},
-        {"returnByValue", true},
-    });
+                                                              {"expression", "document.body.innerText"},
+                                                              {"returnByValue", true},
+                                                          });
 
-    auto text = result["result"].value("value", "");
+    auto text = evalResult(result).value("value", "");
 
     if (text.empty())
     {
@@ -2412,7 +2508,7 @@ std::string actionSnapshot(CdpTab &tab, const nlohmann::json &params)
     return text;
 }
 
-std::string actionScreenshot(CdpTab &tab, const nlohmann::json &params)
+ToolResult actionScreenshot(CdpTab &tab, const nlohmann::json &params)
 {
     bool fullPage = params.value("full_page", false);
     auto imageType = params.value("image_type", "png");
@@ -2455,15 +2551,15 @@ std::string actionScreenshot(CdpTab &tab, const nlohmann::json &params)
 
         auto safeSelector = ToolHelper::escapeForJs(selector);
         auto result = tab.sendCommand(cdp::runtime::Evaluate, {
-            {"expression",
-             "(() => { const el = document.querySelector('" + safeSelector + "');"
-             "if (!el) return null;"
-             "const r = el.getBoundingClientRect();"
-             "return {x: r.x, y: r.y, w: r.width, h: r.height}; })()"},
-            {"returnByValue", true},
-        });
+                                                                  {"expression",
+                                                                   "(() => { const el = document.querySelector('" + safeSelector + "');"
+                                                                                                                                   "if (!el) return null;"
+                                                                                                                                   "const r = el.getBoundingClientRect();"
+                                                                                                                                   "return {x: r.x, y: r.y, w: r.width, h: r.height}; })()"},
+                                                                  {"returnByValue", true},
+                                                              });
 
-        auto value = result["result"].value("value", nlohmann::json());
+        auto value = evalResult(result).value("value", nlohmann::json());
 
         if (!value.is_null() && value.contains("x"))
         {
@@ -2527,7 +2623,7 @@ std::string actionScreenshot(CdpTab &tab, const nlohmann::json &params)
     if (!pixels)
     {
         return "Screenshot saved: " + filePath.string() + " (" + std::to_string(fullSizeKB) + "KB). "
-               "Warning: could not generate preview (image decode failed).";
+                                                                                              "Warning: could not generate preview (image decode failed).";
     }
 
     // resize if wider than max preview width
@@ -2541,7 +2637,8 @@ std::string actionScreenshot(CdpTab &tab, const nlohmann::json &params)
         previewW = MAX_PREVIEW_WIDTH;
         previewH = static_cast<int>(static_cast<double>(h) * MAX_PREVIEW_WIDTH / w);
 
-        if (previewH < 1) previewH = 1;
+        if (previewH < 1)
+            previewH = 1;
 
         resizedPixels.resize(static_cast<size_t>(previewW * previewH * 3));
         auto *ok = stbir_resize_uint8_linear(pixels, w, h, 0, resizedPixels.data(), previewW, previewH, 0, STBIR_RGB);
@@ -2551,7 +2648,7 @@ std::string actionScreenshot(CdpTab &tab, const nlohmann::json &params)
             stbi_image_free(pixels);
             return "Screenshot saved: " + filePath.string() + " (" + std::to_string(fullSizeKB) + "KB, " +
                    std::to_string(w) + "x" + std::to_string(h) + "). "
-                   "Warning: could not generate preview (resize failed).";
+                                                                 "Warning: could not generate preview (resize failed).";
         }
 
         previewData = resizedPixels.data();
@@ -2568,21 +2665,27 @@ std::string actionScreenshot(CdpTab &tab, const nlohmann::json &params)
     {
         return "Screenshot saved: " + filePath.string() + " (" + std::to_string(fullSizeKB) + "KB, " +
                std::to_string(w) + "x" + std::to_string(h) + "). "
-               "Warning: could not generate preview (JPEG encode failed).";
+                                                             "Warning: could not generate preview (JPEG encode failed).";
     }
 
     auto previewB64 = encodeBase64(jpegBuf.data(), jpegBuf.size());
     auto previewKB = jpegBuf.size() / 1024;
 
-    return "data:image/jpeg;base64," + previewB64 +
-           "\n\nScreenshot captured (" + std::to_string(w) + "x" + std::to_string(h) + ", " +
-           std::to_string(fullSizeKB) + "KB). " +
-           "Preview: " + std::to_string(previewW) + "x" + std::to_string(previewH) + " (" +
-           std::to_string(previewKB) + "KB). " +
-           "Full resolution: " + filePath.string();
+    auto description = "Screenshot captured (" + std::to_string(w) + "x" + std::to_string(h) + ", " +
+                       std::to_string(fullSizeKB) + "KB). " +
+                       "Preview: " + std::to_string(previewW) + "x" + std::to_string(previewH) + " (" +
+                       std::to_string(previewKB) + "KB). " +
+                       "Full resolution: " + filePath.string();
+
+    ToolResult toolResult;
+    toolResult.text = description;
+    toolResult.media = nlohmann::json::array({
+        {{"type", "image"}, {"media_type", "image/jpeg"}, {"data", previewB64}},
+    });
+    return toolResult;
 #else
     return "Screenshot saved: " + filePath.string() + " (" + std::to_string(fullSizeKB) + "KB, " + imageType + "). "
-           "Note: preview not available (stb not compiled). Use the file path to view the screenshot.";
+                                                                                                               "Note: preview not available (stb not compiled). Use the file path to view the screenshot.";
 #endif
 }
 
@@ -2597,7 +2700,7 @@ std::string actionInspect(CdpTab &tab)
                 + '[role="textbox"], [contenteditable="true"], [tabindex]:not([tabindex="-1"])'
             );
             for (var i = 0; i < els.length && items.length < )" +
-                  std::to_string(MAX_INTERACTIVE_ELEMENTS) + R"(; i++) {
+              std::to_string(MAX_INTERACTIVE_ELEMENTS) + R"(; i++) {
                 var el = els[i];
                 var rect = el.getBoundingClientRect();
                 if (rect.width === 0 || rect.height === 0) continue;
@@ -2642,11 +2745,11 @@ std::string actionInspect(CdpTab &tab)
     )";
 
     auto result = tab.sendCommand(cdp::runtime::Evaluate, {
-        {"expression", js},
-        {"returnByValue", true},
-    });
+                                                              {"expression", js},
+                                                              {"returnByValue", true},
+                                                          });
 
-    auto elements = result["result"].value("value", nlohmann::json::array());
+    auto elements = evalResult(result).value("value", nlohmann::json::array());
 
     if (elements.empty())
     {
@@ -2676,7 +2779,7 @@ std::string actionInspect(CdpTab &tab)
         out << "  ->  selector: " << el.value("s", "") << "\n";
     }
 
-    return out.str();
+    return capResult(out.str());
 }
 
 std::string actionEvaluate(CdpTab &tab, const std::string &script)
@@ -2687,10 +2790,10 @@ std::string actionEvaluate(CdpTab &tab, const std::string &script)
     }
 
     auto result = tab.sendCommand(cdp::runtime::Evaluate, {
-        {"expression", script},
-        {"returnByValue", true},
-        {"awaitPromise", true},
-    });
+                                                              {"expression", script},
+                                                              {"returnByValue", true},
+                                                              {"awaitPromise", true},
+                                                          });
 
     // check for JavaScript exceptions
     if (result.contains("exceptionDetails"))
@@ -2711,7 +2814,7 @@ std::string actionEvaluate(CdpTab &tab, const std::string &script)
         return "Error: JavaScript exception (unknown details)";
     }
 
-    auto value = result["result"];
+    auto value = evalResult(result);
 
     if (value.contains("value"))
     {
@@ -2832,8 +2935,10 @@ std::string actionHover(CdpTab &tab, const nlohmann::json &params)
     }
 
     tab.sendCommand(cdp::input::DispatchMouseEvent, {
-        {"type", "mouseMoved"}, {"x", pos.x}, {"y", pos.y},
-    });
+                                                        {"type", "mouseMoved"},
+                                                        {"x", pos.x},
+                                                        {"y", pos.y},
+                                                    });
 
     return "Hovered: " + selector;
 }
@@ -2858,29 +2963,31 @@ std::string actionSelect(CdpTab &tab, const nlohmann::json &params)
     auto valuesJson = values.dump();
 
     auto js = "(() => {"
-              "const el = document.querySelector('" + safeSelector + "');"
-              "if (!el || el.tagName.toLowerCase() !== 'select') return null;"
-              "const vals = " + valuesJson + ";"
-              "for (const opt of el.options) {"
-              "  opt.selected = vals.includes(opt.value) || vals.includes(opt.textContent.trim());"
-              "}"
-              "el.dispatchEvent(new Event('change', {bubbles: true}));"
-              "return Array.from(el.selectedOptions).map(o => o.value);"
-              "})()";
+              "const el = document.querySelector('" +
+              safeSelector + "');"
+                             "if (!el || el.tagName.toLowerCase() !== 'select') return null;"
+                             "const vals = " +
+              valuesJson + ";"
+                           "for (const opt of el.options) {"
+                           "  opt.selected = vals.includes(opt.value) || vals.includes(opt.textContent.trim());"
+                           "}"
+                           "el.dispatchEvent(new Event('change', {bubbles: true}));"
+                           "return Array.from(el.selectedOptions).map(o => o.value);"
+                           "})()";
 
     auto result = tab.sendCommand(cdp::runtime::Evaluate, {
-        {"expression", js},
-        {"returnByValue", true},
-    });
+                                                              {"expression", js},
+                                                              {"returnByValue", true},
+                                                          });
 
-    auto selected = result["result"].value("value", nlohmann::json());
+    auto selected = evalResult(result).value("value", nlohmann::json());
 
     if (selected.is_null())
     {
         return "Error: select element not found: " + selector;
     }
 
-    return "Selected: " + selected.dump();
+    return capResult("Selected: " + selected.dump());
 }
 
 std::string actionFill(CdpTab &tab, const nlohmann::json &params)
@@ -2913,10 +3020,10 @@ std::string actionFill(CdpTab &tab, const nlohmann::json &params)
         if (type.empty())
         {
             auto detectResult = tab.sendCommand(cdp::runtime::Evaluate, {
-                {"expression", "(() => { const el = document.querySelector('" + safeSelector + "'); return el ? el.type || el.tagName.toLowerCase() : ''; })()"},
-                {"returnByValue", true},
-            });
-            type = detectResult["result"].value("value", "text");
+                                                                            {"expression", "(() => { const el = document.querySelector('" + safeSelector + "'); return el ? el.type || el.tagName.toLowerCase() : ''; })()"},
+                                                                            {"returnByValue", true},
+                                                                        });
+            type = evalResult(detectResult).value("value", "text");
         }
 
         if (type == "checkbox" || type == "radio")
@@ -2929,18 +3036,23 @@ std::string actionFill(CdpTab &tab, const nlohmann::json &params)
                 {
                     wantChecked = field["value"].get<bool>();
                 }
-                else
+                else if (field["value"].is_string())
                 {
                     wantChecked = field["value"].get<std::string>() == "true";
+                }
+                else
+                {
+                    // numeric or other: truthy if non-zero
+                    wantChecked = !field["value"].empty() && field["value"].dump() != "0" && field["value"].dump() != "null";
                 }
             }
 
             auto checkResult = tab.sendCommand(cdp::runtime::Evaluate, {
-                {"expression", "document.querySelector('" + safeSelector + "').checked"},
-                {"returnByValue", true},
-            });
+                                                                           {"expression", "document.querySelector('" + safeSelector + "').checked"},
+                                                                           {"returnByValue", true},
+                                                                       });
 
-            bool isChecked = checkResult["result"].value("value", false);
+            bool isChecked = evalResult(checkResult).value("value", false);
 
             if (isChecked != wantChecked)
             {
@@ -2958,10 +3070,10 @@ std::string actionFill(CdpTab &tab, const nlohmann::json &params)
             auto value = field.value("value", "");
 
             tab.sendCommand(cdp::runtime::Evaluate, {
-                {"expression", "(() => { const el = document.querySelector('" + safeSelector + "');"
-                 "if (el) { el.focus(); el.value = ''; el.dispatchEvent(new Event('input', {bubbles:true})); } })()"},
-                {"returnByValue", true},
-            });
+                                                        {"expression", "(() => { const el = document.querySelector('" + safeSelector + "');"
+                                                                                                                                       "if (el) { el.focus(); el.value = ''; el.dispatchEvent(new Event('input', {bubbles:true})); } })()"},
+                                                        {"returnByValue", true},
+                                                    });
 
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
@@ -2971,10 +3083,10 @@ std::string actionFill(CdpTab &tab, const nlohmann::json &params)
             }
 
             tab.sendCommand(cdp::runtime::Evaluate, {
-                {"expression", "(() => { const el = document.querySelector('" + safeSelector + "');"
-                 "if (el) el.dispatchEvent(new Event('change', {bubbles:true})); })()"},
-                {"returnByValue", true},
-            });
+                                                        {"expression", "(() => { const el = document.querySelector('" + safeSelector + "');"
+                                                                                                                                       "if (el) el.dispatchEvent(new Event('change', {bubbles:true})); })()"},
+                                                        {"returnByValue", true},
+                                                    });
         }
 
         filled++;
@@ -3009,13 +3121,19 @@ std::string actionDrag(CdpTab &tab, const nlohmann::json &params)
     }
 
     tab.sendCommand(cdp::input::DispatchMouseEvent, {
-        {"type", "mouseMoved"}, {"x", startPos.x}, {"y", startPos.y},
-    });
+                                                        {"type", "mouseMoved"},
+                                                        {"x", startPos.x},
+                                                        {"y", startPos.y},
+                                                    });
 
     tab.sendCommand(cdp::input::DispatchMouseEvent, {
-        {"type", "mousePressed"}, {"x", startPos.x}, {"y", startPos.y},
-        {"button", "left"}, {"clickCount", 1}, {"buttons", 1},
-    });
+                                                        {"type", "mousePressed"},
+                                                        {"x", startPos.x},
+                                                        {"y", startPos.y},
+                                                        {"button", "left"},
+                                                        {"clickCount", 1},
+                                                        {"buttons", 1},
+                                                    });
 
     // intermediate steps for smooth drag
     int steps = 10;
@@ -3027,14 +3145,19 @@ std::string actionDrag(CdpTab &tab, const nlohmann::json &params)
         double my = startPos.y + (endPos.y - startPos.y) * t;
 
         tab.sendCommand(cdp::input::DispatchMouseEvent, {
-            {"type", "mouseMoved"}, {"x", mx}, {"y", my}, {"buttons", 1},
-        });
+                                                            {"type", "mouseMoved"},
+                                                            {"x", mx},
+                                                            {"y", my},
+                                                            {"buttons", 1},
+                                                        });
     }
 
     tab.sendCommand(cdp::input::DispatchMouseEvent, {
-        {"type", "mouseReleased"}, {"x", endPos.x}, {"y", endPos.y},
-        {"button", "left"},
-    });
+                                                        {"type", "mouseReleased"},
+                                                        {"x", endPos.x},
+                                                        {"y", endPos.y},
+                                                        {"button", "left"},
+                                                    });
 
     return "Dragged from " + selector + " to " + endSelector;
 }
@@ -3051,15 +3174,15 @@ std::string actionScrollIntoView(CdpTab &tab, const nlohmann::json &params)
     auto safeSelector = ToolHelper::escapeForJs(selector);
 
     auto result = tab.sendCommand(cdp::runtime::Evaluate, {
-        {"expression",
-         "(() => { const el = document.querySelector('" + safeSelector + "');"
-         "if (!el) return false;"
-         "el.scrollIntoView({behavior:'smooth', block:'center', inline:'center'});"
-         "return true; })()"},
-        {"returnByValue", true},
-    });
+                                                              {"expression",
+                                                               "(() => { const el = document.querySelector('" + safeSelector + "');"
+                                                                                                                               "if (!el) return false;"
+                                                                                                                               "el.scrollIntoView({behavior:'smooth', block:'center', inline:'center'});"
+                                                                                                                               "return true; })()"},
+                                                              {"returnByValue", true},
+                                                          });
 
-    if (!result["result"].value("value", false))
+    if (!evalResult(result).value("value", false))
     {
         return "Error: element not found: " + selector;
     }
@@ -3072,12 +3195,24 @@ std::string actionResize(CdpTab &tab, const nlohmann::json &params)
     int width = params.value("width", 1280);
     int height = params.value("height", 720);
 
+    if (width <= 0 || height <= 0)
+    {
+        return "Error: viewport dimensions must be positive (got " +
+               std::to_string(width) + "x" + std::to_string(height) + ").";
+    }
+
+    if (width > 7680 || height > 4320)
+    {
+        return "Error: viewport dimensions too large (max 7680x4320, got " +
+               std::to_string(width) + "x" + std::to_string(height) + ").";
+    }
+
     tab.sendCommand(cdp::emulation::SetDeviceMetricsOverride, {
-        {"width", width},
-        {"height", height},
-        {"deviceScaleFactor", 1},
-        {"mobile", false},
-    });
+                                                                  {"width", width},
+                                                                  {"height", height},
+                                                                  {"deviceScaleFactor", 1},
+                                                                  {"mobile", false},
+                                                              });
 
     return "Viewport resized to " + std::to_string(width) + "x" + std::to_string(height);
 }
@@ -3114,7 +3249,7 @@ std::string actionConsole(CdpTab &tab, const nlohmann::json &params)
     }
 
     out << "\n(" << count << " messages)";
-    return out.str();
+    return capResult(out.str());
 }
 
 std::string actionErrors(CdpTab &tab, const nlohmann::json &params)
@@ -3143,7 +3278,7 @@ std::string actionErrors(CdpTab &tab, const nlohmann::json &params)
     }
 
     out << "\n(" << errors.size() << " errors)";
-    return out.str();
+    return capResult(out.str());
 }
 
 std::string actionRequests(CdpTab &tab, const nlohmann::json &params)
@@ -3185,7 +3320,7 @@ std::string actionRequests(CdpTab &tab, const nlohmann::json &params)
     }
 
     out << "\n(" << count << " requests)";
-    return out.str();
+    return capResult(out.str());
 }
 
 std::string actionResponseBody(CdpTab &tab, const nlohmann::json &params)
@@ -3219,8 +3354,8 @@ std::string actionResponseBody(CdpTab &tab, const nlohmann::json &params)
     }
 
     auto result = tab.sendCommand(cdp::network::GetResponseBody, {
-        {"requestId", matchedRequestId},
-    });
+                                                                     {"requestId", matchedRequestId},
+                                                                 });
 
     auto body = result.value("body", "");
     bool base64Encoded = result.value("base64Encoded", false);
@@ -3241,11 +3376,11 @@ std::string actionResponseBody(CdpTab &tab, const nlohmann::json &params)
 std::string actionPdf(CdpTab &tab, const nlohmann::json &params)
 {
     auto result = tab.sendCommand(cdp::page::PrintToPDF, {
-        {"landscape", false},
-        {"displayHeaderFooter", false},
-        {"printBackground", true},
-        {"preferCSSPageSize", true},
-    });
+                                                             {"landscape", false},
+                                                             {"displayHeaderFooter", false},
+                                                             {"printBackground", true},
+                                                             {"preferCSSPageSize", true},
+                                                         });
 
     auto data = result.value("data", "");
 
@@ -3315,7 +3450,7 @@ std::string actionGetCookies(CdpTab &tab, const nlohmann::json &params)
     }
 
     out << "\n(" << cookies.size() << " cookies)";
-    return out.str();
+    return capResult(out.str());
 }
 
 std::string actionSetCookie(CdpTab &tab, const nlohmann::json &params)
@@ -3365,11 +3500,11 @@ std::string actionGetStorage(CdpTab &tab, const nlohmann::json &params)
     auto storageObj = (kind == "session") ? "sessionStorage" : "localStorage";
 
     auto result = tab.sendCommand(cdp::runtime::Evaluate, {
-        {"expression", "JSON.stringify(" + std::string(storageObj) + ")"},
-        {"returnByValue", true},
-    });
+                                                              {"expression", "JSON.stringify(" + std::string(storageObj) + ")"},
+                                                              {"returnByValue", true},
+                                                          });
 
-    auto value = result["result"].value("value", "{}");
+    auto value = evalResult(result).value("value", "{}");
     auto parsed = nlohmann::json::parse(value, nullptr, false);
 
     if (parsed.is_discarded() || parsed.empty())
@@ -3396,9 +3531,9 @@ std::string actionSetStorage(CdpTab &tab, const nlohmann::json &params)
     auto safeValue = ToolHelper::escapeForJs(value);
 
     tab.sendCommand(cdp::runtime::Evaluate, {
-        {"expression", std::string(storageObj) + ".setItem('" + safeKey + "', '" + safeValue + "')"},
-        {"returnByValue", true},
-    });
+                                                {"expression", std::string(storageObj) + ".setItem('" + safeKey + "', '" + safeValue + "')"},
+                                                {"returnByValue", true},
+                                            });
 
     return kind + " storage set: " + name + "=" + value;
 }
@@ -3409,9 +3544,9 @@ std::string actionClearStorage(CdpTab &tab, const nlohmann::json &params)
     auto storageObj = (kind == "session") ? "sessionStorage" : "localStorage";
 
     tab.sendCommand(cdp::runtime::Evaluate, {
-        {"expression", std::string(storageObj) + ".clear()"},
-        {"returnByValue", true},
-    });
+                                                {"expression", std::string(storageObj) + ".clear()"},
+                                                {"returnByValue", true},
+                                            });
 
     return kind + " storage cleared.";
 }
@@ -3421,11 +3556,11 @@ std::string actionSetOffline(CdpTab &tab, const nlohmann::json &params)
     bool enabled = params.value("enabled", true);
 
     tab.sendCommand(cdp::network::EmulateNetworkConditions, {
-        {"offline", enabled},
-        {"latency", 0},
-        {"downloadThroughput", -1},
-        {"uploadThroughput", -1},
-    });
+                                                                {"offline", enabled},
+                                                                {"latency", 0},
+                                                                {"downloadThroughput", -1},
+                                                                {"uploadThroughput", -1},
+                                                            });
 
     return "Offline mode " + std::string(enabled ? "enabled" : "disabled") + ".";
 }
@@ -3440,8 +3575,8 @@ std::string actionSetHeaders(CdpTab &tab, const nlohmann::json &params)
     }
 
     tab.sendCommand(cdp::network::SetExtraHTTPHeaders, {
-        {"headers", headers},
-    });
+                                                           {"headers", headers},
+                                                       });
 
     return "Custom headers set (" + std::to_string(headers.size()) + " headers).";
 }
@@ -3466,8 +3601,8 @@ std::string actionSetCredentials(CdpTab &tab, const nlohmann::json &params)
 
     tab.setAuthCredentials(username, password);
     tab.sendCommand(cdp::fetch::Enable, {
-        {"handleAuthRequests", true},
-    });
+                                            {"handleAuthRequests", true},
+                                        });
 
     return "HTTP credentials set for " + username + ".";
 }
@@ -3485,11 +3620,17 @@ std::string actionSetGeolocation(CdpTab &tab, const nlohmann::json &params)
     double latitude = params.value("latitude", 0.0);
     double longitude = params.value("longitude", 0.0);
 
+    if (latitude < -90.0 || latitude > 90.0 || longitude < -180.0 || longitude > 180.0)
+    {
+        return "Error: invalid coordinates. Latitude must be -90 to 90, longitude -180 to 180 (got " +
+               std::to_string(latitude) + ", " + std::to_string(longitude) + ").";
+    }
+
     tab.sendCommand(cdp::emulation::SetGeolocationOverride, {
-        {"latitude", latitude},
-        {"longitude", longitude},
-        {"accuracy", 1.0},
-    });
+                                                                {"latitude", latitude},
+                                                                {"longitude", longitude},
+                                                                {"accuracy", 1.0},
+                                                            });
 
     return "Geolocation set to " + std::to_string(latitude) + ", " + std::to_string(longitude) + ".";
 }
@@ -3501,16 +3642,16 @@ std::string actionSetMedia(CdpTab &tab, const nlohmann::json &params)
     if (media.empty() || media == "none")
     {
         tab.sendCommand(cdp::emulation::SetEmulatedMedia, {
-            {"features", nlohmann::json::array()},
-        });
+                                                              {"features", nlohmann::json::array()},
+                                                          });
         return "Media emulation cleared.";
     }
 
     tab.sendCommand(cdp::emulation::SetEmulatedMedia, {
-        {"features", nlohmann::json::array({
-            {{"name", "prefers-color-scheme"}, {"value", media}},
-        })},
-    });
+                                                          {"features", nlohmann::json::array({
+                                                                           {{"name", "prefers-color-scheme"}, {"value", media}},
+                                                                       })},
+                                                      });
 
     return "Media emulation set to: " + media;
 }
@@ -3521,13 +3662,15 @@ std::string actionSetTimezone(CdpTab &tab, const nlohmann::json &params)
 
     if (timezone.empty())
     {
-        tab.sendCommand(cdp::emulation::SetTimezoneOverride, {{"timezoneId", ""}});
-        return "Timezone override cleared.";
+        // CDP requires a valid timezone ID; use UTC to effectively "clear" the override,
+        // then reload to apply the system timezone via a fresh page load
+        tab.sendCommand(cdp::emulation::SetTimezoneOverride, {{"timezoneId", "Etc/UTC"}});
+        return "Timezone override set to UTC. To fully restore the system timezone, reload the page after clearing.";
     }
 
     tab.sendCommand(cdp::emulation::SetTimezoneOverride, {
-        {"timezoneId", timezone},
-    });
+                                                             {"timezoneId", timezone},
+                                                         });
 
     return "Timezone set to: " + timezone;
 }
@@ -3542,8 +3685,8 @@ std::string actionSetLocale(CdpTab &tab, const nlohmann::json &params)
     }
 
     tab.sendCommand(cdp::emulation::SetLocaleOverride, {
-        {"locale", locale},
-    });
+                                                           {"locale", locale},
+                                                       });
 
     return "Locale set to: " + locale;
 }
@@ -3567,7 +3710,8 @@ std::string actionSetDevice(CdpTab &tab, const nlohmann::json &params)
     {
         std::string lower = device;
         std::transform(lower.begin(), lower.end(), lower.begin(),
-                       [](unsigned char c) { return c < 0x80 ? std::tolower(c) : c; });
+                       [](unsigned char c)
+                       { return c < 0x80 ? std::tolower(c) : c; });
 
         auto it = DEVICE_PRESETS.find(lower);
 
@@ -3576,35 +3720,41 @@ std::string actionSetDevice(CdpTab &tab, const nlohmann::json &params)
             auto &preset = it->second;
 
             tab.sendCommand(cdp::emulation::SetDeviceMetricsOverride, {
-                {"width", preset.width},
-                {"height", preset.height},
-                {"deviceScaleFactor", preset.deviceScaleFactor},
-                {"mobile", preset.isMobile},
-            });
+                                                                          {"width", preset.width},
+                                                                          {"height", preset.height},
+                                                                          {"deviceScaleFactor", preset.deviceScaleFactor},
+                                                                          {"mobile", preset.isMobile},
+                                                                      });
 
             if (!preset.userAgent.empty())
             {
                 tab.sendCommand(cdp::emulation::SetUserAgentOverride, {
-                    {"userAgent", preset.userAgent},
-                });
+                                                                          {"userAgent", preset.userAgent},
+                                                                      });
             }
 
             return "Device emulation set to: " + device + " (" + std::to_string(preset.width) + "x" + std::to_string(preset.height) + ")";
         }
 
         return "Error: unknown device preset '" + device + "'. Available: "
-               "iPhone 14, iPhone 14 Pro Max, iPhone SE, iPad, iPad Pro, "
-               "Pixel 7, Samsung Galaxy S23, Desktop 1080p, Desktop 1440p";
+                                                           "iPhone 14, iPhone 14 Pro Max, iPhone SE, iPad, iPad Pro, "
+                                                           "Pixel 7, Samsung Galaxy S23, Desktop 1080p, Desktop 1440p";
     }
 
     if (width > 0 && height > 0)
     {
+        if (width > 7680 || height > 4320)
+        {
+            return "Error: viewport dimensions too large (max 7680x4320, got " +
+                   std::to_string(width) + "x" + std::to_string(height) + ").";
+        }
+
         tab.sendCommand(cdp::emulation::SetDeviceMetricsOverride, {
-            {"width", width},
-            {"height", height},
-            {"deviceScaleFactor", 1},
-            {"mobile", false},
-        });
+                                                                      {"width", width},
+                                                                      {"height", height},
+                                                                      {"deviceScaleFactor", 1},
+                                                                      {"mobile", false},
+                                                                  });
 
         return "Viewport set to " + std::to_string(width) + "x" + std::to_string(height);
     }
@@ -3646,15 +3796,25 @@ std::string actionUpload(CdpTab &tab, const nlohmann::json &params)
         return "Error: 'path' is required for upload action";
     }
 
+    if (!std::filesystem::exists(path))
+    {
+        return "Error: file not found: " + path;
+    }
+
+    if (!std::filesystem::is_regular_file(path))
+    {
+        return "Error: not a regular file: " + path;
+    }
+
     auto safeSelector = ToolHelper::escapeForJs(selector);
 
     // resolve the input element
-    auto evalResult = tab.sendCommand(cdp::runtime::Evaluate, {
-        {"expression", "document.querySelector('" + safeSelector + "')"},
-        {"returnByValue", false},
-    });
+    auto resolveResult = tab.sendCommand(cdp::runtime::Evaluate, {
+                                                                     {"expression", "document.querySelector('" + safeSelector + "')"},
+                                                                     {"returnByValue", false},
+                                                                 });
 
-    auto objectId = evalResult["result"].value("objectId", "");
+    auto objectId = evalResult(resolveResult).value("objectId", "");
 
     if (objectId.empty())
     {
@@ -3663,10 +3823,10 @@ std::string actionUpload(CdpTab &tab, const nlohmann::json &params)
 
     // get the backend node ID
     auto nodeResult = tab.sendCommand(cdp::dom::DescribeNode, {
-        {"objectId", objectId},
-    });
+                                                                  {"objectId", objectId},
+                                                              });
 
-    auto backendNodeId = nodeResult["node"].value("backendNodeId", 0);
+    auto backendNodeId = nodeResult.value("node", nlohmann::json::object()).value("backendNodeId", 0);
 
     if (backendNodeId == 0)
     {
@@ -3675,9 +3835,9 @@ std::string actionUpload(CdpTab &tab, const nlohmann::json &params)
 
     // set the files
     tab.sendCommand(cdp::dom::SetFileInputFiles, {
-        {"files", nlohmann::json::array({path})},
-        {"backendNodeId", backendNodeId},
-    });
+                                                     {"files", nlohmann::json::array({path})},
+                                                     {"backendNodeId", backendNodeId},
+                                                 });
 
     return "File uploaded: " + path;
 }
@@ -3686,9 +3846,19 @@ std::string actionUpload(CdpTab &tab, const nlohmann::json &params)
 
 // ── BrowserTool public interface ───────────────────────────────────────────
 
-std::string BrowserTool::execute(const nlohmann::json &params, const ToolContext & /*context*/)
+ToolResult BrowserTool::execute(const nlohmann::json &params, const ToolContext & /*context*/)
 {
-    auto action = params.at("action").get<std::string>();
+    auto action = params.value("action", "");
+
+    if (action.empty())
+    {
+        return "Error: 'action' parameter is required. Available actions: navigate, snapshot, screenshot, "
+               "click, type, press, hover, select, fill, drag, scroll, scroll_into_view, resize, evaluate, "
+               "console, errors, requests, response_body, pdf, cookies, set_cookie, clear_cookies, "
+               "get_storage, set_storage, clear_storage, set_offline, set_headers, set_credentials, "
+               "set_geolocation, set_media, set_timezone, set_locale, set_device, dialog, upload, wait, "
+               "inspect, tabs, open, focus, close, back, forward, reload, status, start, stop.";
+    }
 
     bool headless = false;
 
@@ -4003,21 +4173,55 @@ ToolSchema BrowserTool::schema() const
         {{"type", "object"},
          {"properties",
           {
-              {"action", {{"type", "string"},
-                          {"enum", nlohmann::json::array({
-                              "status", "start", "stop",
-                              "tabs", "open", "focus", "close",
-                              "navigate", "back", "forward", "reload", "scroll", "wait",
-                              "snapshot", "screenshot", "inspect", "pdf",
-                              "click", "type", "press", "hover", "select", "fill", "drag", "scroll_into_view", "resize",
-                              "evaluate",
-                              "console", "errors", "requests", "response_body",
-                              "cookies", "set_cookie", "clear_cookies",
-                              "get_storage", "set_storage", "clear_storage",
-                              "set_offline", "set_headers", "set_credentials",
-                              "set_geolocation", "set_media", "set_timezone", "set_locale", "set_device",
-                              "dialog", "upload",
-                          })},
+              {"action", {{"type", "string"}, {"enum", nlohmann::json::array({
+                                                           "status",
+                                                           "start",
+                                                           "stop",
+                                                           "tabs",
+                                                           "open",
+                                                           "focus",
+                                                           "close",
+                                                           "navigate",
+                                                           "back",
+                                                           "forward",
+                                                           "reload",
+                                                           "scroll",
+                                                           "wait",
+                                                           "snapshot",
+                                                           "screenshot",
+                                                           "inspect",
+                                                           "pdf",
+                                                           "click",
+                                                           "type",
+                                                           "press",
+                                                           "hover",
+                                                           "select",
+                                                           "fill",
+                                                           "drag",
+                                                           "scroll_into_view",
+                                                           "resize",
+                                                           "evaluate",
+                                                           "console",
+                                                           "errors",
+                                                           "requests",
+                                                           "response_body",
+                                                           "cookies",
+                                                           "set_cookie",
+                                                           "clear_cookies",
+                                                           "get_storage",
+                                                           "set_storage",
+                                                           "clear_storage",
+                                                           "set_offline",
+                                                           "set_headers",
+                                                           "set_credentials",
+                                                           "set_geolocation",
+                                                           "set_media",
+                                                           "set_timezone",
+                                                           "set_locale",
+                                                           "set_device",
+                                                           "dialog",
+                                                           "upload",
+                                                       })},
                           {"description", "Browser action to perform"}}},
               {"url", {{"type", "string"}, {"description", "URL for navigate/open/set_cookie"}}},
               {"selector", {{"type", "string"}, {"description", "CSS selector for element interactions (click, type, hover, select, fill, drag, scroll_into_view, upload, screenshot)"}}},

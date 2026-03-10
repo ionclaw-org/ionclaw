@@ -16,7 +16,7 @@ namespace builtin
 class HttpClientTool : public Tool
 {
 public:
-    std::string execute(const nlohmann::json &params, const ToolContext &context) override;
+    ToolResult execute(const nlohmann::json &params, const ToolContext &context) override;
     ToolSchema schema() const override;
 
 private:

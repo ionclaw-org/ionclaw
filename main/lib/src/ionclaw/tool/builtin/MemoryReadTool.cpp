@@ -12,7 +12,7 @@ namespace tool
 namespace builtin
 {
 
-std::string MemoryReadTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult MemoryReadTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto file = params.at("file").get<std::string>();
 

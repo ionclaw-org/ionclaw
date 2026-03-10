@@ -15,7 +15,7 @@ namespace builtin
 {
 
 // execute file read
-std::string ReadFileTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult ReadFileTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto rawPath = params.at("path").get<std::string>();
     auto resolvedPath = ToolHelper::validateAndResolvePath(context.workspacePath, rawPath, context.publicPath);

@@ -168,6 +168,7 @@ The platform ships with built-in skills that document tools and workflows:
 | **http-client** | Make HTTP requests (GET, POST, etc.) with auth, download, upload. |
 | **image-generation** | Generate images from text using AI (provider-routed: Gemini native, OpenAI-compatible). |
 | **local-image-generation** | Local image operations (create, resize, draw, overlay, watermark) via the `image_ops` tool. |
+| **vision** | Analyze and describe images using AI vision (local files, URLs, or base64 data). |
 | **memory** | Two-layer memory: MEMORY.md and HISTORY.md, with search-based recall. |
 | **rss-reader** | Read RSS/Atom feeds. |
 | **skill-creator** | Guidance for creating and updating skills from within a conversation. |

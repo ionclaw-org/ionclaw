@@ -24,7 +24,7 @@ public:
     void registerTool(std::shared_ptr<Tool> tool);
     void registerBuiltinTools();
 
-    std::string executeTool(const std::string &name, const nlohmann::json &params, const ToolContext &context);
+    ToolResult executeTool(const std::string &name, const nlohmann::json &params, const ToolContext &context);
     bool hasTool(const std::string &name) const;
 
     std::vector<ToolSchema> getSchemas() const;

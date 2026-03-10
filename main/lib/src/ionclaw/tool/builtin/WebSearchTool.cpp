@@ -10,7 +10,7 @@ namespace tool
 namespace builtin
 {
 
-std::string WebSearchTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult WebSearchTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     std::string query = params.at("query").get<std::string>();
 

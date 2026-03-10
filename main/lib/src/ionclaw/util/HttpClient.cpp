@@ -130,7 +130,7 @@ HttpResponse HttpClient::post(const std::string &path, const std::string &body)
 
     Poco::Net::HTTPRequest request(Poco::Net::HTTPRequest::HTTP_POST, requestPath, Poco::Net::HTTPMessage::HTTP_1_1);
     request.setContentType("application/json");
-    request.setContentLength(static_cast<int>(body.size()));
+    request.setContentLength(static_cast<std::streamsize>(body.size()));
     applyHeaders(request, defaultHeaders);
 
     auto &os = session->sendRequest(request);
@@ -177,7 +177,7 @@ void HttpClient::postStream(const std::string &path, const std::string &body, St
 
     Poco::Net::HTTPRequest request(Poco::Net::HTTPRequest::HTTP_POST, requestPath, Poco::Net::HTTPMessage::HTTP_1_1);
     request.setContentType("application/json");
-    request.setContentLength(static_cast<int>(body.size()));
+    request.setContentLength(static_cast<std::streamsize>(body.size()));
     applyHeaders(request, defaultHeaders);
 
     auto &os = session->sendRequest(request);
@@ -250,7 +250,7 @@ HttpResponse HttpClient::request(
 
         if (!body.empty())
         {
-            request.setContentLength(static_cast<int>(body.size()));
+            request.setContentLength(static_cast<std::streamsize>(body.size()));
 
             // default to json if no content type was set via headers
             if (request.getContentType().empty())

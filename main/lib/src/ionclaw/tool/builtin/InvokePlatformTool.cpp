@@ -9,7 +9,7 @@ namespace tool
 namespace builtin
 {
 
-std::string InvokePlatformTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult InvokePlatformTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto function = params.at("function").get<std::string>();
 

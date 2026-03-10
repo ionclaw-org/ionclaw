@@ -5,6 +5,7 @@
 #include "ionclaw/bus/Events.hpp"
 #include "ionclaw/bus/MessageBus.hpp"
 #include "ionclaw/config/Config.hpp"
+#include "ionclaw/session/SessionManager.hpp"
 #include "ionclaw/task/TaskManager.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/UniqueId.hpp"
@@ -16,7 +17,7 @@ namespace tool
 namespace builtin
 {
 
-std::string SpawnTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult SpawnTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto task = params.at("task").get<std::string>();
 
@@ -172,11 +173,36 @@ std::string SpawnTool::execute(const nlohmann::json &params, const ToolContext &
         runId = record.runId;
     }
 
+    // collect parent's recent media files for the child agent
+    std::vector<std::string> parentMedia;
+
+    if (context.sessionManager)
+    {
+        auto history = context.sessionManager->getHistory(context.sessionKey, 20);
+
+        for (auto it = history.rbegin(); it != history.rend(); ++it)
+        {
+            if (it->role == "user" && !it->media.empty())
+            {
+                for (const auto &m : it->media)
+                {
+                    if (m.is_string())
+                    {
+                        parentMedia.push_back(m.get<std::string>());
+                    }
+                }
+
+                break; // only pass the most recent user message's media
+            }
+        }
+    }
+
     // publish inbound message with subagent metadata
     ionclaw::bus::InboundMessage msg;
     msg.channel = channel;
     msg.chatId = childChatId;
     msg.content = task;
+    msg.media = parentMedia;
     msg.metadata = {
         {"task_id", taskId},
         {"parent_session_key", context.sessionKey},

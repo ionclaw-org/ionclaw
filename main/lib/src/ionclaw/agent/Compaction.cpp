@@ -59,7 +59,8 @@ std::string buildSummaryPrompt(const CompactionConfig &config)
         prompt << "- TODOs and open questions\n";
     }
 
-    prompt << "- User preferences and requirements\n\n";
+    prompt << "- User preferences and requirements\n";
+    prompt << "- Media file references (preserve [media: ...] annotations with exact file paths)\n\n";
     prompt << "Be concise but do not omit important technical details. ";
     prompt << "Write the summary as a single block of text, not a conversation.";
 

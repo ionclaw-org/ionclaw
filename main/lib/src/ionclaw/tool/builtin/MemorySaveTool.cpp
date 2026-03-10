@@ -10,7 +10,7 @@ namespace tool
 namespace builtin
 {
 
-std::string MemorySaveTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult MemorySaveTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto historyEntry = params.at("history_entry").get<std::string>();
     auto updatedMemory = params.at("updated_memory").get<std::string>();

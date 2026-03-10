@@ -282,7 +282,40 @@ nlohmann::json AnthropicProvider::buildRequestBody(const ChatCompletionRequest &
             nlohmann::json contentBlock;
             contentBlock["type"] = "tool_result";
             contentBlock["tool_use_id"] = msg.toolCallId;
-            contentBlock["content"] = msg.content;
+
+            // use content blocks with image when available
+            if (msg.contentBlocks.is_array() && !msg.contentBlocks.empty())
+            {
+                auto resultContent = nlohmann::json::array();
+
+                for (const auto &block : msg.contentBlocks)
+                {
+                    auto blockType = block.value("type", "");
+
+                    if (blockType == "image")
+                    {
+                        nlohmann::json imageBlock;
+                        imageBlock["type"] = "image";
+                        imageBlock["source"]["type"] = "base64";
+                        imageBlock["source"]["media_type"] = block.value("media_type", "image/png");
+                        imageBlock["source"]["data"] = block.value("data", "");
+                        resultContent.push_back(imageBlock);
+                    }
+                    else if (blockType == "text")
+                    {
+                        nlohmann::json textBlock;
+                        textBlock["type"] = "text";
+                        textBlock["text"] = block.value("text", "");
+                        resultContent.push_back(textBlock);
+                    }
+                }
+
+                contentBlock["content"] = resultContent;
+            }
+            else
+            {
+                contentBlock["content"] = msg.content;
+            }
 
             toolResultMsg["content"] = nlohmann::json::array({contentBlock});
             messages.push_back(toolResultMsg);
@@ -622,7 +655,7 @@ ChatCompletionResponse AnthropicProvider::chat(const ChatCompletionRequest &requ
 
     // send request and check for errors
     auto body = buildRequestBody(request);
-    auto httpResponse = client.post("/v1/messages", body.dump());
+    auto httpResponse = client.post("/v1/messages", body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace));
 
     if (httpResponse.statusCode < 200 || httpResponse.statusCode >= 300)
     {
@@ -672,7 +705,7 @@ void AnthropicProvider::chatStream(const ChatCompletionRequest &request, StreamC
         callback(chunk);
     };
 
-    client.postStream("/v1/messages", body.dump(), [&](const std::string &data)
+    client.postStream("/v1/messages", body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace), [&](const std::string &data)
                       {
         if (data.empty() || data == "[DONE]")
         {

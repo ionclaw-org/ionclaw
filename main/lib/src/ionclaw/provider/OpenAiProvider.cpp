@@ -275,12 +275,45 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
         // convert tool result messages
         else if (msg.role == "tool")
         {
-            m["content"] = msg.content;
             m["tool_call_id"] = msg.toolCallId;
 
             if (!msg.name.empty())
             {
                 m["name"] = msg.name;
+            }
+
+            // use content blocks with image when available
+            if (msg.contentBlocks.is_array() && !msg.contentBlocks.empty())
+            {
+                auto openaiBlocks = nlohmann::json::array();
+
+                for (const auto &block : msg.contentBlocks)
+                {
+                    auto blockType = block.value("type", "");
+
+                    if (blockType == "image")
+                    {
+                        auto mediaType = block.value("media_type", "image/png");
+                        auto data = block.value("data", "");
+                        nlohmann::json imageBlock;
+                        imageBlock["type"] = "image_url";
+                        imageBlock["image_url"]["url"] = "data:" + mediaType + ";base64," + data;
+                        openaiBlocks.push_back(imageBlock);
+                    }
+                    else if (blockType == "text")
+                    {
+                        nlohmann::json textBlock;
+                        textBlock["type"] = "text";
+                        textBlock["text"] = block.value("text", "");
+                        openaiBlocks.push_back(textBlock);
+                    }
+                }
+
+                m["content"] = openaiBlocks;
+            }
+            else
+            {
+                m["content"] = msg.content;
             }
         }
         // handle multimodal content blocks (images, audio)
@@ -443,7 +476,7 @@ ChatCompletionResponse OpenAiProvider::chat(const ChatCompletionRequest &request
 
     // send request and check for errors
     auto body = buildRequestBody(request);
-    auto httpResponse = client.post("/chat/completions", body.dump());
+    auto httpResponse = client.post("/chat/completions", body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace));
 
     if (httpResponse.statusCode < 200 || httpResponse.statusCode >= 300)
     {
@@ -486,7 +519,7 @@ void OpenAiProvider::chatStream(const ChatCompletionRequest &request, StreamCall
     std::string actualFinishReason;
     bool doneEmitted = false;
 
-    client.postStream("/chat/completions", body.dump(), [&](const std::string &data)
+    client.postStream("/chat/completions", body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace), [&](const std::string &data)
                       {
         // handle empty lines and stream termination
         if (data.empty() || data == "[DONE]")

@@ -69,7 +69,7 @@ static std::string findClosestMatch(const std::string &content, const std::strin
     return context;
 }
 
-std::string EditFileTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult EditFileTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto rawPath = params.at("path").get<std::string>();
     auto oldText = params.at("old_text").get<std::string>();

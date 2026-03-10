@@ -81,7 +81,7 @@ std::string WebFetchTool::stripHtml(const std::string &html)
     return result.substr(start, end - start + 1);
 }
 
-std::string WebFetchTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult WebFetchTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto url = params.at("url").get<std::string>();
     int maxChars = 50000;

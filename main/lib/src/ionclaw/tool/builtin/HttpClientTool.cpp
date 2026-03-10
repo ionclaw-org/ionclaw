@@ -268,7 +268,7 @@ void HttpClientTool::applyAuth(
 }
 
 // execute http request
-std::string HttpClientTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto method = params.at("method").get<std::string>();
     auto url = params.at("url").get<std::string>();

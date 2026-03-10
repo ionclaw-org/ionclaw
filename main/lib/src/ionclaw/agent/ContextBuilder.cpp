@@ -370,12 +370,81 @@ std::string ContextBuilder::buildSystemPrompt(
     return prompt.str();
 }
 
+// build media annotation text from session media paths
+static std::string buildMediaAnnotation(const std::vector<nlohmann::json> &media)
+{
+    if (media.empty())
+    {
+        return "";
+    }
+
+    std::string annotation;
+
+    for (const auto &m : media)
+    {
+        if (!m.is_string())
+        {
+            continue;
+        }
+
+        auto path = m.get<std::string>();
+
+        // detect MIME type from extension
+        std::string mime = "image";
+        auto dot = path.rfind('.');
+
+        if (dot != std::string::npos)
+        {
+            auto ext = path.substr(dot);
+            std::transform(ext.begin(), ext.end(), ext.begin(),
+                           [](unsigned char c)
+                           { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+
+            if (ext == ".jpg" || ext == ".jpeg")
+                mime = "image/jpeg";
+            else if (ext == ".png")
+                mime = "image/png";
+            else if (ext == ".gif")
+                mime = "image/gif";
+            else if (ext == ".webp")
+                mime = "image/webp";
+            else if (ext == ".svg")
+                mime = "image/svg+xml";
+            else if (ext == ".bmp")
+                mime = "image/bmp";
+            else if (ext == ".mp3")
+                mime = "audio/mpeg";
+            else if (ext == ".wav")
+                mime = "audio/wav";
+            else if (ext == ".ogg" || ext == ".oga" || ext == ".opus")
+                mime = "audio/ogg";
+            else if (ext == ".m4a")
+                mime = "audio/mp4";
+            else if (ext == ".pdf")
+                mime = "application/pdf";
+        }
+
+        // indicate audio files were already transcribed so the model doesn't try vision on them
+        if (mime.rfind("audio/", 0) == 0)
+        {
+            annotation += "\n[media: " + path + " (" + mime + ") — audio already transcribed above]";
+        }
+        else
+        {
+            annotation += "\n[media: " + path + " (" + mime + ")]";
+        }
+    }
+
+    return annotation;
+}
+
 // build provider messages from session history and current user input
 std::vector<ionclaw::provider::Message> ContextBuilder::buildMessages(
     const std::string &systemPrompt,
     const std::vector<ionclaw::session::SessionMessage> &history,
     const std::string &userContent,
-    const nlohmann::json &mediaBlocks)
+    const nlohmann::json &mediaBlocks,
+    const std::map<int, nlohmann::json> &historyMediaBlocks)
 {
     std::vector<ionclaw::provider::Message> messages;
 
@@ -386,8 +455,9 @@ std::vector<ionclaw::provider::Message> ContextBuilder::buildMessages(
     messages.push_back(systemMsg);
 
     // normalize history for the LLM: convert content blocks to plain text
-    for (const auto &msg : history)
+    for (int idx = 0; idx < static_cast<int>(history.size()); ++idx)
     {
+        const auto &msg = history[idx];
         ionclaw::provider::Message entry;
         entry.role = msg.role;
 
@@ -443,6 +513,33 @@ std::vector<ionclaw::provider::Message> ContextBuilder::buildMessages(
             entry.name = msg.raw["name"].get<std::string>();
         }
 
+        // attach media annotation and resolved image blocks for user messages with media
+        if (msg.role == "user" && !msg.media.empty())
+        {
+            auto annotation = buildMediaAnnotation(msg.media);
+
+            if (!annotation.empty())
+            {
+                entry.content += annotation;
+            }
+
+            // attach re-resolved image content blocks if available
+            auto it = historyMediaBlocks.find(idx);
+
+            if (it != historyMediaBlocks.end() && it->second.is_array() && !it->second.empty())
+            {
+                auto blocks = nlohmann::json::array();
+                blocks.push_back({{"type", "text"}, {"text", entry.content}});
+
+                for (const auto &block : it->second)
+                {
+                    blocks.push_back(block);
+                }
+
+                entry.contentBlocks = blocks;
+            }
+        }
+
         if (entry.role.empty() || (entry.content.empty() && entry.toolCalls.empty() && entry.role != "tool"))
         {
             continue;
@@ -476,17 +573,39 @@ std::vector<ionclaw::provider::Message> ContextBuilder::buildMessages(
 }
 
 // append a tool result message to the conversation
+// media: optional JSON array of {type, media_type, data} blocks from ToolResult
 void ContextBuilder::addToolResult(
     std::vector<ionclaw::provider::Message> &messages,
     const std::string &toolCallId,
     const std::string &toolName,
-    const std::string &result)
+    const std::string &result,
+    const nlohmann::json &media)
 {
     ionclaw::provider::Message msg;
     msg.role = "tool";
     msg.toolCallId = toolCallId;
     msg.name = toolName;
     msg.content = result;
+
+    // attach structured media blocks if present (images, audio, etc.)
+    if (media.is_array() && !media.empty())
+    {
+        auto blocks = nlohmann::json::array();
+
+        for (const auto &block : media)
+        {
+            blocks.push_back(block);
+        }
+
+        // append text description as final block
+        if (!result.empty())
+        {
+            blocks.push_back({{"type", "text"}, {"text", result}});
+        }
+
+        msg.contentBlocks = blocks;
+    }
+
     messages.push_back(msg);
 }
 
@@ -711,7 +830,7 @@ void ContextBuilder::pruneHistoryImages(std::vector<ionclaw::provider::Message> 
 {
     // count user messages from the end to determine which ones are "recent"
     int userCount = 0;
-    int cutoffIdx = static_cast<int>(messages.size());
+    int cutoffIdx = 0; // default: don't prune anything
 
     for (int i = static_cast<int>(messages.size()) - 1; i >= 0; --i)
     {
@@ -743,7 +862,7 @@ void ContextBuilder::pruneHistoryImages(std::vector<ionclaw::provider::Message> 
 
             if (type == "image" || type == "image_url")
             {
-                pruned.push_back({{"type", "text"}, {"text", "[image removed from context]"}});
+                pruned.push_back({{"type", "text"}, {"text", "[image data pruned from context — use the vision tool to re-examine the file if needed]"}});
                 hasImage = true;
             }
             else

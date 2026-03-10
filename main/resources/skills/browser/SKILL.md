@@ -39,7 +39,7 @@ Control Chrome/Brave/Edge/Chromium browser via Chrome DevTools Protocol (CDP).
 | Action | Description |
 |--------|-------------|
 | `snapshot` | **Use this to read page content.** Params: `format` (text/accessibility), `max_chars`, `interactive` |
-| `screenshot` | Capture visual image. Returns resized preview as inline image + saves full-res file. Params: `full_page`, `image_type`, `quality`, `selector`, `output_path` |
+| `screenshot` | Capture visual image. Returns resized JPEG preview for visual analysis + saves full-res file. Params: `full_page`, `image_type`, `quality`, `selector`, `output_path` |
 | `inspect` | List interactive elements with CSS selectors (up to 100 visible elements) |
 | `pdf` | Render current page to PDF. Saves file and returns path. Params: `output_path` |
 
@@ -92,7 +92,7 @@ Control Chrome/Brave/Edge/Chromium browser via Chrome DevTools Protocol (CDP).
 | `set_credentials` | Set HTTP basic auth. Params: `username`, `password`, `clear` |
 | `set_geolocation` | Override GPS. Params: `latitude`, `longitude`, `clear` |
 | `set_media` | Color scheme. Params: `media` (dark/light/no-preference/none) |
-| `set_timezone` | Override timezone. Params: `timezone` (IANA ID) |
+| `set_timezone` | Override timezone. Params: `timezone` (IANA ID). Omit to reset to UTC |
 | `set_locale` | Override locale. Params: `locale` (e.g. pt-BR) |
 | `set_device` | Device emulation. Params: `device` (preset) or `width`+`height`, `clear` |
 
@@ -195,9 +195,9 @@ If navigation failed:
 Error: navigation to https://bad.example failed: net::ERR_NAME_NOT_RESOLVED (tab 1/1)
 ```
 
-Screenshot responses include a resized preview image and file info:
+Screenshot responses include a resized preview image (sent as a visual block you can see) and file info:
 ```
-data:image/jpeg;base64,...
+[image preview is displayed inline for visual analysis]
 Screenshot captured (1920x1080, 245KB). Preview: 1024x576 (32KB). Full resolution: /tmp/ionclaw/browser/screenshot_1710043200000.png
 ```
 

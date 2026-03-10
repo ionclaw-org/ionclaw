@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -41,13 +42,15 @@ public:
         const std::string &systemPrompt,
         const std::vector<ionclaw::session::SessionMessage> &history,
         const std::string &userContent,
-        const nlohmann::json &mediaBlocks = nlohmann::json::array());
+        const nlohmann::json &mediaBlocks = nlohmann::json::array(),
+        const std::map<int, nlohmann::json> &historyMediaBlocks = {});
 
     static void addToolResult(
         std::vector<ionclaw::provider::Message> &messages,
         const std::string &toolCallId,
         const std::string &toolName,
-        const std::string &result);
+        const std::string &result,
+        const nlohmann::json &media = nlohmann::json());
 
     static void addAssistantMessage(
         std::vector<ionclaw::provider::Message> &messages,

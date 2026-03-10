@@ -75,7 +75,7 @@ IonClaw includes a native C++ tools system. Built-in capabilities include:
 - Full HTTP client (GET, POST, etc., with auth and file download/upload)
 - Web search (configurable providers, e.g. Brave, DuckDuckGo)
 - Web fetch and RSS reader
-- AI image generation (provider-routed: e.g. Gemini native API, OpenAI-compatible)
+- [AI image generation](image-generation.md) (provider-routed: Gemini, OpenAI, Grok)
 - Local image operations (create, resize, draw, overlay, watermark)
 - Subagent spawning and cron scheduling
 - Persistent memory and session handling

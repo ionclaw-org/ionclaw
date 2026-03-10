@@ -80,7 +80,7 @@ std::string ExecTool::validateCommand(const std::string &command)
 }
 
 // execute shell command
-std::string ExecTool::execute(const nlohmann::json &params, const ToolContext &context)
+ToolResult ExecTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto command = params.at("command").get<std::string>();
 
