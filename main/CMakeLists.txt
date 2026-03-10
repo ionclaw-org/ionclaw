@@ -171,6 +171,7 @@ add_library(ionclaw-lib STATIC
 target_include_directories(ionclaw-lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lib/include)
 target_include_directories(ionclaw-lib PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_definitions(ionclaw-lib PRIVATE IONCLAW_EMBEDDED_RESOURCES)
+target_compile_definitions(ionclaw-lib PUBLIC IONCLAW_VERSION_STRING="${IONCLAW_VERSION}")
 add_dependencies(ionclaw-lib ionclaw-embedded-resources)
 
 if(IONCLAW_BUILD_SHARED)
@@ -191,8 +192,8 @@ if(IONCLAW_BUILD_SHARED)
         set_target_properties(ionclaw-shared PROPERTIES
             FRAMEWORK TRUE
             MACOSX_FRAMEWORK_IDENTIFIER "com.ionclaw.lib"
-            MACOSX_FRAMEWORK_BUNDLE_VERSION "1.0.0"
-            MACOSX_FRAMEWORK_SHORT_VERSION_STRING "1.0.0"
+            MACOSX_FRAMEWORK_BUNDLE_VERSION "${IONCLAW_VERSION}"
+            MACOSX_FRAMEWORK_SHORT_VERSION_STRING "${IONCLAW_VERSION}"
             XCODE_ATTRIBUTE_DEFINES_MODULE YES
             XCODE_ATTRIBUTE_BUILD_LIBRARY_FOR_DISTRIBUTION YES
             XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "iPhone Developer"
@@ -201,6 +202,7 @@ if(IONCLAW_BUILD_SHARED)
     target_include_directories(ionclaw-shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lib/include)
     target_include_directories(ionclaw-shared PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
     target_compile_definitions(ionclaw-shared PRIVATE IONCLAW_EMBEDDED_RESOURCES)
+    target_compile_definitions(ionclaw-shared PUBLIC IONCLAW_VERSION_STRING="${IONCLAW_VERSION}")
     add_dependencies(ionclaw-shared ionclaw-embedded-resources)
 else()
     # desktop executable

@@ -7,6 +7,9 @@ on:
       release:
         type: boolean
         default: false
+      version:
+        type: string
+        default: "0.0.0-dev"
 
 env:
   BUILD_TYPE: Release
@@ -40,21 +43,21 @@ jobs:
 
       - name: Build iOS arm64
         run: |
-          cmake -B build/ios-arm64 -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON \
+          cmake -B build/ios-arm64 -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON -DIONCLAW_VERSION=${{ inputs.version || '0.0.0-dev' }} \
             -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DCMAKE_OSX_SYSROOT=iphoneos
           cmake --build build/ios-arm64 --config ${{ env.BUILD_TYPE }} -j$(sysctl -n hw.ncpu)
 
       - name: Build iOS simulator arm64
         run: |
-          cmake -B build/ios-sim-arm64 -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON \
+          cmake -B build/ios-sim-arm64 -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON -DIONCLAW_VERSION=${{ inputs.version || '0.0.0-dev' }} \
             -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DCMAKE_OSX_SYSROOT=iphonesimulator
           cmake --build build/ios-sim-arm64 --config ${{ env.BUILD_TYPE }} -j$(sysctl -n hw.ncpu)
 
       - name: Build iOS simulator x86_64
         run: |
-          cmake -B build/ios-sim-x86_64 -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON \
+          cmake -B build/ios-sim-x86_64 -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON -DIONCLAW_VERSION=${{ inputs.version || '0.0.0-dev' }} \
             -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=x86_64 \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DCMAKE_OSX_SYSROOT=iphonesimulator
           cmake --build build/ios-sim-x86_64 --config ${{ env.BUILD_TYPE }} -j$(sysctl -n hw.ncpu)

@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.20.0)
 
-# allow older cmake_minimum_required in dependencies (yaml-cpp, etc.)
+# allow older cmake minimum version in dependencies
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "")
 
+# cmake project
 project(ionclaw LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -22,7 +23,8 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # options
-option(IONCLAW_BUILD_SHARED "Build shared library for FFI" OFF)
+set(IONCLAW_VERSION "0.0.0-dev" CACHE STRING "IonClaw version string")
+option(IONCLAW_BUILD_SHARED "Build shared library (FFI)" OFF)
 
 # output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")

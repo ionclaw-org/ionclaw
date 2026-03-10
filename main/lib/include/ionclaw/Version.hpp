@@ -3,6 +3,10 @@
 namespace ionclaw
 {
 
-constexpr const char *VERSION = "0.0.1";
+#ifdef IONCLAW_VERSION_STRING
+constexpr const char *VERSION = IONCLAW_VERSION_STRING;
+#else
+constexpr const char *VERSION = "0.0.0-dev";
+#endif
 
 } // namespace ionclaw

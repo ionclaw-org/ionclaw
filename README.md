@@ -59,61 +59,37 @@ See [screenshots](docs/screenshots.md) for some platforms running IonClaw.
 
 ## Quick Start
 
-### Docker
-
-```bash
-docker compose up
-```
-
-### From source
-
-**Requirements:** CMake 3.20+, C++17 compiler, OpenSSL.
+**Requirements:** CMake 3.20+, C++17 compiler, Node.js 18+ (for web client).
 
 ```bash
 git clone https://github.com/ionclaw-org/ionclaw.git
 cd ionclaw
 
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j$(nproc)
+make setup-web
+make build-web
+make build
+make install
+```
 
-./build/bin/ionclaw-server init /path/to/your/project
-./build/bin/ionclaw-server start --project /path/to/your/project
+Then initialize and start a project:
+
+```bash
+ionclaw-server init /path/to/your/project
+ionclaw-server start --project /path/to/your/project
 ```
 
 Open `http://localhost:8080` in your browser. The web panel is served automatically.
 
-## One-Click Deploy
-
-| Platform | |
-|---|---|
-| Render | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ionclaw-org/ionclaw) |
-| Heroku | [![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://www.heroku.com/deploy?template=https://github.com/ionclaw-org/ionclaw) |
-| DigitalOcean | [![Deploy to DigitalOcean](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/ionclaw-org/ionclaw/tree/main) |
-| Hostinger | [![Deploy on Hostinger](https://assets.hostinger.com/vps/deploy.svg)](https://www.hostinger.com/docker-hosting?compose_url=https://raw.githubusercontent.com/ionclaw-org/ionclaw/main/docker-compose.yml) |
-
-See the [deploy docs](docs/deploy.md) for details on each platform.
-
-## Flutter App
-
-IonClaw includes a native Flutter app for iOS, Android, macOS, Linux, and Windows. The app embeds the full C++ engine and runs everything locally on the device.
-
-```bash
-# Build the shared library
-cmake -B build-shared -DIONCLAW_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build build-shared -j$(nproc)
-
-# Run the app
-cd apps/flutter/runner
-flutter run
-```
-
 ## Documentation
 
 - [Architecture](docs/architecture.md) — System design and components
+- [Build](docs/build.md) — Build system and Makefile targets
 - [Configuration](docs/configuration.md) — Full config.yml reference
+- [Flutter](docs/flutter.md) — Flutter app, release builds, and signing
 - [Skills](docs/skills.md) — Creating and managing skills
 - [Tools](docs/tools.md) — Built-in tools reference
-- [Deploy](docs/deploy.md) — One-click deploy
+- [Docker](docs/docker.md) — Docker build, run, and compose
+- [Deploy](docs/deploy.md) — One-click deploy to cloud platforms
 
 ## License
 

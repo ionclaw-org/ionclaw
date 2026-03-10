@@ -76,9 +76,11 @@ help:
 	@echo "  make release-android         Build Android appbundle (.aab)"
 	@echo "  make release-ios             Build iOS archive (.ipa)"
 	@echo "  make release-macos           Build macOS app"
+	@echo "  make android-gen-key         Generate Android upload keystore and certificate"
 	@echo ""
 	@echo "Setup:"
 	@echo "  make setup-web               Install web client npm dependencies"
+	@echo "  make flutter-deps            Install and upgrade Flutter dependencies"
 	@echo "  make prepare-flutter-macos   Build macOS dylib + web (if not present)"
 	@echo "  make prepare-flutter-ios     Build iOS XCFramework (if not present)"
 	@echo "  make prepare-flutter-android Build Android .so + web (if not present)"
@@ -422,6 +424,34 @@ release-macos: link-flutter-macos link-flutter-web ## Build macOS release
 	cd $(FLUTTER_RUNNER_DIR) && flutter build macos
 	@echo "==> Done."
 	@echo "App: $(FLUTTER_RUNNER_DIR)/build/macos/Build/Products/Release/"
+
+.PHONY: android-gen-key
+android-gen-key: ## Generate Android upload keystore and certificate
+	@if [ -f "extras/android/upload-keystore.jks" ]; then \
+		echo "==> Keystore already exists: extras/android/upload-keystore.jks (skip)"; \
+	else \
+		echo "==> Generating Android upload keystore..."; \
+		mkdir -p extras/android; \
+		keytool -genkeypair -v \
+			-keystore extras/android/upload-keystore.jks \
+			-storepass upload \
+			-keypass upload \
+			-alias upload \
+			-keyalg RSA -keysize 2048 -validity 10000 \
+			-dname "CN=Upload, OU=Upload, O=Upload, L=Upload, ST=Upload, C=BR"; \
+		keytool -export -rfc \
+			-keystore extras/android/upload-keystore.jks \
+			-storepass upload \
+			-alias upload \
+			-file extras/android/upload-certificate.pem; \
+		echo "==> Done."; \
+		echo "Keystore: extras/android/upload-keystore.jks"; \
+		echo "Certificate: extras/android/upload-certificate.pem"; \
+	fi
+
+.PHONY: flutter-deps
+flutter-deps: ## Install and upgrade Flutter dependencies
+	cd $(FLUTTER_RUNNER_DIR) && flutter pub get && flutter pub upgrade
 
 # ============================================================
 # Clean
