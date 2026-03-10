@@ -1,6 +1,6 @@
 ---
 name: browser
-description: Automate browser interactions for web scraping, testing, and navigation. Use when the user needs to visit a webpage, interact with UI elements, take screenshots, or extract content from rendered pages.
+description: Full browser automation via Chrome DevTools Protocol. Navigate pages, interact with UI elements, take screenshots, extract content, manage tabs, emulate devices, handle cookies/storage, monitor network, and control browser state.
 platform: [linux, macos, windows]
 requires:
   bins:
@@ -9,119 +9,211 @@ requires:
 
 # Browser
 
-Control Chrome browser to navigate pages, interact with elements, capture screenshots, and extract content.
+Control Chrome/Brave/Edge/Chromium browser via Chrome DevTools Protocol (CDP).
 
-## Tool: `browser`
+## CRITICAL: How to Use This Tool
 
-All browser interactions go through the `browser` tool with an `action` parameter.
+**Use `navigate` to go to a URL.** It auto-starts the browser and uses the current tab.
 
-### Parameters
+- Do NOT use `open` to visit a URL — it creates a NEW tab every time, leaving old tabs open.
+- Do NOT call `start` before `navigate` — the browser starts automatically.
+- After navigating, use `snapshot` to read page content (NOT screenshot).
+- Use `screenshot` only when you need a visual image, not to read text.
+- Use `inspect` or `snapshot format=accessibility` to find CSS selectors before clicking/typing.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `action` | string | Yes | One of: `navigate`, `snapshot`, `screenshot`, `click`, `type`, `press`, `inspect`, `evaluate`, `wait`. |
-| `url` | string | Conditional | URL to navigate to. Required for `navigate`. |
-| `selector` | string | Conditional | CSS selector. Required for `click` and `type`. |
-| `text` | string | Conditional | Text to type. Required for `type`. |
-| `key` | string | Conditional | Key name. Required for `press`. |
-| `script` | string | Conditional | JavaScript expression. Required for `evaluate`. |
-| `seconds` | integer | No | Seconds to wait (default: 2). |
-| `max_chars` | integer | No | Max characters for snapshot (default: 50000). |
-| `headless` | boolean | No | Run in headless mode (default: false). |
+## Actions Reference
 
-## Actions
+### Navigation (use these to move between pages)
 
-### navigate
+| Action | Description |
+|--------|-------------|
+| `navigate` | **Primary action.** Go to a URL. Auto-starts browser. Uses current tab. Params: `url` (required) |
+| `back` | Go back in browser history (like browser back button) |
+| `forward` | Go forward in browser history |
+| `reload` | Reload the current page |
+| `scroll` | Scroll the page. Params: `direction` (up/down/left/right, default: down), `amount` (pixels, default: viewport height) |
+| `wait` | Wait for conditions. Params: `seconds` (1-60), `text`, `wait_selector`, `wait_url`, `wait_fn` |
 
-Load a URL in the browser.
+### Reading Page Content
 
+| Action | Description |
+|--------|-------------|
+| `snapshot` | **Use this to read page content.** Params: `format` (text/accessibility), `max_chars`, `interactive` |
+| `screenshot` | Capture visual image. Returns resized preview as inline image + saves full-res file. Params: `full_page`, `image_type`, `quality`, `selector`, `output_path` |
+| `inspect` | List interactive elements with CSS selectors (up to 100 visible elements) |
+| `pdf` | Render current page to PDF. Saves file and returns path. Params: `output_path` |
+
+### Interacting with Elements
+
+| Action | Description |
+|--------|-------------|
+| `click` | Click element. Params: `selector` (required), `double_click`, `button` (left/right/middle) |
+| `type` | Type text. Params: `text` (required), `selector` (optional, clicks first), `submit` (Enter after), `slowly` |
+| `press` | Press key. Params: `key` (Enter, Tab, Escape, Backspace, Delete, ArrowUp/Down/Left/Right, Home, End, PageUp/Down, Space, F1-F12) |
+| `hover` | Hover over element. Params: `selector` |
+| `select` | Select dropdown options. Params: `selector`, `values` (array) |
+| `fill` | Batch form fill. Params: `fields` (array of {selector, value, type?}) |
+| `drag` | Drag and drop. Params: `selector` (source), `end_selector` (target) |
+| `scroll_into_view` | Scroll element into view. Params: `selector` |
+| `resize` | Set viewport. Params: `width`, `height` |
+
+### JavaScript
+
+| Action | Description |
+|--------|-------------|
+| `evaluate` | Execute JavaScript. Params: `script` (required). Returns result |
+
+### Network & Console Monitoring
+
+| Action | Description |
+|--------|-------------|
+| `console` | Browser console messages. Params: `level` (log/warn/error), `clear` |
+| `errors` | JavaScript errors. Params: `clear` |
+| `requests` | Network requests. Params: `filter` (URL substring), `clear` |
+| `response_body` | Get response body. Params: `filter` (URL substring, required), `max_chars` |
+
+### Cookies & Storage
+
+| Action | Description |
+|--------|-------------|
+| `cookies` | Get cookies. Params: `url` (optional filter) |
+| `set_cookie` | Set cookie. Params: `name`, `value`, `domain`, `path`, `url` |
+| `clear_cookies` | Clear all cookies |
+| `get_storage` | Get localStorage/sessionStorage. Params: `kind` (local/session) |
+| `set_storage` | Set storage entry. Params: `kind`, `name`, `value` |
+| `clear_storage` | Clear storage. Params: `kind` |
+
+### Environment Emulation
+
+| Action | Description |
+|--------|-------------|
+| `set_offline` | Toggle offline mode. Params: `enabled` |
+| `set_headers` | Set custom HTTP headers. Params: `headers` (object) |
+| `set_credentials` | Set HTTP basic auth. Params: `username`, `password`, `clear` |
+| `set_geolocation` | Override GPS. Params: `latitude`, `longitude`, `clear` |
+| `set_media` | Color scheme. Params: `media` (dark/light/no-preference/none) |
+| `set_timezone` | Override timezone. Params: `timezone` (IANA ID) |
+| `set_locale` | Override locale. Params: `locale` (e.g. pt-BR) |
+| `set_device` | Device emulation. Params: `device` (preset) or `width`+`height`, `clear` |
+
+Device presets: iPhone 14, iPhone 14 Pro Max, iPhone SE, iPad, iPad Pro, Pixel 7, Samsung Galaxy S23, Desktop 1080p, Desktop 1440p.
+
+### Tab Management (only for multi-tab scenarios)
+
+| Action | Description |
+|--------|-------------|
+| `tabs` | List all open tabs |
+| `open` | Open a NEW tab (only use when you need multiple tabs). Params: `url` |
+| `focus` | Switch to a tab. Params: `target_id` |
+| `close` | Close a tab. Params: `target_id` (optional, closes current) |
+
+### Lifecycle
+
+| Action | Description |
+|--------|-------------|
+| `status` | Check if browser is running |
+| `start` | Launch browser (not needed before navigate) |
+| `stop` | Shut down browser |
+
+### Dialog & File
+
+| Action | Description |
+|--------|-------------|
+| `dialog` | Handle JS dialog. Params: `accept`, `prompt_text` |
+| `upload` | Set file input. Params: `selector`, `path` |
+
+## Common Workflows
+
+### Visit a page and read its content
 ```
-browser(action="navigate", url="https://example.com")
+navigate url="https://example.com"   → auto-starts browser, loads page
+snapshot                              → read the page text content
 ```
 
-### inspect
-
-Discover interactive elements on the current page. Returns up to 50 visible elements with their CSS selectors, type, and label. **Always use this after navigating to find selectors for click/type.**
-
+### Fill a form and submit
 ```
-browser(action="inspect")
-```
-
-### snapshot
-
-Return the visible text content of the page (`document.body.innerText`).
-
-```
-browser(action="snapshot")
+navigate url="https://example.com/login"
+inspect                               → find form field selectors
+type selector="#email" text="user@example.com"
+type selector="#password" text="pass123" submit=true
+wait text="Welcome"                   → wait for success
+snapshot                              → verify result
 ```
 
-### screenshot
-
-Capture a PNG screenshot of the current viewport.
-
+### Scroll through a long page
 ```
-browser(action="screenshot")
-```
-
-### click
-
-Click on an element by CSS selector.
-
-```
-browser(action="click", selector="#submit-button")
-browser(action="click", selector="[aria-label='Search']")
+navigate url="https://example.com/article"
+snapshot                              → read visible content
+scroll direction=down                 → scroll one viewport down
+snapshot                              → read more content
+scroll direction=down amount=500      → scroll 500px down
 ```
 
-### type
-
-Type text into an input field by CSS selector. Clicks to focus first, then types character by character.
-
+### Go back/forward
 ```
-browser(action="type", selector="input[name='q']", text="search query")
-```
-
-### press
-
-Press a special key: Enter, Tab, Escape, Backspace, Delete, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Home, End, Space.
-
-```
-browser(action="press", key="Enter")
-browser(action="press", key="Escape")
+navigate url="https://page1.com"
+navigate url="https://page2.com"
+back                                  → returns to page1.com
+forward                               → returns to page2.com
+reload                                → reloads page2.com
 ```
 
-### evaluate
-
-Execute JavaScript in the page context and return the result.
-
+### Save screenshot to a specific path
 ```
-browser(action="evaluate", script="document.title")
-browser(action="evaluate", script="window.scrollTo(0, document.body.scrollHeight)")
+navigate url="https://example.com"
+screenshot output_path="/project/public/home.png"  → saves to specified path
+screenshot                                          → saves to temp directory (default)
 ```
 
-### wait
-
-Wait for a specified number of seconds.
-
+### Save PDF to a specific path
 ```
-browser(action="wait", seconds=3)
+navigate url="https://example.com/report"
+pdf output_path="/project/docs/report.pdf"  → saves to specified path
 ```
 
-## Typical Workflow
+### Mobile testing
+```
+set_device device="iPhone 14"
+navigate url="https://example.com"
+screenshot                            → capture mobile view
+```
 
-1. **Navigate** to the target URL
-2. **Inspect** to discover interactive elements and their CSS selectors
-3. **Click** or **type** to interact with elements
-4. **Press** Enter to submit forms, Escape to dismiss dialogs
-5. **Wait** if dynamic content needs time to load
-6. **Snapshot** or **screenshot** to verify the result
-7. **Evaluate** JavaScript for advanced extraction or interaction
+## Understanding Responses
 
-## Tips
+Every navigation action returns the actual URL, page title, and tab context:
+```
+Navigated to: https://example.com | Title: "Example Domain" (tab 1/1)
+```
 
-- Always **inspect** before clicking or typing to get correct CSS selectors.
-- After navigation, wait briefly if the page has dynamic content.
-- Use **press** with Escape to dismiss overlays or dialogs before clicking.
-- Use **evaluate** for scrolling, extracting `innerText`, or running custom JS.
-- For pages behind login, navigate to the login page first, then type credentials and press Enter.
-- If an element is not visible, try scrolling with evaluate before retrying.
-- Set `headless=true` for background tasks that don't need a visible window.
+If a redirect occurred:
+```
+Navigated to: https://example.com | Title: "Example" (redirected from http://example.com) (tab 1/1)
+```
+
+If navigation failed:
+```
+Error: navigation to https://bad.example failed: net::ERR_NAME_NOT_RESOLVED (tab 1/1)
+```
+
+Screenshot responses include a resized preview image and file info:
+```
+data:image/jpeg;base64,...
+Screenshot captured (1920x1080, 245KB). Preview: 1024x576 (32KB). Full resolution: /tmp/ionclaw/browser/screenshot_1710043200000.png
+```
+
+PDF responses return only the file path:
+```
+PDF saved: /tmp/ionclaw/browser/page_1710043200000.pdf (156KB)
+```
+
+Wait timeout responses report which conditions failed:
+```
+Error: wait timed out after 10s. Conditions not met: text='Welcome' selector='#dashboard'
+```
+
+## Error Recovery
+
+- If actions fail with CDP errors: use `stop` then `navigate` to restart.
+- "element not found": use `inspect` to find correct selectors.
+- "page load timed out": use `snapshot` to check what loaded.
+- If the browser is unresponsive: `stop` then try again with `navigate`.
