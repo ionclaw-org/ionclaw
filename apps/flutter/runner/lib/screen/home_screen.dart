@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:ionclaw-org/ionclaw.dart';
+import 'package:ionclaw/ionclaw.dart';
 import 'package:ionclaw_runner/screen/browser_screen.dart';
 import 'package:ionclaw_runner/screen/settings_screen.dart';
 import 'package:ionclaw_runner/service/platform_handler.dart';
@@ -156,7 +156,7 @@ class _HomeScreenState extends State<HomeScreen>
 
     setState(() => _isLoading = true);
 
-    final data = Ionclaw.instance.projectInit(_projectPath);
+    final data = IonClaw.instance.projectInit(_projectPath);
     final success = data['success'] as bool;
 
     setState(() => _isLoading = false);
@@ -174,7 +174,7 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() => _isLoading = true);
 
     if (_isRunning) {
-      Ionclaw.instance.serverStop();
+      IonClaw.instance.serverStop();
 
       setState(() {
         _isRunning = false;
@@ -191,7 +191,7 @@ class _HomeScreenState extends State<HomeScreen>
 
       await _savePreferences(host, port);
 
-      final initData = Ionclaw.instance.projectInit(_projectPath);
+      final initData = IonClaw.instance.projectInit(_projectPath);
       final initSuccess = initData['success'] as bool;
 
       if (!initSuccess) {
@@ -202,7 +202,7 @@ class _HomeScreenState extends State<HomeScreen>
         return;
       }
 
-      final data = Ionclaw.instance.serverStart(
+      final data = IonClaw.instance.serverStart(
         projectPath: _projectPath,
         host: host,
         port: port,

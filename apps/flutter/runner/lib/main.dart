@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:ionclaw-org/ionclaw.dart';
+import 'package:ionclaw/ionclaw.dart';
 import 'package:ionclaw_runner/screen/home_screen.dart';
 
 void main() {
-  Ionclaw.instance.initialize();
+  IonClaw.instance.initialize();
 
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,

@@ -1,4 +1,4 @@
-import 'package:ionclaw-org/ionclaw.dart';
+import 'package:ionclaw/ionclaw.dart';
 
 import 'notification_plugin.dart';
 import 'platform_plugin.dart';
@@ -38,7 +38,7 @@ class PlatformHandler {
 
     // register with C++ bridge — only functions available on this platform
     if (_routes.isNotEmpty) {
-      Ionclaw.instance.setPlatformHandler(_handle, _routes.keys.toSet());
+      IonClaw.instance.setPlatformHandler(_handle, _routes.keys.toSet());
     }
   }
 

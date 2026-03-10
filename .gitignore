@@ -63,5 +63,8 @@ venv.bak/
 # web (build artifact)
 /main/resources/web
 
-# native libs (copied by make link-flutter-*)
+# native libs and symlinks (created by make link-flutter-*)
 apps/flutter/plugin/android/src/main/jniLibs
+apps/flutter/plugin/macos/libionclaw.dylib
+apps/flutter/plugin/macos/web
+apps/flutter/plugin/ios/ionclaw.xcframework

@@ -63,10 +63,10 @@ typedef _PlatformRespondDart = void Function(
   ffi.Pointer<ffi.Char> result,
 );
 
-class Ionclaw {
-  static Ionclaw? _instance;
-  Ionclaw._();
-  static Ionclaw get instance => _instance ??= Ionclaw._();
+class IonClaw {
+  static IonClaw? _instance;
+  IonClaw._();
+  static IonClaw get instance => _instance ??= IonClaw._();
 
   late ffi.DynamicLibrary _library;
   late _ProjectInitDart _projectInit;
@@ -204,7 +204,7 @@ class Ionclaw {
 
   static void _respond(int requestId, String result) {
     final resultPtr = result.toNativeUtf8().cast<ffi.Char>();
-    Ionclaw.instance._platformRespond(requestId, resultPtr);
+    IonClaw.instance._platformRespond(requestId, resultPtr);
     calloc.free(resultPtr);
   }
 }

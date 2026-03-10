@@ -37,7 +37,11 @@ jobs:
       - name: Cache CPM packages
         uses: actions/cache@v4
         with:
-          path: ${{ env.CPM_SOURCE_CACHE }}
+          path: |
+            ${{ env.CPM_SOURCE_CACHE }}
+            build/ios-arm64/_deps
+            build/ios-sim-arm64/_deps
+            build/ios-sim-x86_64/_deps
           key: cpm-ios-${{ hashFiles('cmake/cpm/cpm-dependency.cmake') }}
           restore-keys: cpm-ios-
 

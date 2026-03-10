@@ -50,9 +50,12 @@ jobs:
       - name: Cache CPM packages
         uses: actions/cache@v4
         with:
-          path: ${{ env.CPM_SOURCE_CACHE }}
-          key: cpm-${{ runner.os }}-${{ hashFiles('cmake/cpm/cpm-dependency.cmake') }}
-          restore-keys: cpm-${{ runner.os }}-
+          path: |
+            ${{ env.CPM_SOURCE_CACHE }}
+            build/release/_deps
+            build/shared/_deps
+          key: cpm-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('cmake/cpm/cpm-dependency.cmake') }}
+          restore-keys: cpm-${{ runner.os }}-${{ matrix.arch }}-
 
       - name: Configure
         run: cmake -B build/release -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_VERSION=${{ inputs.version || '0.0.0-dev' }} ${{ matrix.cmake_extra }}

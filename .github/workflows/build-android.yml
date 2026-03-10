@@ -43,7 +43,12 @@ jobs:
       - name: Cache CPM packages
         uses: actions/cache@v4
         with:
-          path: ${{ env.CPM_SOURCE_CACHE }}
+          path: |
+            ${{ env.CPM_SOURCE_CACHE }}
+            build/android-arm64-v8a/_deps
+            build/android-armeabi-v7a/_deps
+            build/android-x86_64/_deps
+            build/android-x86/_deps
           key: cpm-android-${{ hashFiles('cmake/cpm/cpm-dependency.cmake') }}
           restore-keys: cpm-android-
 
