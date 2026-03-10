@@ -94,12 +94,15 @@ help:
 	@echo "  make clean-ios               Remove iOS/XCFramework builds"
 	@echo "  make clean-android           Remove Android builds and jniLibs"
 	@echo ""
+	@echo "Version:"
+	@echo "  make version V=1.0.0+2       Set version (all files) with optional build number"
+	@echo ""
 	@echo "Code:"
 	@echo "  make format                  Format all C/C++/ObjC sources with clang-format"
 	@echo ""
 	@echo "Options:"
-	@echo "  ARGS=\"...\"                   Extra arguments passed to the server binary"
-	@echo "  ANDROID_NDK=\"...\"            Android NDK root (defaults to ANDROID_NDK_ROOT)"
+	@echo "  ARGS=\"...\"                 Extra arguments passed to the server binary"
+	@echo "  ANDROID_NDK=\"...\"          Android NDK root (defaults to ANDROID_NDK_ROOT)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make run ARGS=\"--project /path/to/project --port 9090\""
@@ -477,6 +480,34 @@ clean-ios: ## Remove iOS/XCFramework build directories
 clean-android: ## Remove Android build directories and jniLibs
 	rm -rf $(BUILD_ANDROID_ARM64) $(BUILD_ANDROID_ARMV7) $(BUILD_ANDROID_X86_64) $(BUILD_ANDROID_X86)
 	rm -rf $(FLUTTER_ANDROID_JNILIBS)
+
+# ============================================================
+# Version
+# ============================================================
+
+.PHONY: version
+version: ## Set project version: make version V=1.0.0+2
+	@if [ -z "$(V)" ]; then \
+		echo "Usage: make version V=1.0.0+2"; \
+		echo "  Format: MAJOR.MINOR.PATCH+BUILD (build number is optional, default 1)"; \
+		exit 1; \
+	fi
+	@VER=$$(echo "$(V)" | cut -d'+' -f1); \
+	BUILD=$$(echo "$(V)" | grep -o '+.*' | tr -d '+'); \
+	if [ -z "$$BUILD" ]; then BUILD=1; fi; \
+	echo "==> Setting version to $$VER+$$BUILD"; \
+	SED_INPLACE() { sed "$$1" "$$2" > "$$2.tmp" && mv "$$2.tmp" "$$2"; }; \
+	SED_INPLACE "s|set(IONCLAW_VERSION \"[^\"]*\"|set(IONCLAW_VERSION \"$$VER\"|" CMakeLists.txt; \
+	SED_INPLACE "s|^version: [0-9].*|version: $$VER+$$BUILD|" apps/flutter/runner/pubspec.yaml; \
+	SED_INPLACE "s|^version: [0-9].*|version: $$VER|" apps/flutter/plugin/pubspec.yaml; \
+	SED_INPLACE "s|^version '[0-9][^']*'|version '$$VER'|" apps/flutter/plugin/android/build.gradle; \
+	SED_INPLACE "s|\"version\": \"[0-9][^\"]*\"|\"version\": \"$$VER\"|" apps/web/package.json; \
+	echo "  CMakeLists.txt          → $$VER"; \
+	echo "  flutter/runner/pubspec  → $$VER+$$BUILD"; \
+	echo "  flutter/plugin/pubspec  → $$VER"; \
+	echo "  plugin/android/gradle   → $$VER"; \
+	echo "  web/package.json        → $$VER"; \
+	echo "==> Done."
 
 # ============================================================
 # Code

@@ -1,7 +1,7 @@
 name: ionclaw_runner
 description: IonClaw - AI Agent Orchestrator
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
