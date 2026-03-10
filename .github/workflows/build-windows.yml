@@ -56,7 +56,7 @@ jobs:
         run: cmake --build build/release --config ${{ env.BUILD_TYPE }} --parallel
 
       - name: Verify binary
-        run: .\build\release\bin\Release\ionclaw-server.exe --help
+        run: build/release/bin/ionclaw-server.exe --help
 
       - name: Build shared library
         if: ${{ inputs.release }}
@@ -69,7 +69,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist/ionclaw-windows-x86_64
-          Copy-Item build/release/bin/Release/ionclaw-server.exe dist/ionclaw-windows-x86_64/
+          Copy-Item build/release/bin/ionclaw-server.exe dist/ionclaw-windows-x86_64/
           Copy-Item LICENSE.md dist/ionclaw-windows-x86_64/
           Compress-Archive -Path dist/ionclaw-windows-x86_64 -DestinationPath ionclaw-windows-x86_64.zip
 
@@ -78,7 +78,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist/ionclaw-windows-x86_64-shared
-          Copy-Item build/shared/lib/Release/ionclaw.dll dist/ionclaw-windows-x86_64-shared/
+          Copy-Item build/shared/lib/ionclaw.dll dist/ionclaw-windows-x86_64-shared/
           Copy-Item main/lib/include/ionclaw/ionclaw.h dist/ionclaw-windows-x86_64-shared/
           Copy-Item LICENSE.md dist/ionclaw-windows-x86_64-shared/
           Compress-Archive -Path dist/ionclaw-windows-x86_64-shared -DestinationPath ionclaw-windows-x86_64-shared.zip
