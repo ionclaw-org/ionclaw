@@ -76,6 +76,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/HookRunner.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/SubagentRegistry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/AnnounceQueue.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/LlamaProvider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/FailoverProvider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/session/SessionSweeper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/bus/SessionQueue.cpp

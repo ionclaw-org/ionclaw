@@ -1,0 +1,69 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,5 +1,8 @@
+ cmake_minimum_required(VERSION 3.14...3.28) # for add_link_options and implicit target directories.
+-project("llama.cpp" C CXX)
++if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
++    project("llama.cpp" C CXX)
++endif()
++
+ include(CheckIncludeFileCXX)
+
+ #set(CMAKE_WARN_DEPRECATED YES)
+@@ -7,13 +10,6 @@
+
+ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+-if (NOT XCODE AND NOT MSVC AND NOT CMAKE_BUILD_TYPE)
+-    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+-    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+-endif()
+-
+-message("CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}")
+-
+ # Add path to modules
+ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/")
+
+@@ -17,9 +13,6 @@
+ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+-if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+-    set(LLAMA_STANDALONE ON)
+-
+     include(git-vars)
+
+     # configure project version
+@@ -56,7 +49,7 @@
+     endif()
+ endif()
+
+-option(BUILD_SHARED_LIBS "build shared libraries" ${BUILD_SHARED_LIBS_DEFAULT})
++option(BUILD_SHARED_LIBS "build shared libraries" OFF)
+
+ if (WIN32)
+     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+--- a/ggml/CMakeLists.txt
++++ b/ggml/CMakeLists.txt
+@@ -1,5 +1,8 @@
+ cmake_minimum_required(VERSION 3.14...3.28) # for add_link_options and implicit target directories.
+-project("ggml" C CXX ASM)
++if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
++    project("ggml" C CXX ASM)
++endif()
++enable_language(ASM)
+
+ ### GGML Version
+ set(GGML_VERSION_MAJOR 0)
+@@ -40,11 +43,6 @@
+
+ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+-if (NOT XCODE AND NOT MSVC AND NOT CMAKE_BUILD_TYPE)
+-    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+-    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+-endif()
+-
+ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+     set(GGML_STANDALONE ON)
+

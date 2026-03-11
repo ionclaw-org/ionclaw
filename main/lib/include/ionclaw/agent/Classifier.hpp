@@ -18,6 +18,9 @@ class Classifier
 public:
     Classifier(std::shared_ptr<ionclaw::provider::LlmProvider> provider, const ionclaw::config::Config &config);
 
+    // when set, only these agents are considered for routing
+    void setActiveAgents(const std::vector<std::string> &agents);
+
     std::string classify(
         const std::string &message,
         const std::string &sessionKey,
@@ -26,6 +29,7 @@ public:
 private:
     std::shared_ptr<ionclaw::provider::LlmProvider> provider;
     const ionclaw::config::Config &config;
+    std::vector<std::string> activeAgents;
 };
 
 } // namespace agent

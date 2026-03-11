@@ -74,8 +74,12 @@ nlohmann::json Routes::buildFormSchemas()
     });
 
     schemas["provider"] = json::array({
-        {{"name", "credential"}, {"type", "credential"}, {"label", "Credential"}, {"required", true}},
+        {{"name", "credential"}, {"type", "credential"}, {"label", "Credential"}},
         {{"name", "base_url"}, {"type", "text"}, {"label", "Base URL"}, {"placeholder", "Leave empty to use default endpoint"}},
+    });
+
+    schemas["llama_provider"] = json::array({
+        {{"name", "base_url"}, {"type", "text"}, {"label", "Model File Path"}, {"placeholder", "/path/to/model.gguf"}, {"required", true}},
     });
 
     schemas["credential"] = json::array({

@@ -580,7 +580,7 @@ async function toggleTelegram(running) {
                   <strong>{{ humanize(name) }}</strong>
                   <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="removeProvider(name)" />
                 </div>
-                <DynamicForm v-if="formSchemas.provider" :schema="formSchemas.provider" :model-value="prov" @update:model-value="providers[name] = $event" :references="references" />
+                <DynamicForm v-if="formSchemas.provider" :schema="formSchemas[name + '_provider'] || formSchemas.provider" :model-value="prov" @update:model-value="providers[name] = $event" :references="references" />
               </div>
               <div class="button-row">
                 <Button label="Add Provider" icon="pi pi-plus" severity="secondary" size="small" @click="showAddProvider = true; newProviderName = ''" />

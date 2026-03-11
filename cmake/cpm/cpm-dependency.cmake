@@ -85,6 +85,30 @@ CPMAddPackage(
     OPTIONS ${_ossl_cpm_options}
 )
 
+# macOS: patch the generated OpenSSL Makefile to add -isysroot if missing
+# (required on macOS 15+ / Xcode 16+ where the toolchain cc doesn't auto-set the SDK)
+if(APPLE)
+    execute_process(
+        COMMAND xcrun --show-sdk-path
+        OUTPUT_VARIABLE _ossl_sdk
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    set(_ossl_makefile "${CMAKE_BINARY_DIR}/_deps/openssl-source-build/Makefile")
+    if(_ossl_sdk AND EXISTS "${_ossl_makefile}")
+        file(READ "${_ossl_makefile}" _ossl_mk)
+        string(FIND "${_ossl_mk}" "isysroot" _ossl_has_sysroot)
+        if(_ossl_has_sysroot EQUAL -1)
+            string(REPLACE
+                "CNF_CFLAGS=-arch arm64"
+                "CNF_CFLAGS=-arch arm64 -isysroot ${_ossl_sdk}"
+                _ossl_mk "${_ossl_mk}")
+            file(WRITE "${_ossl_makefile}" "${_ossl_mk}")
+            message(STATUS "IonClaw: patched OpenSSL Makefile with -isysroot ${_ossl_sdk}")
+        endif()
+    endif()
+endif()
+
 set(IONCLAW_HAS_SSL TRUE)
 
 # http and networking (poco)
@@ -186,6 +210,40 @@ if(stb_ADDED)
     if(IONCLAW_BUILD_SHARED)
         target_include_directories(ionclaw-shared PRIVATE ${stb_SOURCE_DIR})
         target_compile_definitions(ionclaw-shared PUBLIC IONCLAW_HAS_STB_IMAGE_WRITE)
+    endif()
+endif()
+
+# local LLM inference via llama.cpp
+if(IONCLAW_LLAMA_CPP)
+    set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+    set(LLAMA_CURL OFF CACHE BOOL "" FORCE)
+
+    CPMAddPackage(
+        NAME llama.cpp
+        GITHUB_REPOSITORY ggml-org/llama.cpp
+        GIT_TAG master
+        PATCH_COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_LIST_DIR}/../llama-cpp-patch.cmake"
+        OPTIONS
+            "LLAMA_BUILD_TESTS OFF"
+            "LLAMA_BUILD_EXAMPLES OFF"
+            "LLAMA_BUILD_SERVER OFF"
+            "LLAMA_CURL OFF"
+    )
+
+    if(llama.cpp_ADDED)
+        target_compile_definitions(ionclaw-lib PUBLIC IONCLAW_HAS_LLAMA_CPP)
+        target_link_libraries(ionclaw-lib PRIVATE llama)
+
+        if(IONCLAW_BUILD_SHARED)
+            target_compile_definitions(ionclaw-shared PUBLIC IONCLAW_HAS_LLAMA_CPP)
+            target_link_libraries(ionclaw-shared PRIVATE llama)
+        endif()
+
+        message(STATUS "IonClaw: llama.cpp enabled for local LLM inference")
+    else()
+        message(WARNING "IonClaw: llama.cpp was requested but could not be added")
     endif()
 endif()
 

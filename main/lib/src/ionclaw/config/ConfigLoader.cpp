@@ -837,7 +837,10 @@ std::string ConfigLoader::toYaml(const Config &config)
         for (const auto &[name, provider] : config.providers)
         {
             out << YAML::Key << name << YAML::Value << YAML::BeginMap;
-            out << YAML::Key << "credential" << YAML::Value << provider.credential;
+            if (!provider.credential.empty())
+            {
+                out << YAML::Key << "credential" << YAML::Value << provider.credential;
+            }
             out << YAML::Key << "base_url" << YAML::Value << provider.baseUrl;
             out << YAML::Key << "timeout" << YAML::Value << provider.timeout;
 

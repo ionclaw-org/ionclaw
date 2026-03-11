@@ -16,12 +16,35 @@ Classifier::Classifier(std::shared_ptr<ionclaw::provider::LlmProvider> provider,
 {
 }
 
+void Classifier::setActiveAgents(const std::vector<std::string> &agents)
+{
+    activeAgents = agents;
+}
+
 std::string Classifier::classify(
     const std::string &message,
     const std::string &sessionKey,
     const std::vector<ionclaw::session::SessionMessage> &history) const
 {
-    auto &agents = config.agents;
+    // use active agents if set, otherwise use all configured agents
+    std::map<std::string, ionclaw::config::AgentConfig> agents;
+
+    if (!activeAgents.empty())
+    {
+        for (const auto &name : activeAgents)
+        {
+            auto it = config.agents.find(name);
+
+            if (it != config.agents.end())
+            {
+                agents[name] = it->second;
+            }
+        }
+    }
+    else
+    {
+        agents = config.agents;
+    }
 
     if (agents.empty())
     {
@@ -63,7 +86,7 @@ std::string Classifier::classify(
     sysMsg.content = systemPrompt.str();
     messages.push_back(sysMsg);
 
-    // add last N history messages for context (max 20)
+    // include up to 20 recent history messages for routing context
     size_t historyLimit = std::min(history.size(), static_cast<size_t>(20));
 
     if (historyLimit > 0)
@@ -122,7 +145,7 @@ std::string Classifier::classify(
     }
     else
     {
-        // use first agent's model when no dedicated classifier model is configured
+        // fall back to the first agent's model when no dedicated classifier model is configured
         request.model = agents.at(firstAgent).model;
     }
 
@@ -150,7 +173,7 @@ std::string Classifier::classify(
                     return agentName;
                 }
 
-                // try case-insensitive match
+                // try case-insensitive match when exact name fails
                 for (const auto &[name, agentCfg] : agents)
                 {
                     std::string lowerResult = agentName;
@@ -171,7 +194,7 @@ std::string Classifier::classify(
             }
         }
 
-        // fallback: check text response
+        // fallback: check if the plain text response matches an agent name
         auto result = response.content;
         result.erase(0, result.find_first_not_of(" \t\n\r"));
         result.erase(result.find_last_not_of(" \t\n\r") + 1);

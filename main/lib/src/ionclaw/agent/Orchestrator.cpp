@@ -102,7 +102,7 @@ void Orchestrator::start()
     // create session queue for queue mode routing
     sessionQueue_ = std::make_shared<ionclaw::bus::SessionQueue>();
 
-    // mark sessions that were active during previous crash as aborted
+    // mark sessions that were active during a previous crash as aborted
     sessionManager->setAbortCutoffAll();
 
     // create LLM providers and agent loops for each agent
@@ -244,6 +244,20 @@ void Orchestrator::start()
         {
             classifier = std::make_unique<Classifier>(firstProvider, config);
         }
+    }
+
+    // pass only successfully initialized agents to the classifier
+    if (classifier)
+    {
+        std::vector<std::string> activeNames;
+        activeNames.reserve(agentLoops.size());
+
+        for (const auto &[name, _] : agentLoops)
+        {
+            activeNames.push_back(name);
+        }
+
+        classifier->setActiveAgents(activeNames);
     }
 
     // start worker thread
@@ -436,6 +450,11 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
 
     if (targetAgent.empty() || agentLoops.find(targetAgent) == agentLoops.end())
     {
+        if (!targetAgent.empty())
+        {
+            spdlog::warn("[Orchestrator] Agent '{}' was classified but is not available (failed to initialize?)", targetAgent);
+        }
+
         targetAgent = agentLoops.begin()->first;
         spdlog::debug("[Orchestrator] Falling back to default agent: {}", targetAgent);
     }
@@ -545,8 +564,7 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
     effectiveMessage.content = effectiveContent;
 
     // process message with event broadcasting
-    // wrap in try-catch to ensure cleanup (clearActiveTurn, setActiveTurnHandle)
-    // always runs, even if processMessage throws from pre-loop code
+    // wrap in try-catch to ensure cleanup always runs, even if processMessage throws early
     try
     {
         loop->processMessage(effectiveMessage, systemPrompt, [this, sessionKey, targetAgent, subagentRunId](const AgentEvent &event)
