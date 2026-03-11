@@ -6,6 +6,9 @@
 #include "ionclaw/provider/AnthropicProvider.hpp"
 #include "ionclaw/provider/FailoverProvider.hpp"
 #include "ionclaw/provider/OpenAiProvider.hpp"
+#ifdef IONCLAW_HAS_LLAMA_CPP
+#include "ionclaw/provider/LlamaProvider.hpp"
+#endif
 #include "spdlog/spdlog.h"
 
 namespace ionclaw
@@ -13,7 +16,6 @@ namespace ionclaw
 namespace provider
 {
 
-// resolve default base url for known providers
 std::string ProviderFactory::defaultBaseUrl(const std::string &providerName)
 {
     if (providerName == "anthropic")
@@ -48,21 +50,30 @@ std::string ProviderFactory::defaultBaseUrl(const std::string &providerName)
     return "";
 }
 
-// create provider instance by name
 std::shared_ptr<LlmProvider> ProviderFactory::create(const std::string &providerName, const std::string &apiKey,
                                                      const std::string &baseUrl, int timeout,
                                                      const std::map<std::string, std::string> &extraHeaders)
 {
-    // resolve base url from provider name if not explicitly set
     auto resolvedUrl = baseUrl.empty() ? defaultBaseUrl(providerName) : baseUrl;
 
-    // anthropic uses its own native api
     if (providerName == "anthropic")
     {
         return std::make_shared<AnthropicProvider>(apiKey, resolvedUrl, timeout, extraHeaders);
     }
 
-    // all other providers use OpenAI-compatible API
+#ifdef IONCLAW_HAS_LLAMA_CPP
+    // apiKey holds the model file path for llama
+    if (providerName == "llama")
+    {
+        return std::make_shared<LlamaProvider>(apiKey);
+    }
+#else
+    if (providerName == "llama")
+    {
+        throw std::runtime_error("llama provider requires building with -DIONCLAW_LLAMA_CPP=ON");
+    }
+#endif
+
     if (providerName == "openai" || providerName == "openrouter" ||
         providerName == "deepseek" || providerName == "grok" || providerName == "google" ||
         providerName == "gemini" || providerName == "kimi" || providerName == "moonshot")
@@ -70,7 +81,7 @@ std::shared_ptr<LlmProvider> ProviderFactory::create(const std::string &provider
         return std::make_shared<OpenAiProvider>(apiKey, resolvedUrl, timeout, extraHeaders);
     }
 
-    // fallback: assume OpenAI-compatible for unknown providers (custom base_url)
+    // unknown provider with a custom base_url: assume openai-compatible
     if (!resolvedUrl.empty())
     {
         return std::make_shared<OpenAiProvider>(apiKey, resolvedUrl, timeout, extraHeaders);
@@ -79,14 +90,12 @@ std::shared_ptr<LlmProvider> ProviderFactory::create(const std::string &provider
     throw std::runtime_error("Unknown provider: " + providerName);
 }
 
-// create provider instance from model string and config
 std::shared_ptr<LlmProvider> ProviderFactory::createFromModel(const std::string &model, const ionclaw::config::Config &config)
 {
-    // resolve provider config from model string
     auto providerConfig = config.resolveProvider(model);
     auto providerName = providerConfig.name;
 
-    // extract provider name from model prefix if not configured
+    // extract provider name from the model string prefix (e.g. "anthropic/claude-3")
     if (providerName.empty())
     {
         auto slashPos = model.find('/');
@@ -101,7 +110,26 @@ std::shared_ptr<LlmProvider> ProviderFactory::createFromModel(const std::string 
         }
     }
 
-    // resolve credentials and settings
+#ifdef IONCLAW_HAS_LLAMA_CPP
+    // llama uses base_url as the model file path, no api key needed
+    if (providerName == "llama")
+    {
+        auto modelPath = providerConfig.baseUrl;
+
+        if (modelPath.empty())
+        {
+            throw std::runtime_error("llama provider requires 'base_url' pointing to the .gguf model file");
+        }
+
+        return std::make_shared<LlamaProvider>(modelPath, providerConfig.modelParams);
+    }
+#else
+    if (providerName == "llama")
+    {
+        throw std::runtime_error("llama provider requires building with -DIONCLAW_LLAMA_CPP=ON");
+    }
+#endif
+
     auto apiKey = config.resolveApiKey(providerName);
     auto baseUrl = providerConfig.baseUrl;
     auto timeout = providerConfig.timeout;
@@ -110,13 +138,12 @@ std::shared_ptr<LlmProvider> ProviderFactory::createFromModel(const std::string 
     return create(providerName, apiKey, baseUrl, timeout, headers);
 }
 
-// create a failover provider from multiple profile configs
 std::shared_ptr<LlmProvider> ProviderFactory::createFailoverFromProfiles(
     const std::vector<ionclaw::config::ProfileConfig> &profiles,
     const std::string &defaultModel,
     const ionclaw::config::Config &config)
 {
-    // sort by priority (lower = higher priority)
+    // sort ascending so lower priority value = higher priority
     auto sorted = profiles;
     std::sort(sorted.begin(), sorted.end(), [](const auto &a, const auto &b)
               { return a.priority < b.priority; });
@@ -133,9 +160,37 @@ std::shared_ptr<LlmProvider> ProviderFactory::createFailoverFromProfiles(
         {
             std::shared_ptr<LlmProvider> provider;
 
-            if (!profile.credential.empty())
+            auto slashPos = model.find('/');
+            auto providerName = slashPos != std::string::npos ? model.substr(0, slashPos) : model;
+
+#ifdef IONCLAW_HAS_LLAMA_CPP
+            if (providerName == "llama")
             {
-                // resolve credential directly
+                auto modelPath = profile.baseUrl;
+
+                if (modelPath.empty())
+                {
+                    auto pc = config.resolveProvider(model);
+                    modelPath = pc.baseUrl;
+                }
+
+                if (modelPath.empty())
+                {
+                    throw std::runtime_error("llama profile requires model file path in base_url");
+                }
+
+                provider = std::make_shared<LlamaProvider>(modelPath, profile.modelParams);
+            }
+            else
+#else
+            if (providerName == "llama")
+            {
+                throw std::runtime_error("llama provider requires building with -DIONCLAW_LLAMA_CPP=ON");
+            }
+            else
+#endif
+                if (!profile.credential.empty())
+            {
                 auto credIt = config.credentials.find(profile.credential);
                 std::string apiKey;
 
@@ -144,10 +199,7 @@ std::shared_ptr<LlmProvider> ProviderFactory::createFailoverFromProfiles(
                     apiKey = credIt->second.key.empty() ? credIt->second.token : credIt->second.key;
                 }
 
-                auto slashPos = model.find('/');
-                auto providerName = slashPos != std::string::npos ? model.substr(0, slashPos) : model;
                 auto baseUrl = profile.baseUrl;
-
                 provider = create(providerName, apiKey, baseUrl);
             }
             else
@@ -172,7 +224,7 @@ std::shared_ptr<LlmProvider> ProviderFactory::createFailoverFromProfiles(
         throw std::runtime_error("No valid profiles for failover provider");
     }
 
-    // skip FailoverProvider wrapper only if single profile has no custom model params
+    // skip the failover wrapper when there is only one profile with no custom model params
     if (providers.size() == 1 &&
         (!profileParams[0].is_object() || profileParams[0].empty()))
     {

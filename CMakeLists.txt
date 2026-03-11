@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.20.0)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "")
 
 # cmake project
-project(ionclaw LANGUAGES CXX)
+project(ionclaw LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,6 +25,7 @@ endif()
 # options
 set(IONCLAW_VERSION "1.0.1" CACHE STRING "IonClaw Version")
 option(IONCLAW_BUILD_SHARED "Build Shared Library (FFI)" OFF)
+option(IONCLAW_LLAMA_CPP "Build With LLama.cpp for Local LLM Inference" ON)
 
 # Apple platform deployment targets
 if(CMAKE_SYSTEM_NAME STREQUAL "iOS")

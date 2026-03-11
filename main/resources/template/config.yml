@@ -70,6 +70,7 @@ credentials:
 #   openrouter - Multi-model router (OpenAI-compatible)
 #   kimi       - Moonshot Kimi models (OpenAI-compatible)
 #   deepseek   - DeepSeek models (OpenAI-compatible)
+#   llama      - Local LLM inference via llama.cpp (GGUF models, fully offline)
 #
 # Model format: "provider/model-name" (e.g., "anthropic/claude-sonnet-4-20250514")
 # All providers support text and image input, streaming and non-streaming.
@@ -105,6 +106,14 @@ providers:
   deepseek:
     credential: deepseek
     # base_url: https://api.deepseek.com/v1
+
+  # llama - local llm inference
+  # base_url points to the .gguf model file on disk
+  # llama:
+  #   base_url: "/path/to/models/llama-3.2-3b-instruct-q4_k_m.gguf"
+  #   model_params:
+  #     context_size: 4096
+  #     gpu_layers: -1
 
 web_client:
   credential: web_client
