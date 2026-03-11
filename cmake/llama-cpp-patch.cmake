@@ -28,6 +28,12 @@ string(REPLACE
     "option(BUILD_SHARED_LIBS \"build shared libraries\" OFF)"
     _content "${_content}")
 
+# guard find_package(OpenSSL) to avoid conflicts with pre-built openssl-cmake targets
+string(REGEX REPLACE
+    "(find_package\\(OpenSSL[^)]*\\))"
+    "if(NOT TARGET OpenSSL::SSL)\n    \\1\nendif()"
+    _content "${_content}")
+
 file(WRITE "${_llama_cmake}" "${_content}")
 
 # --- ggml/CMakeLists.txt ---
@@ -51,6 +57,12 @@ if(EXISTS "${_ggml_cmake}")
     string(REPLACE
         "option(BUILD_SHARED_LIBS           \"ggml: build shared libraries\" \${BUILD_SHARED_LIBS_DEFAULT})"
         "option(BUILD_SHARED_LIBS           \"ggml: build shared libraries\" OFF)"
+        _content "${_content}")
+
+    # guard find_package(OpenSSL) to avoid conflicts with pre-built openssl-cmake targets
+    string(REGEX REPLACE
+        "(find_package\\(OpenSSL[^)]*\\))"
+        "if(NOT TARGET OpenSSL::SSL)\n    \\1\nendif()"
         _content "${_content}")
 
     file(WRITE "${_ggml_cmake}" "${_content}")

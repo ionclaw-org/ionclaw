@@ -99,9 +99,9 @@ if(APPLE)
         file(READ "${_ossl_makefile}" _ossl_mk)
         string(FIND "${_ossl_mk}" "isysroot" _ossl_has_sysroot)
         if(_ossl_has_sysroot EQUAL -1)
-            string(REPLACE
-                "CNF_CFLAGS=-arch arm64"
-                "CNF_CFLAGS=-arch arm64 -isysroot ${_ossl_sdk}"
+            string(REGEX REPLACE
+                "(CNF_CFLAGS=[^\n]*)"
+                "\\1 -isysroot ${_ossl_sdk}"
                 _ossl_mk "${_ossl_mk}")
             file(WRITE "${_ossl_makefile}" "${_ossl_mk}")
             message(STATUS "IonClaw: patched OpenSSL Makefile with -isysroot ${_ossl_sdk}")
