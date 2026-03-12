@@ -11,6 +11,7 @@
 #include "ionclaw/config/Config.hpp"
 #include "ionclaw/cron/CronService.hpp"
 #include "ionclaw/heartbeat/HeartbeatService.hpp"
+#include "ionclaw/mcp/McpDispatcher.hpp"
 #include "ionclaw/server/Auth.hpp"
 #include "ionclaw/server/HttpServer.hpp"
 #include "ionclaw/server/Routes.hpp"
@@ -48,6 +49,7 @@ private:
     static std::shared_ptr<WebSocketManager> wsManager;
     static std::shared_ptr<Auth> auth;
     static std::shared_ptr<ionclaw::agent::Orchestrator> orchestrator;
+    static std::shared_ptr<ionclaw::mcp::McpDispatcher> mcpDispatcher;
     static std::shared_ptr<ionclaw::channel::ChannelManager> channelManager;
     static std::shared_ptr<ionclaw::heartbeat::HeartbeatService> heartbeatService;
     static std::shared_ptr<ionclaw::cron::CronService> cronService;

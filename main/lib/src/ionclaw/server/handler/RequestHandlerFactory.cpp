@@ -4,6 +4,7 @@
 #include "Poco/URI.h"
 
 #include "ionclaw/server/handler/ApiHandler.hpp"
+#include "ionclaw/server/handler/McpHandler.hpp"
 #include "ionclaw/server/handler/PublicFileHandler.hpp"
 #include "ionclaw/server/handler/RedirectHandler.hpp"
 #include "ionclaw/server/handler/WebAppHandler.hpp"
@@ -20,11 +21,13 @@ RequestHandlerFactory::RequestHandlerFactory(
     std::shared_ptr<Routes> routes,
     std::shared_ptr<Auth> auth,
     std::shared_ptr<WebSocketManager> wsManager,
+    std::shared_ptr<ionclaw::mcp::McpDispatcher> mcpDispatcher,
     const std::string &webDir,
     const std::string &publicDir)
     : routes(routes)
     , auth(auth)
     , wsManager(wsManager)
+    , mcpDispatcher(mcpDispatcher)
     , webDir(webDir)
     , publicDir(publicDir)
 {
@@ -38,6 +41,12 @@ Poco::Net::HTTPRequestHandler *RequestHandlerFactory::createRequestHandler(const
     if (path == "/ws")
     {
         return new WebSocketHandler(auth, wsManager, routes);
+    }
+
+    // MCP server endpoint
+    if (path == "/mcp")
+    {
+        return new McpHandler(auth, mcpDispatcher);
     }
 
     // api routes

@@ -172,6 +172,10 @@ tools:
   web_search_credential: brave
 
 channels:
+  mcp:
+    enabled: false
+    # require_auth: true
+
   telegram:
     enabled: false
     # credential: telegram

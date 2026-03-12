@@ -237,6 +237,7 @@ void SessionManager::addMessage(const std::string &sessionKey, const SessionMess
     std::string sessionKey_;
     std::string createdAt;
     std::string updatedAt;
+    std::string displayName;
 
     {
         std::lock_guard<std::mutex> glock(globalMutex);
@@ -259,11 +260,29 @@ void SessionManager::addMessage(const std::string &sessionKey, const SessionMess
         session.messages.push_back(cappedMessage);
         session.updatedAt = util::TimeHelper::now();
 
+        // auto-generate display name from the first user message
+        if (session.displayName.empty() && cappedMessage.role == "user" && !cappedMessage.content.empty())
+        {
+            auto preview = ionclaw::util::StringHelper::utf8SafeTruncate(cappedMessage.content, 50);
+            // trim to last word boundary if truncated
+            if (preview.size() < cappedMessage.content.size())
+            {
+                auto lastSpace = preview.rfind(' ');
+                if (lastSpace != std::string::npos && lastSpace > 10)
+                {
+                    preview = preview.substr(0, lastSpace);
+                }
+                preview += "...";
+            }
+            session.displayName = preview;
+        }
+
         filePath = sessionFilePath(sessionKey);
         fileExists = fs::exists(filePath);
         sessionKey_ = session.key;
         createdAt = session.createdAt;
         updatedAt = session.updatedAt;
+        displayName = session.displayName;
     }
 
     // file I/O outside globalMutex (per-session mutex still held, prevents concurrent writes)
@@ -282,6 +301,10 @@ void SessionManager::addMessage(const std::string &sessionKey, const SessionMess
         meta["key"] = sessionKey_;
         meta["created_at"] = createdAt;
         meta["updated_at"] = updatedAt;
+        if (!displayName.empty())
+        {
+            meta["display_name"] = displayName;
+        }
         ofs << meta.dump() << "\n";
     }
 
@@ -348,6 +371,7 @@ std::vector<SessionInfo> SessionManager::listSessions()
             info.key = key;
             info.createdAt = session.createdAt;
             info.updatedAt = session.updatedAt;
+            info.displayName = session.displayName.empty() ? key : session.displayName;
             cachedInfo[sanitizeFilename(key) + ".jsonl"] = std::move(info);
         }
     }
@@ -453,6 +477,7 @@ void SessionManager::clearSession(const std::string &sessionKey)
     std::string key;
     std::string createdAt;
     std::string updatedAt;
+    std::string dispName;
 
     {
         std::lock_guard<std::mutex> glock(globalMutex);
@@ -468,6 +493,7 @@ void SessionManager::clearSession(const std::string &sessionKey)
             key = it->second.key;
             createdAt = it->second.createdAt;
             updatedAt = it->second.updatedAt;
+            dispName = it->second.displayName;
         }
         else
         {
@@ -489,6 +515,10 @@ void SessionManager::clearSession(const std::string &sessionKey)
             meta["key"] = key;
             meta["created_at"] = createdAt;
             meta["updated_at"] = updatedAt;
+            if (!dispName.empty())
+            {
+                meta["display_name"] = dispName;
+            }
             ofs << meta.dump() << "\n";
             ofs.flush();
         }
@@ -515,6 +545,11 @@ void SessionManager::writeSessionFile(const Session &session)
     meta["created_at"] = session.createdAt;
     meta["updated_at"] = session.updatedAt;
     meta["last_consolidated"] = session.lastConsolidated;
+
+    if (!session.displayName.empty())
+    {
+        meta["display_name"] = session.displayName;
+    }
 
     if (!session.liveState.is_null())
     {
@@ -653,6 +688,23 @@ void SessionManager::updateLastMessageContent(const std::string &sessionKey, con
     }
 
     it->second.messages.back().content = content;
+}
+
+void SessionManager::updateDisplayName(const std::string &sessionKey, const std::string &name)
+{
+    auto &mtx = getSessionMutex(sessionKey);
+    std::lock_guard<std::mutex> lock(mtx);
+
+    std::lock_guard<std::mutex> glock(globalMutex);
+
+    auto it = cache.find(sessionKey);
+
+    if (it == cache.end())
+    {
+        return;
+    }
+
+    it->second.displayName = name;
 }
 
 void SessionManager::setLastConsolidated(const std::string &sessionKey, int count)
@@ -868,6 +920,7 @@ void SessionManager::loadFromDisk(const std::string &sessionKey)
             {
                 session.createdAt = j.value("created_at", "");
                 session.updatedAt = j.value("updated_at", "");
+                session.displayName = j.value("display_name", "");
                 session.lastConsolidated = j.value("last_consolidated", 0);
 
                 if (j.contains("live_state"))

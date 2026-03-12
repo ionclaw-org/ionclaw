@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import Textarea from 'primevue/textarea'
@@ -8,6 +8,8 @@ import ToggleSwitch from 'primevue/toggleswitch'
 import Select from 'primevue/select'
 import DatePicker from 'primevue/datepicker'
 import ColorPicker from 'primevue/colorpicker'
+import Button from 'primevue/button'
+import Dialog from 'primevue/dialog'
 
 const props = defineProps({
   schema: { type: Array, required: true },
@@ -43,6 +45,25 @@ function humanize(name) {
 function refOptions(type) {
   const items = props.references[type + 's'] || []
   return [{ label: '(none)', value: '' }, ...items.map(n => ({ label: humanize(n), value: n }))]
+}
+
+function generateUuid() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+  })
+}
+
+const pendingGenerateField = ref(null)
+
+function requestGenerate(fieldName) {
+  pendingGenerateField.value = fieldName
+}
+
+function confirmGenerate() {
+  update(pendingGenerateField.value, generateUuid())
+  pendingGenerateField.value = null
 }
 </script>
 
@@ -90,6 +111,27 @@ function refOptions(type) {
         :model-value="modelValue[field.name] ?? false"
         @update:model-value="update(field.name, $event)"
       />
+
+      <!-- secret with generate button -->
+      <div v-else-if="field.type === 'secret' && field.generate" class="secret-generate-row">
+        <Password
+          :model-value="modelValue[field.name] ?? ''"
+          @update:model-value="update(field.name, $event)"
+          :feedback="false"
+          toggleMask
+          :placeholder="field.placeholder ?? 'Leave empty to keep current'"
+          class="flex-1"
+          inputClass="w-full"
+          :inputProps="{ autocomplete: 'off', 'data-1p-ignore': '' }"
+        />
+        <Button
+          icon="pi pi-refresh"
+          severity="secondary"
+          size="small"
+          v-tooltip.top="'Generate new UUID'"
+          @click="requestGenerate(field.name)"
+        />
+      </div>
 
       <!-- secret -->
       <Password
@@ -188,6 +230,21 @@ function refOptions(type) {
       />
     </div>
   </div>
+
+  <Dialog
+    :visible="pendingGenerateField !== null"
+    @update:visible="pendingGenerateField = null"
+    header="Generate New Key"
+    :modal="true"
+    :style="{ width: '22rem' }"
+    :breakpoints="{ '768px': '90vw' }"
+  >
+    <p style="margin: 0; font-size: 0.9rem">This will replace the current key with a new UUID. Any clients using the old key will stop working.</p>
+    <template #footer>
+      <Button label="Cancel" severity="secondary" text size="small" @click="pendingGenerateField = null" />
+      <Button label="Generate" icon="pi pi-refresh" size="small" @click="confirmGenerate" />
+    </template>
+  </Dialog>
 </template>
 
 <style scoped>
@@ -205,5 +262,11 @@ function refOptions(type) {
 .dynamic-form .required {
   color: var(--p-red-500);
   margin-left: 0.15rem;
+}
+
+.secret-generate-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
 }
 </style>

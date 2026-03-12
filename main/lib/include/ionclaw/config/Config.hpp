@@ -123,7 +123,8 @@ struct StorageConfig
 
 struct ChannelConfig
 {
-    bool enabled = false;
+    bool enabled = false; // persisted: auto-start on server boot
+    bool running = false; // transient: actual runtime state
     std::string credential;
     std::vector<std::string> allowedUsers;
     nlohmann::json raw;

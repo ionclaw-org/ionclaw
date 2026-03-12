@@ -24,6 +24,7 @@ std::shared_ptr<ionclaw::tool::ToolRegistry> ServerInstance::toolRegistry;
 std::shared_ptr<WebSocketManager> ServerInstance::wsManager;
 std::shared_ptr<Auth> ServerInstance::auth;
 std::shared_ptr<ionclaw::agent::Orchestrator> ServerInstance::orchestrator;
+std::shared_ptr<ionclaw::mcp::McpDispatcher> ServerInstance::mcpDispatcher;
 std::shared_ptr<ionclaw::channel::ChannelManager> ServerInstance::channelManager;
 std::shared_ptr<ionclaw::heartbeat::HeartbeatService> ServerInstance::heartbeatService;
 std::shared_ptr<ionclaw::cron::CronService> ServerInstance::cronService;
@@ -225,9 +226,13 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
         auto publicDir = resolvedPath + "/public";
         spdlog::info("Serving public files from: {}", publicDir);
 
+        // create MCP dispatcher
+        mcpDispatcher = std::make_shared<ionclaw::mcp::McpDispatcher>(
+            orchestrator, sessionManager, taskManager, bus, dispatcher, config);
+
         // create channel manager and start channels
         channelManager = std::make_shared<ionclaw::channel::ChannelManager>(
-            config, bus, sessionManager, taskManager, dispatcher);
+            config, bus, sessionManager, taskManager, dispatcher, mcpDispatcher);
 
         for (auto &[name, ch] : config->channels)
         {
@@ -236,11 +241,11 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
                 try
                 {
                     channelManager->startChannel(name);
+                    ch.running = true;
                 }
                 catch (const std::exception &e)
                 {
                     spdlog::warn("[Server] Failed to start channel '{}': {}", name, e.what());
-                    ch.enabled = false;
                 }
             }
         }
@@ -263,7 +268,7 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
             bus, dispatcher, wsManager, webDir, publicDir, defaultWorkspace, resolvedPath);
 
         httpServer = std::make_shared<HttpServer>(
-            routes, auth, wsManager, cfg.server, webDir, publicDir);
+            routes, auth, wsManager, mcpDispatcher, cfg.server, webDir, publicDir);
 
         // start services
         orchestrator->start();
@@ -291,6 +296,7 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
         cronService.reset();
         heartbeatService.reset();
         channelManager.reset();
+        mcpDispatcher.reset();
         auth.reset();
         wsManager.reset();
         toolRegistry.reset();
@@ -336,6 +342,7 @@ ServerResult ServerInstance::stop()
         cronService.reset();
         heartbeatService.reset();
         channelManager.reset();
+        mcpDispatcher.reset();
         orchestrator.reset();
         auth.reset();
         wsManager.reset();

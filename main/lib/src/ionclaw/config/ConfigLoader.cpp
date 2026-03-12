@@ -897,6 +897,11 @@ std::string ConfigLoader::toYaml(const Config &config)
                 out << YAML::Key << "reply_to_message" << YAML::Value << channel.raw["reply_to_message"].get<bool>();
             }
 
+            if (channel.raw.contains("require_auth") && channel.raw["require_auth"].is_boolean())
+            {
+                out << YAML::Key << "require_auth" << YAML::Value << channel.raw["require_auth"].get<bool>();
+            }
+
             out << YAML::EndMap;
         }
 

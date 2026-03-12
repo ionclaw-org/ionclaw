@@ -17,12 +17,14 @@ HttpServer::HttpServer(
     std::shared_ptr<Routes> routes,
     std::shared_ptr<Auth> auth,
     std::shared_ptr<WebSocketManager> wsManager,
+    std::shared_ptr<ionclaw::mcp::McpDispatcher> mcpDispatcher,
     const ionclaw::config::ServerConfig &serverConfig,
     const std::string &webDir,
     const std::string &publicDir)
     : routes(routes)
     , auth(auth)
     , wsManager(wsManager)
+    , mcpDispatcher(mcpDispatcher)
     , serverConfig(serverConfig)
     , webDir(webDir)
     , publicDir(publicDir)
@@ -41,7 +43,7 @@ void HttpServer::start()
     params->setMaxThreads(16);
 
     // create and start server with request handler factory
-    auto factory = new handler::RequestHandlerFactory(routes, auth, wsManager, webDir, publicDir);
+    auto factory = new handler::RequestHandlerFactory(routes, auth, wsManager, mcpDispatcher, webDir, publicDir);
 
     server = std::make_unique<Poco::Net::HTTPServer>(factory, socket, params);
     server->start();
