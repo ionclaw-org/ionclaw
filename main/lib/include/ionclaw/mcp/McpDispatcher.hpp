@@ -57,6 +57,7 @@ public:
     bool isEnabled() const;
     bool requiresAuth() const;
     bool verifyToken(const std::string &token) const;
+    bool isAllowedOrigin(const std::string &origin) const;
 
     std::string createSession();
     bool hasSession(const std::string &id) const;

@@ -40,12 +40,19 @@ channels:
     credential: mcp_token   # credential name whose key = the Bearer token
 ```
 
+## Security
+
+The server validates the `Origin` header on all requests per MCP spec 2025-11-25 to prevent DNS rebinding attacks:
+
+- **With auth enabled**: all origins are allowed (the Bearer token provides access control).
+- **Without auth**: only local origins (`localhost`, `127.0.0.1`, `[::1]`) are allowed. Non-local origins receive `403 Forbidden`.
+
 ## Session Lifecycle
 
-1. Client sends `POST /mcp` with method `initialize` (no `Mcp-Session-Id` header).
-2. Server creates a session and responds `200 OK` with `Mcp-Session-Id: <uuid>` header plus capabilities.
+1. Client sends `POST /mcp` with method `initialize` (no `MCP-Session-Id` header).
+2. Server creates a session and responds `200 OK` with `MCP-Session-Id: <uuid>` header plus capabilities.
 3. Client sends `POST /mcp` with method `notifications/initialized` and the session ID header → server responds `202 Accepted`.
-4. All subsequent requests must include `Mcp-Session-Id: <uuid>`.
+4. All subsequent requests must include `MCP-Session-Id: <uuid>`.
 5. If the session is not found, server responds `404 Not Found` — client must start a new session with a fresh `initialize`.
 6. Client sends `DELETE /mcp` to close the session cleanly (optional).
 
@@ -360,7 +367,7 @@ If `require_auth` is `false`, omit the `headers` block.
 
 ## Chat Session Mapping
 
-Each MCP connection gets its own chat session. The session key in IonClaw follows the pattern `mcp:<uuid>` where `<uuid>` is the `Mcp-Session-Id` value. Sessions appear in the web app alongside web and Telegram sessions and share the same history, memory, and agent context.
+Each MCP connection gets its own chat session. The session key in IonClaw follows the pattern `mcp:<uuid>` where `<uuid>` is the `MCP-Session-Id` value. Sessions appear in the web app alongside web and Telegram sessions and share the same history, memory, and agent context.
 
 ### Display Names
 

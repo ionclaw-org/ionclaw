@@ -79,6 +79,41 @@ bool McpDispatcher::isEnabled() const
     return enabled.load();
 }
 
+bool McpDispatcher::isAllowedOrigin(const std::string &origin) const
+{
+    // MCP spec 2025-11-25: servers MUST validate the Origin header.
+    // When auth is enabled, any origin is allowed (token provides access control).
+    // When auth is disabled, only local origins are safe (prevents DNS rebinding on localhost).
+    if (requiresAuth())
+    {
+        return true;
+    }
+
+    // allow local development origins — match host exactly (not as substring)
+    // valid forms: scheme://host, scheme://host:port, scheme://host/path
+    auto isLocalHost = [](const std::string &o, const std::string &host) -> bool
+    {
+        auto pos = o.find(host);
+        if (pos == std::string::npos)
+            return false;
+        auto end = pos + host.size();
+        // must follow "://" and the char after the host must be end-of-string, ':', or '/'
+        return (pos >= 3 && o.substr(pos - 3, 3) == "://") &&
+               (end == o.size() || o[end] == ':' || o[end] == '/');
+    };
+
+    if (isLocalHost(origin, "localhost") ||
+        isLocalHost(origin, "127.0.0.1") ||
+        isLocalHost(origin, "[::1]"))
+    {
+        return true;
+    }
+
+    // non-local origin without auth: reject to prevent DNS rebinding
+    spdlog::warn("[MCP] Rejected non-local Origin without auth: {}", origin);
+    return false;
+}
+
 bool McpDispatcher::requiresAuth() const
 {
     auto it = config->channels.find(MCP_CHANNEL);
@@ -417,6 +452,10 @@ nlohmann::json McpDispatcher::toolChat(
                                             if (!chunk.empty())
                                             {
                                                 std::lock_guard<std::mutex> lock(stream->mtx);
+                                                // skip late-arriving chunks after task completion
+                                                // to prevent writes while the consumer reads fullText
+                                                if (stream->done)
+                                                    return;
                                                 stream->chunks.push_back(chunk);
                                                 stream->fullText += chunk;
                                                 stream->cv.notify_all();
@@ -478,6 +517,12 @@ nlohmann::json McpDispatcher::toolChat(
 
         while (true)
         {
+            // exit early if channel was disabled (avoids hanging until timeout)
+            if (!enabled.load())
+            {
+                throw std::runtime_error("MCP channel was disabled");
+            }
+
             std::string chunk;
             bool isDone = false;
             bool isError = false;
@@ -506,6 +551,7 @@ nlohmann::json McpDispatcher::toolChat(
                                                                                       {"message", chunk}});
                 if (!(*sseCallback)(event))
                 {
+                    std::lock_guard<std::mutex> lock(stream->mtx);
                     return nlohmann::json(stream->fullText);
                 }
             }
@@ -520,6 +566,8 @@ nlohmann::json McpDispatcher::toolChat(
                 {
                     throw std::runtime_error(errorMsg.empty() ? "Agent returned error" : errorMsg);
                 }
+                // fullText is safe here: done==true means no more chunks will arrive,
+                // and we verified chunks is empty under the lock above
                 return nlohmann::json(stream->fullText);
             }
 
@@ -531,21 +579,49 @@ nlohmann::json McpDispatcher::toolChat(
     }
     else
     {
-        // non-streaming: wait for task completion
-        std::unique_lock<std::mutex> lock(stream->mtx);
-        bool finished = stream->cv.wait_for(lock, std::chrono::seconds(CHAT_TIMEOUT_SECONDS),
-                                            [&stream]
-                                            { return stream->done; });
+        // non-streaming: wait for task completion, checking for channel disable every 30s
+        static constexpr int POLL_INTERVAL_SECONDS = 30;
+        int elapsed = 0;
+        bool finished = false;
+
+        while (!finished && elapsed < CHAT_TIMEOUT_SECONDS)
+        {
+            if (!enabled.load())
+            {
+                throw std::runtime_error("MCP channel was disabled");
+            }
+
+            std::unique_lock<std::mutex> lock(stream->mtx);
+            finished = stream->cv.wait_for(lock, std::chrono::seconds(POLL_INTERVAL_SECONDS),
+                                           [&stream]
+                                           { return stream->done; });
+            if (!finished)
+            {
+                elapsed += POLL_INTERVAL_SECONDS;
+            }
+        }
 
         if (!finished)
         {
             throw std::runtime_error("Chat timed out after " + std::to_string(CHAT_TIMEOUT_SECONDS) + " seconds");
         }
-        if (stream->error && stream->fullText.empty())
+
+        // read final state under lock (handler may still fire until guard destructs)
+        std::string resultText;
+        bool isError = false;
+        std::string errMsg;
         {
-            throw std::runtime_error(stream->errorMsg.empty() ? "Agent returned error" : stream->errorMsg);
+            std::lock_guard<std::mutex> lock(stream->mtx);
+            resultText = stream->fullText;
+            isError = stream->error;
+            errMsg = stream->errorMsg;
         }
-        return nlohmann::json(stream->fullText);
+
+        if (isError && resultText.empty())
+        {
+            throw std::runtime_error(errMsg.empty() ? "Agent returned error" : errMsg);
+        }
+        return nlohmann::json(resultText);
     }
 }
 
@@ -712,9 +788,16 @@ nlohmann::json McpDispatcher::handleResourcesRead(const JsonRpcRequest &req)
     if (uri.substr(0, SESSION_PREFIX.size()) == SESSION_PREFIX)
     {
         auto chatId = uri.substr(SESSION_PREFIX.size());
-        return JsonRpcResponse::ok(req.id, {{"contents", nlohmann::json::array({{{"uri", uri},
-                                                                                 {"mimeType", "application/json"},
-                                                                                 {"text", resourceSession(chatId).dump(2)}}})}});
+        try
+        {
+            return JsonRpcResponse::ok(req.id, {{"contents", nlohmann::json::array({{{"uri", uri},
+                                                                                     {"mimeType", "application/json"},
+                                                                                     {"text", resourceSession(chatId).dump(2)}}})}});
+        }
+        catch (const std::exception &e)
+        {
+            return JsonRpcResponse::err(req.id, static_cast<int>(RpcErrorCode::InvalidParams), e.what());
+        }
     }
 
     return JsonRpcResponse::err(req.id, static_cast<int>(RpcErrorCode::InvalidParams), "Unknown resource URI: " + uri);

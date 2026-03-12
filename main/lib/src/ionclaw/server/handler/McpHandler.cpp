@@ -25,14 +25,25 @@ void McpHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTT
 {
     // CORS headers for browser-based MCP clients
     resp.set("Access-Control-Allow-Origin", "*");
-    resp.set("Access-Control-Allow-Headers", "Authorization, Content-Type, Mcp-Session-Id");
-    resp.set("Access-Control-Expose-Headers", "Mcp-Session-Id");
+    resp.set("Access-Control-Allow-Headers", "Authorization, Content-Type, MCP-Session-Id, MCP-Protocol-Version");
+    resp.set("Access-Control-Expose-Headers", "MCP-Session-Id");
 
     if (req.getMethod() == "OPTIONS")
     {
         resp.set("Access-Control-Allow-Methods", "POST, GET, DELETE, OPTIONS");
         resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_NO_CONTENT);
         resp.send();
+        return;
+    }
+
+    // MCP spec 2025-11-25: validate Origin header to prevent DNS rebinding attacks
+    auto origin = req.get("Origin", "");
+    if (!origin.empty() && !mcpDispatcher->isAllowedOrigin(origin))
+    {
+        resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_FORBIDDEN);
+        resp.setContentType("application/json");
+        auto &ostr = resp.send();
+        ostr << R"({"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Forbidden: invalid Origin"}})";
         return;
     }
 
@@ -115,7 +126,7 @@ void McpHandler::handlePost(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
     bool isInitialize = body.value("method", "") == "initialize";
 
     // get or create MCP session
-    auto sessionId = req.get("Mcp-Session-Id", "");
+    auto sessionId = req.get("MCP-Session-Id", "");
 
     if (sessionId.empty())
     {
@@ -124,7 +135,7 @@ void McpHandler::handlePost(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
             resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
             resp.setContentType("application/json");
             auto &ostr = resp.send();
-            ostr << R"({"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Mcp-Session-Id header required"}})";
+            ostr << R"({"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"MCP-Session-Id header required"}})";
             return;
         }
         sessionId = mcpDispatcher->createSession();
@@ -138,7 +149,7 @@ void McpHandler::handlePost(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
         return;
     }
 
-    resp.set("Mcp-Session-Id", sessionId);
+    resp.set("MCP-Session-Id", sessionId);
 
     // parse the JSON-RPC request
     ionclaw::mcp::JsonRpcRequest request;
@@ -168,8 +179,14 @@ void McpHandler::handlePost(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
 
         auto &ostr = resp.send();
 
-        ionclaw::mcp::SseCallback callback = [&ostr](const nlohmann::json &event) -> bool
+        // MCP spec 2025-11-25: prime the client with an event ID for reconnection
+        ostr << "id: " << sessionId << ":0\ndata: \n\n";
+        ostr.flush();
+
+        int eventSeq = 1;
+        ionclaw::mcp::SseCallback callback = [&ostr, &sessionId, &eventSeq](const nlohmann::json &event) -> bool
         {
+            ostr << "id: " << sessionId << ":" << eventSeq++ << "\n";
             ostr << "event: message\ndata: " << event.dump() << "\n\n";
             ostr.flush();
             return ostr.good();
@@ -182,6 +199,7 @@ void McpHandler::handlePost(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
             // send the final JSON-RPC response as the closing SSE event
             if (!result.is_null())
             {
+                ostr << "id: " << sessionId << ":" << eventSeq++ << "\n";
                 ostr << "event: message\ndata: " << result.dump() << "\n\n";
                 ostr.flush();
             }
@@ -190,6 +208,7 @@ void McpHandler::handlePost(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
         {
             spdlog::error("[MCP] SSE dispatch exception: {}", e.what());
             auto errResult = ionclaw::mcp::JsonRpcResponse::err(request.id, -32603, e.what());
+            ostr << "id: " << sessionId << ":" << eventSeq++ << "\n";
             ostr << "event: message\ndata: " << errResult.dump() << "\n\n";
             ostr.flush();
         }
@@ -220,13 +239,13 @@ void McpHandler::handleGet(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSer
         return;
     }
 
-    auto sessionId = req.get("Mcp-Session-Id", "");
+    auto sessionId = req.get("MCP-Session-Id", "");
     if (sessionId.empty())
     {
         resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
         resp.setContentType("application/json");
         auto &ostr = resp.send();
-        ostr << R"({"error":"Mcp-Session-Id header required"})";
+        ostr << R"({"error":"MCP-Session-Id header required"})";
         return;
     }
     if (!mcpDispatcher->hasSession(sessionId))
@@ -238,7 +257,7 @@ void McpHandler::handleGet(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSer
         return;
     }
 
-    resp.set("Mcp-Session-Id", sessionId);
+    resp.set("MCP-Session-Id", sessionId);
     resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_OK);
     resp.setContentType("text/event-stream");
     resp.set("Cache-Control", "no-cache");
@@ -270,7 +289,7 @@ void McpHandler::handleDelete(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
         return;
     }
 
-    auto sessionId = req.get("Mcp-Session-Id", "");
+    auto sessionId = req.get("MCP-Session-Id", "");
     if (!sessionId.empty())
     {
         mcpDispatcher->closeSession(sessionId);
