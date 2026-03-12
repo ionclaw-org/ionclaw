@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <deque>
 #include <map>
 #include <memory>
@@ -114,7 +115,7 @@ private:
     std::vector<std::string> getActiveFilenames() const;
 
     SessionSweeper sweeper;
-    std::atomic<int> messageCounter{0};
+    std::atomic<int64_t> messageCounter{0};
     static constexpr int SWEEP_INTERVAL = 50;
     static constexpr int MAX_MESSAGE_PERSIST_CHARS = 500000;
 

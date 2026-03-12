@@ -4,6 +4,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -1154,7 +1155,7 @@ private:
     std::unique_ptr<Poco::Net::HTTPClientSession> session_;
     std::unique_ptr<Poco::Net::WebSocket> ws_;
     std::atomic<bool> connected_{false};
-    std::atomic<int> nextId_{1};
+    std::atomic<int64_t> nextId_{1};
     std::mutex wsMutex_;
     std::vector<char> recvBuffer_; // reusable receive buffer (allocated once per tab)
 

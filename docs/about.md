@@ -79,6 +79,8 @@ IonClaw includes a native C++ tools system. Built-in capabilities include:
 - Local image operations (create, resize, draw, overlay, watermark)
 - Subagent spawning and cron scheduling
 - Persistent memory and session handling
+- [MCP Server](mcp.md) — expose agents to external AI clients via the Model Context Protocol
+- MCP Client — connect to external MCP servers to use their tools and resources
 
 ---
 
@@ -100,6 +102,8 @@ IonClaw gives you:
 - **Multi-agent** — optional classifier to route work
 - **Multi-provider** — use the LLMs you already have
 - **Native tools** — files, HTTP, search, images, memory, cron, etc.
+- **MCP Server** — expose agents to Claude Code, Cursor, GitHub Copilot, and other MCP clients
+- **MCP Client** — connect to external MCP servers to use their tools and resources
 - **Skill marketplace** — extend agents from the UI
 - **Browser-based control** — one panel, works on mobile too
 

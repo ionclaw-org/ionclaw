@@ -1,6 +1,15 @@
+# MCP
+
+IonClaw supports the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) both as a **server** and as a **client**.
+
+- **MCP Server** — exposes IonClaw agents to external AI clients (Claude Code, Cursor, GitHub Copilot, etc.)
+- **MCP Client** — lets IonClaw agents connect to external MCP servers and use their tools and resources (via the built-in `mcp_client` tool)
+
+---
+
 # MCP Server
 
-IonClaw implements the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) using the Streamable HTTP transport. Supported protocol versions: **2024-11-05**, **2025-03-26**, **2025-11-25**. This lets any MCP-compatible AI client (Claude Code, GitHub Copilot, Cursor, etc.) connect directly to IonClaw to chat with agents and manage sessions.
+IonClaw implements MCP using the Streamable HTTP transport. Supported protocol versions: **2024-11-05**, **2025-03-26**, **2025-11-25**. This lets any MCP-compatible AI client connect directly to IonClaw to chat with agents and manage sessions.
 
 ## Transport
 
@@ -382,3 +391,57 @@ When a provider is unreachable or misconfigured, IonClaw returns clear, actionab
 | Host not found | Could not connect to provider 'llama': the host was not found. Please check that the provider's base_url is correct and the service is reachable. (model: llama/local) |
 | Authentication | Authentication failed for model 'anthropic/claude-sonnet-4-20250514'. Please check that the API key is valid and has the required permissions. |
 | Model not found | Model 'openai/gpt-5-turbo' was not found by the provider. Please check the model name in the agent configuration. |
+
+---
+
+# MCP Client
+
+IonClaw agents can connect to external MCP servers using the built-in `mcp_client` tool. This lets agents use tools and read resources from any MCP-compatible server — other IonClaw instances, database servers, filesystem servers, or third-party services.
+
+## Tool: `mcp_client`
+
+The `mcp_client` tool uses the MCP Streamable HTTP transport (JSON-RPC 2.0 over HTTP POST). It supports session management, authentication, and all standard MCP operations.
+
+### Quick Start
+
+```
+# 1. connect to a remote MCP server
+mcp_client(action="initialize", url="http://localhost:9090/mcp")
+# → returns session_id
+
+# 2. list available tools
+mcp_client(action="list_tools", url="http://localhost:9090/mcp", session_id="<id>")
+
+# 3. call a tool
+mcp_client(action="call_tool", url="http://localhost:9090/mcp", session_id="<id>", tool_name="chat", tool_arguments={"message": "Hello"})
+
+# 4. close when done
+mcp_client(action="close", url="http://localhost:9090/mcp", session_id="<id>")
+```
+
+### Actions
+
+| Action | Description |
+|---|---|
+| `initialize` | Connect to the server and negotiate a session |
+| `list_tools` | List available tools on the remote server |
+| `call_tool` | Call a specific tool by name with arguments |
+| `list_resources` | List available resources |
+| `read_resource` | Read a resource by URI |
+| `ping` | Check if the server is alive |
+| `close` | Close the session (sends HTTP DELETE) |
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `action` | string | Yes | Action to perform |
+| `url` | string | Yes | MCP server endpoint URL |
+| `session_id` | string | No | Session ID from `initialize` (if server provides one) |
+| `auth_token` | string | No | Bearer token for authentication |
+| `tool_name` | string | call_tool | Tool name to call |
+| `tool_arguments` | object | No | Arguments for the tool |
+| `resource_uri` | string | read_resource | Resource URI to read |
+| `timeout` | integer | No | Timeout in seconds (default: 30) |
+
+For complete usage examples, see the [mcp-client skill](../main/resources/skills/mcp-client/SKILL.md).

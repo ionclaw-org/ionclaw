@@ -52,6 +52,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/WebSearchTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/WebFetchTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/HttpClientTool.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/McpClientTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/RssReaderTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/GenerateImageTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/ImageOpsTool.cpp
