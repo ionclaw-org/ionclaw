@@ -136,6 +136,7 @@ agents:
       - memory_save
       - memory_read
       - memory_search
+      - mcp_client
     model_params:
       max_tokens: 8192
       temperature: 0.1

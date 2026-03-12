@@ -223,8 +223,6 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
     static const std::set<std::string> AUDIO_EXTENSIONS = {
         ".mp3", ".wav", ".ogg", ".oga", ".opus", ".m4a", ".webm", ".aac", ".flac"};
 
-    spdlog::info("[resolveMedia] {} media path(s), projectRoot={}", paths.size(), projectRoot);
-
     nlohmann::json blocks = nlohmann::json::array();
 
     for (const auto &path : paths)

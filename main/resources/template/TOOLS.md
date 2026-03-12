@@ -23,6 +23,10 @@
 - `generate_image(prompt, filename)` - Generate an image from a text prompt
 - `vision(path, url, base64, question, mime_type)` - Analyze and describe images using AI vision
 
+## MCP Client
+
+- `mcp_client(action, url, session_id, auth_token, tool_name, tool_arguments, resource_uri, timeout)` - Connect to external MCP servers to use their tools and resources
+
 ## Communication
 
 - `message(content)` - Send a message to the user during processing

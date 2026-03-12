@@ -252,6 +252,35 @@ Supports RSS 2.0 and Atom. HTML is stripped from summary fields.
 
 ---
 
+### MCP Client
+
+#### mcp_client
+
+Connect to an external MCP server and interact with its tools and resources using the Model Context Protocol (Streamable HTTP transport, JSON-RPC 2.0).
+
+| Parameter | Type | Required | Description |
+|----------|------|----------|-------------|
+| `action` | string | Yes | `initialize`, `list_tools`, `call_tool`, `list_resources`, `read_resource`, `ping`, `close` |
+| `url` | string | Yes | MCP server endpoint URL (e.g. `http://localhost:8080/mcp`) |
+| `session_id` | string | No | MCP session ID returned by `initialize` (if server provides one) |
+| `auth_token` | string | No | Bearer token for authenticated servers |
+| `tool_name` | string | call_tool | Name of the tool to call |
+| `tool_arguments` | object | No | Arguments for the tool call |
+| `resource_uri` | string | read_resource | URI of the resource to read |
+| `timeout` | integer | No | Request timeout in seconds (default: 30) |
+
+**Workflow:**
+
+1. Call `initialize` to connect and get a `session_id`.
+2. Use `list_tools` / `call_tool` to invoke remote tools, or `list_resources` / `read_resource` to read remote data.
+3. Call `close` when done to free server resources.
+
+The `session_id` returned by `initialize` must be passed to all subsequent calls. Each server connection has its own session.
+
+See [mcp-client SKILL.md](../main/resources/skills/mcp-client/SKILL.md) for complete examples and workflows.
+
+---
+
 ### Image generation and operations
 
 #### generate_image

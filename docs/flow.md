@@ -39,12 +39,12 @@ This document explains the complete execution flow of IonClaw, from the moment y
 IonClaw is an AI agent orchestrator built in C++. When you run `ionclaw-server start`, a Poco HTTP server boots up and creates all necessary components. One binary — no Python, no Node, no Docker.
 
 ```
-User (Browser / Telegram) ──► Input Channel
-                                  │
-                          WebSocket or REST API
-                                  │
-                                  ▼
-                          Message Bus (Inbound)
+User (Browser / Telegram / MCP Client) ──► Input Channel
+                                               │
+                                   WebSocket, REST API, or MCP
+                                               │
+                                               ▼
+                                       Message Bus (Inbound)
                                   │
                                   ▼
                           Session Queue (mode resolution)

@@ -27,7 +27,7 @@
 
 <p align="center">
     Multi-agent · Real-time task board · Web control panel · Skills system · Browser automation<br>
-    Multi-provider · Scheduler · Subagents · Memory · File management<br>
+    Multi-provider · Scheduler · Subagents · Memory · File management · MCP Server<br>
     <strong>One command to start. Everything from the browser. No coding required.</strong>
 </p>
 
@@ -55,6 +55,8 @@ Because native means fast startup, low memory, no dependencies, and true portabi
 - **Subagents** — agents can spawn child agents for parallel work
 - **Memory** — persistent memory with search-based recall across sessions
 - **File management** — read, write, search, and organize files within sandboxed workspaces
+- **MCP Server** — expose agents via the [Model Context Protocol](https://modelcontextprotocol.io/) for use with Claude Code, Cursor, GitHub Copilot, and other MCP clients
+- **MCP Client** — connect to external MCP servers to use their tools and resources
 - **Secure** — sandboxed workspaces, JWT auth, tool policy per agent, hook system for custom rules
 
 ## Screenshots
@@ -95,6 +97,7 @@ Open `http://localhost:8080` in your browser. The web panel is served automatica
 - [Flutter](docs/flutter.md) — Flutter app, release builds, and signing
 - [Skills](docs/skills.md) — Creating and managing skills
 - [Tools](docs/tools.md) — Built-in tools reference
+- [MCP](docs/mcp.md) — MCP Server and Client (Model Context Protocol)
 - [Image Generation](docs/image-generation.md) — Provider-specific image generation and editing
 - [Docker](docs/docker.md) — Docker build, run, and compose
 - [Deploy](docs/deploy.md) — One-click deploy to cloud platforms

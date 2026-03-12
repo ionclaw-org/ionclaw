@@ -13,6 +13,7 @@
 #include "ionclaw/tool/builtin/ImageOpsTool.hpp"
 #include "ionclaw/tool/builtin/InvokePlatformTool.hpp"
 #include "ionclaw/tool/builtin/ListDirTool.hpp"
+#include "ionclaw/tool/builtin/McpClientTool.hpp"
 #include "ionclaw/tool/builtin/MemoryReadTool.hpp"
 #include "ionclaw/tool/builtin/MemorySaveTool.hpp"
 #include "ionclaw/tool/builtin/MemorySearchTool.hpp"
@@ -75,6 +76,7 @@ void ToolRegistry::registerBuiltinTools()
     registerTool(std::make_shared<builtin::WebFetchTool>());
     registerTool(std::make_shared<builtin::HttpClientTool>());
     registerTool(std::make_shared<builtin::RssReaderTool>());
+    registerTool(std::make_shared<builtin::McpClientTool>());
 
     // image tools (all platforms)
     registerTool(std::make_shared<builtin::GenerateImageTool>());
