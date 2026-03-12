@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <map>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -18,10 +19,13 @@ class EventDispatcher
 {
 public:
     void addHandler(EventHandler handler);
+    void addNamedHandler(const std::string &id, EventHandler handler);
+    void removeHandler(const std::string &id);
     void broadcast(const std::string &eventType, const nlohmann::json &data);
 
 private:
     std::vector<EventHandler> handlers;
+    std::map<std::string, EventHandler> namedHandlers;
     std::mutex mutex;
 };
 

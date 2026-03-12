@@ -109,6 +109,8 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/ChannelRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/FormRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/SchedulerRoutes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/mcp/McpDispatcher.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/handler/McpHandler.cpp
 )
 
 # --- embed resources (shared by server and shared library) ---

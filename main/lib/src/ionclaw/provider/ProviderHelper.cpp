@@ -261,6 +261,17 @@ std::string ProviderHelper::classifyError(const std::string &msg)
         }
     }
 
+    // host not found (invalid provider URL or DNS failure)
+    for (const auto &p : {"host not found", "hostnotfoundexception", "no address found",
+                          "name or service not known", "nodename nor servname",
+                          "getaddrinfo", "dns resolution"})
+    {
+        if (lower.find(p) != std::string::npos)
+        {
+            return "host_not_found";
+        }
+    }
+
     // transient
     for (const auto &p : {"connection", "503", "502", "500",
                           "internal server error", "bad gateway", "service unavailable",

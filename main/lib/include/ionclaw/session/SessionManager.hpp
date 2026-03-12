@@ -46,6 +46,7 @@ struct Session
     std::string createdAt;
     std::string updatedAt;
     std::string lastTouchedAt;
+    std::string displayName;
     int lastConsolidated = 0;
     std::vector<SessionMessage> messages;
     nlohmann::json liveState;
@@ -80,6 +81,7 @@ public:
     // targeted mutations (thread-safe, no dangling reference)
     void updateLiveStateField(const std::string &sessionKey, const std::string &field, const nlohmann::json &value);
     void updateLastMessageContent(const std::string &sessionKey, const std::string &content);
+    void updateDisplayName(const std::string &sessionKey, const std::string &name);
     void setLastConsolidated(const std::string &sessionKey, int count);
 
     // lru configuration (only call before threads start or use atomic)

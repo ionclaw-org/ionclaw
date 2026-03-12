@@ -21,15 +21,21 @@ function channelFromKey(key) {
 }
 
 /**
- * Display label for a session key.
+ * Display label for a session key, optionally using a server-provided display name.
  */
-function sessionLabel(key) {
+function sessionLabel(key, displayName) {
+  // prefer server-provided display name (auto-generated from first message)
+  if (displayName && displayName !== key) {
+    return displayName
+  }
+
   const channel = channelFromKey(key)
   const chatId = chatIdFromKey(key)
 
   if (channel === 'heartbeat') return 'Heartbeat'
   if (channel === 'cron') return `Cron ${chatId}`
   if (channel === 'telegram') return `Telegram ${chatId}`
+  if (channel === 'mcp') return `MCP ${chatId.slice(0, 8)}`
   if (channel === 'web') {
     return chatId.length > 12 ? `Chat ${chatId.slice(0, 8)}` : chatId
   }

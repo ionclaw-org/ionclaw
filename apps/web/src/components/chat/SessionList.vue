@@ -15,7 +15,7 @@ const items = computed(() =>
     key: s.key,
     channel: channelFromKey(s.key),
     chatId: chatIdFromKey(s.key),
-    label: sessionLabel(s.key),
+    label: sessionLabel(s.key, s.display_name),
     updatedAt: s.updated_at,
     active: s.key === props.currentSessionId,
   }))
@@ -54,7 +54,7 @@ function formatTime(iso) {
         @click="emit('select', item.key)"
       >
         <div class="session-item-icon">
-          <i :class="item.channel === 'heartbeat' ? 'pi pi-heart' : item.channel === 'telegram' ? 'pi pi-send' : 'pi pi-comments'"></i>
+          <i :class="item.channel === 'heartbeat' ? 'pi pi-heart' : item.channel === 'telegram' ? 'pi pi-send' : item.channel === 'mcp' ? 'pi pi-microchip-ai' : 'pi pi-comments'"></i>
         </div>
         <div class="session-item-info">
           <span class="session-item-label">{{ item.label }}</span>

@@ -58,6 +58,12 @@ nlohmann::json Routes::buildFormSchemas()
         {{"name", "reply_to_message"}, {"type", "bool"}, {"label", "Reply to Message"}},
     });
 
+    schemas["channels_mcp"] = json::array({
+        {{"name", "enabled"}, {"type", "bool"}, {"label", "Enabled"}},
+        {{"name", "require_auth"}, {"type", "bool"}, {"label", "Require Token Authentication"}},
+        {{"name", "credential"}, {"type", "credential"}, {"label", "Token Credential"}, {"visible_when", {{"require_auth", true}}}},
+    });
+
     schemas["image"] = json::array({
         {{"name", "model"}, {"type", "text"}, {"label", "Model"}, {"placeholder", "openai/dall-e-3"}},
     });
@@ -87,7 +93,7 @@ nlohmann::json Routes::buildFormSchemas()
                                                                                                       {{"label", "Header"}, {"value", "header"}},
                                                                                                       {{"label", "Bearer"}, {"value", "bearer"}},
                                                                                                   })}},
-        {{"name", "key"}, {"type", "secret"}, {"label", "Key"}, {"visible_when", {{"type", "simple"}}}},
+        {{"name", "key"}, {"type", "secret"}, {"label", "Key"}, {"generate", true}, {"visible_when", {{"type", "simple"}}}},
         {{"name", "consumer_key"}, {"type", "secret"}, {"label", "Consumer Key"}, {"placeholder", "Leave empty to keep current"}, {"visible_when", {{"type", "oauth1"}}}},
         {{"name", "consumer_secret"}, {"type", "secret"}, {"label", "Consumer Secret"}, {"placeholder", "Leave empty to keep current"}, {"visible_when", {{"type", "oauth1"}}}},
         {{"name", "access_token"}, {"type", "secret"}, {"label", "Access Token"}, {"placeholder", "Leave empty to keep current"}, {"visible_when", {{"type", "oauth1"}}}},

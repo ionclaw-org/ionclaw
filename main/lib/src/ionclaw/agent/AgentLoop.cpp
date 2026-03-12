@@ -920,7 +920,32 @@ void AgentLoop::processMessage(
     {
         spdlog::error("[AgentLoop] Agent loop error for task {}: {}", taskId, e.what());
 
-        auto errorText = std::string("I encountered an error: ") + e.what();
+        auto errorCategory = ionclaw::provider::ProviderHelper::classifyError(e.what());
+        std::string errorText;
+
+        if (errorCategory == "host_not_found")
+        {
+            auto slashPos = agentConfig.model.find('/');
+            auto providerName = slashPos != std::string::npos ? agentConfig.model.substr(0, slashPos) : agentConfig.model;
+            errorText = "Could not connect to provider '" + providerName + "': the host was not found. "
+                                                                           "Please check that the provider's base_url is correct and the service is reachable. "
+                                                                           "(model: " +
+                        agentConfig.model + ")";
+        }
+        else if (errorCategory == "auth")
+        {
+            errorText = "Authentication failed for model '" + agentConfig.model + "'. "
+                                                                                  "Please check that the API key is valid and has the required permissions.";
+        }
+        else if (errorCategory == "model_not_found")
+        {
+            errorText = "Model '" + agentConfig.model + "' was not found by the provider. "
+                                                        "Please check the model name in the agent configuration.";
+        }
+        else
+        {
+            errorText = std::string("I encountered an error: ") + e.what();
+        }
 
         // save error response to session
         ionclaw::session::SessionMessage errorSessionMsg;

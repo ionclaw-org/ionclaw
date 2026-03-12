@@ -408,11 +408,22 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
     // get session history for classifier context
     auto history = sessionManager->getHistory(sessionKey, 20);
 
-    // resolve target agent: check session affinity first, then classify
+    // resolve target agent: check metadata override, then session affinity, then classify
     std::string targetAgent;
 
+    // explicit agent override from caller (e.g. MCP tool `agent` parameter)
+    if (message.metadata.contains("agent_override") && message.metadata["agent_override"].is_string())
+    {
+        auto requestedAgent = message.metadata["agent_override"].get<std::string>();
+        if (!requestedAgent.empty() && agentLoops.find(requestedAgent) != agentLoops.end())
+        {
+            targetAgent = requestedAgent;
+            spdlog::debug("[Orchestrator] Using metadata agent override: {} (session: {})", targetAgent, sessionKey);
+        }
+    }
+
     // session agent affinity: reuse last agent for multi-agent setups
-    if (agentLoops.size() > 1)
+    if (targetAgent.empty() && agentLoops.size() > 1)
     {
         auto session = sessionManager->getOrCreate(sessionKey);
 

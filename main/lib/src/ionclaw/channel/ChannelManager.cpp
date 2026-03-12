@@ -1,6 +1,7 @@
 #include "ionclaw/channel/ChannelManager.hpp"
 
 #include "ionclaw/channel/TelegramRunner.hpp"
+#include "ionclaw/mcp/McpDispatcher.hpp"
 #include "spdlog/spdlog.h"
 
 namespace ionclaw
@@ -13,12 +14,14 @@ ChannelManager::ChannelManager(
     std::shared_ptr<ionclaw::bus::MessageBus> bus,
     std::shared_ptr<ionclaw::session::SessionManager> sessionManager,
     std::shared_ptr<ionclaw::task::TaskManager> taskManager,
-    std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher)
+    std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher,
+    std::shared_ptr<ionclaw::mcp::McpDispatcher> mcpDispatcher)
     : config(std::move(config))
     , bus(std::move(bus))
     , sessionManager(std::move(sessionManager))
     , taskManager(std::move(taskManager))
     , dispatcher(std::move(dispatcher))
+    , mcpDispatcher(std::move(mcpDispatcher))
 {
 }
 
@@ -28,24 +31,25 @@ void ChannelManager::startChannel(const std::string &name)
 {
     std::lock_guard<std::mutex> lock(mutex);
     if (name == "telegram")
-    {
         startTelegram();
-    }
+    else if (name == "mcp")
+        startMcp();
 }
 
 void ChannelManager::stopChannel(const std::string &name)
 {
     std::lock_guard<std::mutex> lock(mutex);
     if (name == "telegram")
-    {
         stopTelegram();
-    }
+    else if (name == "mcp")
+        stopMcp();
 }
 
 void ChannelManager::stopAll()
 {
     std::lock_guard<std::mutex> lock(mutex);
     stopTelegram();
+    stopMcp();
 }
 
 void ChannelManager::startTelegram()
@@ -98,6 +102,23 @@ void ChannelManager::stopTelegram()
     {
         telegramRunner->stop();
         telegramRunner.reset();
+    }
+}
+
+void ChannelManager::startMcp()
+{
+    if (!mcpDispatcher)
+    {
+        throw std::runtime_error("MCP dispatcher not available");
+    }
+    mcpDispatcher->enable();
+}
+
+void ChannelManager::stopMcp()
+{
+    if (mcpDispatcher)
+    {
+        mcpDispatcher->disable();
     }
 }
 

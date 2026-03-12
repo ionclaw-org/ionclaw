@@ -6,6 +6,7 @@
 #include "Poco/Net/HTTPServer.h"
 
 #include "ionclaw/config/Config.hpp"
+#include "ionclaw/mcp/McpDispatcher.hpp"
 #include "ionclaw/server/Auth.hpp"
 #include "ionclaw/server/Routes.hpp"
 #include "ionclaw/server/WebSocketManager.hpp"
@@ -22,6 +23,7 @@ public:
         std::shared_ptr<Routes> routes,
         std::shared_ptr<Auth> auth,
         std::shared_ptr<WebSocketManager> wsManager,
+        std::shared_ptr<ionclaw::mcp::McpDispatcher> mcpDispatcher,
         const ionclaw::config::ServerConfig &serverConfig,
         const std::string &webDir,
         const std::string &publicDir);
@@ -34,6 +36,7 @@ private:
     std::shared_ptr<Routes> routes;
     std::shared_ptr<Auth> auth;
     std::shared_ptr<WebSocketManager> wsManager;
+    std::shared_ptr<ionclaw::mcp::McpDispatcher> mcpDispatcher;
     ionclaw::config::ServerConfig serverConfig;
     std::string webDir;
     std::string publicDir;

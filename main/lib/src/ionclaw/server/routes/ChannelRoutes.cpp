@@ -1,5 +1,7 @@
 #include "ionclaw/server/Routes.hpp"
 
+#include "ionclaw/config/ConfigLoader.hpp"
+
 namespace ionclaw
 {
 namespace server
@@ -14,7 +16,7 @@ void Routes::handleChannelsList(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPS
         result[name] = {
             {"enabled", ch.enabled},
             {"credential", ch.credential},
-            {"running", ch.enabled},
+            {"running", ch.running},
         };
     }
 
@@ -36,6 +38,7 @@ void Routes::handleChannelGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
     nlohmann::json out = {
         {"name", name},
         {"enabled", ch.enabled},
+        {"running", ch.running},
         {"credential", ch.credential},
         {"allowed_users", ch.allowedUsers},
     };
@@ -47,6 +50,10 @@ void Routes::handleChannelGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
     {
         out["reply_to_message"] = ch.raw["reply_to_message"].get<bool>();
     }
+    if (ch.raw.contains("require_auth") && ch.raw["require_auth"].is_boolean())
+    {
+        out["require_auth"] = ch.raw["require_auth"].get<bool>();
+    }
     sendJson(resp, out);
 }
 
@@ -57,7 +64,6 @@ void Routes::handleChannelUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::H
         auto body = nlohmann::json::parse(readBody(req));
         auto configData = body.value("config", nlohmann::json::object());
 
-        // update channel fields from request body
         auto &ch = config->channels[name];
 
         if (configData.contains("enabled"))
@@ -65,7 +71,7 @@ void Routes::handleChannelUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::H
             ch.enabled = configData["enabled"].get<bool>();
         }
 
-        if (configData.contains("credential"))
+        if (configData.contains("credential") && configData["credential"].is_string())
         {
             ch.credential = configData["credential"].get<std::string>();
         }
@@ -88,6 +94,12 @@ void Routes::handleChannelUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::H
         {
             ch.raw["reply_to_message"] = configData["reply_to_message"].get<bool>();
         }
+        if (configData.contains("require_auth") && configData["require_auth"].is_boolean())
+        {
+            ch.raw["require_auth"] = configData["require_auth"].get<bool>();
+        }
+
+        ionclaw::config::ConfigLoader::save(*config, config->projectPath + "/config.yml");
 
         sendJson(resp, {{"status", "ok"}});
     }
@@ -109,16 +121,16 @@ void Routes::handleChannelStart(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPS
 
     auto &ch = it->second;
 
-    if (ch.enabled)
+    if (ch.running)
     {
-        sendError(resp, "Channel already running or not available", 409);
+        sendError(resp, "Channel already running", 409);
         return;
     }
 
     try
     {
         channelManager->startChannel(name);
-        ch.enabled = true;
+        ch.running = true;
         sendJson(resp, {{"status", "started"}});
     }
     catch (const std::exception &e)
@@ -139,14 +151,14 @@ void Routes::handleChannelStop(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSe
 
     auto &ch = it->second;
 
-    if (!ch.enabled)
+    if (!ch.running)
     {
         sendError(resp, "Channel not running", 409);
         return;
     }
 
     channelManager->stopChannel(name);
-    ch.enabled = false;
+    ch.running = false;
     sendJson(resp, {{"status", "stopped"}});
 }
 

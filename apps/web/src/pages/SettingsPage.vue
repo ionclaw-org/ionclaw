@@ -49,6 +49,7 @@ const imageConfig = ref({ model: '', aspect_ratio: '', size: '' })
 const transcriptionConfig = ref({ model: '' })
 const agentsConfig = ref({})
 const telegram = ref({ enabled: false, credential: '', allowed_users: '', proxy: '', reply_to_message: false })
+const mcp = ref({ enabled: false, require_auth: false, credential: '' })
 const activeTab = ref('info')
 const rawYaml = ref('')
 const yamlLoading = ref(false)
@@ -176,6 +177,13 @@ onMounted(async () => {
       proxy: tg.proxy || '',
       reply_to_message: tg.reply_to_message || false,
     }
+
+    const mcpCh = configStore.config.channels?.mcp || {}
+    mcp.value = {
+      enabled: mcpCh.enabled || false,
+      require_auth: mcpCh.require_auth || false,
+      credential: mcpCh.credential || '',
+    }
   }
 })
 
@@ -200,7 +208,7 @@ async function saveSection(section, data) {
   const payload = coerceTypes(section, data)
   try {
     await configStore.saveSection(section, payload)
-    toast.add({ severity: 'success', summary: 'Saved', detail: `${section.charAt(0).toUpperCase() + section.slice(1)} updated`, life: 2000 })
+    toast.add({ severity: 'success', summary: 'Saved', detail: `${humanize(section)} updated`, life: 2000 })
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
   }
@@ -348,14 +356,18 @@ async function saveProviders() {
 
 // channels
 async function saveTelegram() {
-  const config = {
-    credential: telegram.value.credential,
-    allowed_users: telegram.value.allowed_users.split(',').map((s) => s.trim()).filter(Boolean),
-    proxy: telegram.value.proxy || null,
-    reply_to_message: telegram.value.reply_to_message,
+  try {
+    await channelsStore.updateChannel('telegram', {
+      enabled: telegram.value.enabled,
+      credential: telegram.value.credential,
+      allowed_users: telegram.value.allowed_users.split(',').map((s) => s.trim()).filter(Boolean),
+      proxy: telegram.value.proxy || '',
+      reply_to_message: telegram.value.reply_to_message,
+    })
+    toast.add({ severity: 'success', summary: 'Saved', detail: 'Telegram config updated', life: 2000 })
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
   }
-  await channelsStore.updateChannel('telegram', config)
-  toast.add({ severity: 'success', summary: 'Saved', detail: 'Telegram config updated', life: 2000 })
 }
 
 async function toggleTelegram(running) {
@@ -364,12 +376,39 @@ async function toggleTelegram(running) {
       await channelsStore.stopChannel('telegram')
       toast.add({ severity: 'success', summary: 'Stopped', detail: 'Telegram channel stopped', life: 2000 })
     } else {
-      await saveTelegram()
       await channelsStore.startChannel('telegram')
       toast.add({ severity: 'success', summary: 'Started', detail: 'Telegram channel started', life: 2000 })
     }
-  } catch {
-    toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to toggle Telegram channel', life: 3000 })
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
+    await channelsStore.loadChannels()
+  }
+}
+
+async function saveMcp() {
+  try {
+    await channelsStore.updateChannel('mcp', {
+      enabled: mcp.value.enabled,
+      require_auth: mcp.value.require_auth,
+      credential: mcp.value.credential,
+    })
+    toast.add({ severity: 'success', summary: 'Saved', detail: 'MCP config updated', life: 2000 })
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
+  }
+}
+
+async function toggleMcp(running) {
+  try {
+    if (running) {
+      await channelsStore.stopChannel('mcp')
+      toast.add({ severity: 'success', summary: 'Stopped', detail: 'MCP channel stopped', life: 2000 })
+    } else {
+      await channelsStore.startChannel('mcp')
+      toast.add({ severity: 'success', summary: 'Started', detail: 'MCP channel started', life: 2000 })
+    }
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
     await channelsStore.loadChannels()
   }
 }
@@ -619,6 +658,29 @@ async function toggleTelegram(running) {
                     :severity="channelsStore.channels?.telegram?.running ? 'danger' : 'success'"
                     size="small"
                     @click="toggleTelegram(channelsStore.channels?.telegram?.running)"
+                  />
+                </div>
+              </div>
+
+              <div class="item-block">
+                <div class="item-header">
+                  <i class="pi pi-share-alt"></i>
+                  <strong>MCP</strong>
+                  <Tag
+                    :value="channelsStore.channels?.mcp?.running ? 'running' : 'stopped'"
+                    :severity="channelsStore.channels?.mcp?.running ? 'success' : 'danger'"
+                  />
+                </div>
+                <p class="item-desc" style="margin-bottom: 0.75rem">Model Context Protocol server. Connect Claude Code, Cursor, or GitHub Copilot via <code>http://localhost:PORT/mcp</code>.</p>
+                <DynamicForm v-if="formSchemas.channels_mcp" :schema="formSchemas.channels_mcp" v-model="mcp" :references="references" />
+                <div class="button-row">
+                  <Button label="Save" icon="pi pi-save" size="small" severity="secondary" @click="saveMcp" />
+                  <Button
+                    :label="channelsStore.channels?.mcp?.running ? 'Stop' : 'Start'"
+                    :icon="channelsStore.channels?.mcp?.running ? 'pi pi-stop' : 'pi pi-play'"
+                    :severity="channelsStore.channels?.mcp?.running ? 'danger' : 'success'"
+                    size="small"
+                    @click="toggleMcp(channelsStore.channels?.mcp?.running)"
                   />
                 </div>
               </div>
