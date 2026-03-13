@@ -286,7 +286,8 @@ nlohmann::json McpDispatcher::handleToolsList(const JsonRpcRequest &req)
                                "Send a message to the AI agent and receive a response",
                                {{"message", {{"type", "string"}, {"description", "The message to send"}}},
                                 {"session_id", {{"type", "string"}, {"description", "Chat session ID (optional, uses MCP session if omitted)"}}},
-                                {"agent", {{"type", "string"}, {"description", "Target agent name (optional, uses default routing)"}}}},
+                                {"agent", {{"type", "string"}, {"description", "Target agent name (optional, uses default routing)"}}},
+                                {"language", {{"type", "string"}, {"description", "User language/locale code (e.g. en-US, pt-BR)"}}}},
                                {"message"}));
 
     tools.push_back(toolSchema("abort",
@@ -506,6 +507,14 @@ nlohmann::json McpDispatcher::toolChat(
     {
         inbound.metadata["agent_override"] = agentOverride;
     }
+
+    // forward user language to agent context
+    auto lang = args.value("language", std::string(""));
+    if (!lang.empty())
+    {
+        inbound.metadata["language"] = lang;
+    }
+
     spdlog::info("[MCP] Publishing message to bus (session: {}, task: {})", sessionKey, taskId);
     bus->publishInbound(inbound);
 

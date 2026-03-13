@@ -35,7 +35,8 @@ std::string Classifier::classify(
         return agents.begin()->first;
     }
 
-    std::string firstAgent = agents.begin()->first;
+    // prefer "main" agent as default, fallback to first configured
+    std::string defaultAgent = agents.count("main") ? "main" : agents.begin()->first;
 
     // build tool-based classification
     std::ostringstream systemPrompt;
@@ -123,13 +124,13 @@ std::string Classifier::classify(
     else
     {
         // use first agent's model when no dedicated classifier model is configured
-        request.model = agents.at(firstAgent).model;
+        request.model = agents.at(defaultAgent).model;
     }
 
     if (request.model.empty())
     {
         spdlog::warn("[Classifier] No model configured for classification, skipping LLM call");
-        return firstAgent;
+        return defaultAgent;
     }
 
     try
@@ -182,14 +183,14 @@ std::string Classifier::classify(
             return result;
         }
 
-        spdlog::warn("[Classifier] Classification did not produce valid agent, falling back to: {}", firstAgent);
+        spdlog::warn("[Classifier] Classification did not produce valid agent, falling back to: {}", defaultAgent);
     }
     catch (const std::exception &e)
     {
         spdlog::error("[Classifier] Classification failed: {}", e.what());
     }
 
-    return firstAgent;
+    return defaultAgent;
 }
 
 } // namespace agent

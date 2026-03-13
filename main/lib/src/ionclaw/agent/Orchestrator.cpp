@@ -224,8 +224,10 @@ void Orchestrator::start()
         return;
     }
 
-    // create classifier
-    if (firstProvider)
+    // create classifier (prefer "main" agent provider, fallback to first)
+    auto defaultProvider = providers.count("main") ? providers["main"] : firstProvider;
+
+    if (defaultProvider)
     {
         if (!config.classifier.model.empty())
         {
@@ -236,13 +238,13 @@ void Orchestrator::start()
             }
             catch (const std::exception &e)
             {
-                spdlog::warn("[Orchestrator] Failed to create classifier provider, using first agent provider: {}", e.what());
-                classifier = std::make_unique<Classifier>(firstProvider, config);
+                spdlog::warn("[Orchestrator] Failed to create classifier provider, using default agent provider: {}", e.what());
+                classifier = std::make_unique<Classifier>(defaultProvider, config);
             }
         }
         else
         {
-            classifier = std::make_unique<Classifier>(firstProvider, config);
+            classifier = std::make_unique<Classifier>(defaultProvider, config);
         }
     }
 
@@ -465,7 +467,8 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
 
     if (targetAgent.empty() || agentLoops.find(targetAgent) == agentLoops.end())
     {
-        targetAgent = agentLoops.begin()->first;
+        // prefer "main" agent, fallback to first configured
+        targetAgent = agentLoops.count("main") ? "main" : agentLoops.begin()->first;
         spdlog::debug("[Orchestrator] Falling back to default agent: {}", targetAgent);
     }
 
@@ -552,8 +555,26 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
         agentInstructions = agentIt->second.instructions;
     }
 
+    // resolve user language: prefer current message metadata, fallback to session liveState
+    std::string userLanguage;
+
+    if (message.metadata.contains("language") && message.metadata["language"].is_string())
+    {
+        userLanguage = message.metadata["language"].get<std::string>();
+        sessionManager->updateLiveStateField(sessionKey, "language", userLanguage);
+    }
+    else
+    {
+        auto session = sessionManager->getOrCreate(sessionKey);
+
+        if (session.liveState.contains("language") && session.liveState["language"].is_string())
+        {
+            userLanguage = session.liveState["language"].get<std::string>();
+        }
+    }
+
     auto promptMode = subagentRunId.empty() ? PromptMode::Full : PromptMode::Minimal;
-    auto systemPrompt = builder->buildSystemPrompt(targetAgent, agentInstructions, channel, toolNames, promptMode);
+    auto systemPrompt = builder->buildSystemPrompt(targetAgent, agentInstructions, channel, toolNames, promptMode, userLanguage);
 
     // append subagent context if this is a subagent session
     if (!subagentRunId.empty() && subagentRegistry)

@@ -134,6 +134,7 @@ export const useChatStore = defineStore('chat', () => {
         message: text,
         session_id: sessionKey,
         media,
+        language: navigator.language || navigator.userLanguage || '',
       })
       return res
     } catch (e) {

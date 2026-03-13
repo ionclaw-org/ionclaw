@@ -36,7 +36,8 @@ public:
         const std::string &agentInstructions = "",
         const std::string &channel = "web",
         const std::vector<std::string> &toolNames = {},
-        PromptMode mode = PromptMode::Full) const;
+        PromptMode mode = PromptMode::Full,
+        const std::string &userLanguage = "") const;
 
     static std::vector<ionclaw::provider::Message> buildMessages(
         const std::string &systemPrompt,

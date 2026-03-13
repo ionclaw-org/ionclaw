@@ -44,7 +44,7 @@ private:
 
     // telegram api helpers
     static const char *TELEGRAM_API;
-    static constexpr int POLL_TIMEOUT_SEC = 3;
+    static constexpr int POLL_TIMEOUT_SEC = 30;
     static constexpr int OUTBOUND_POLL_MS = 500;
     static constexpr size_t MAX_MESSAGE_LENGTH = 4000;
 

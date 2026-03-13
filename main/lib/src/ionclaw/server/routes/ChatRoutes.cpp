@@ -120,6 +120,17 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
         inbound.media = media;
         inbound.metadata = {{"task_id", task.id}, {"message_saved", true}};
 
+        // forward user language to agent context
+        if (body.contains("language") && body["language"].is_string())
+        {
+            auto lang = body["language"].get<std::string>();
+
+            if (!lang.empty())
+            {
+                inbound.metadata["language"] = lang;
+            }
+        }
+
         // parse optional queue_mode from request
         if (body.contains("queue_mode") && body["queue_mode"].is_string())
         {

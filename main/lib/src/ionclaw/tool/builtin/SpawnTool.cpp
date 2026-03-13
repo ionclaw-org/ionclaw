@@ -210,6 +210,17 @@ ToolResult SpawnTool::execute(const nlohmann::json &params, const ToolContext &c
         {"depth", parentDepth + 1},
     };
 
+    // inherit parent session language
+    if (context.sessionManager)
+    {
+        auto parentSession = context.sessionManager->getOrCreate(context.sessionKey);
+
+        if (parentSession.liveState.contains("language") && parentSession.liveState["language"].is_string())
+        {
+            msg.metadata["language"] = parentSession.liveState["language"];
+        }
+    }
+
     if (!runId.empty())
     {
         msg.metadata["subagent_run_id"] = runId;

@@ -713,6 +713,13 @@ void TelegramRunner::processUpdate(const nlohmann::json &update)
     {
         inbound.metadata["reply_to_message_id"] = messageId;
     }
+
+    // forward telegram user language to agent context
+    if (from.contains("language_code") && from["language_code"].is_string())
+    {
+        inbound.metadata["language"] = from["language_code"].get<std::string>();
+    }
+
     bus->publishInbound(inbound);
 }
 
@@ -742,7 +749,16 @@ void TelegramRunner::pollLoop()
         {
             if (running.load())
             {
-                spdlog::warn("[Telegram] Poll error: {}", e.what());
+                std::string msg = e.what();
+
+                if (msg.find("Timeout") != std::string::npos || msg.find("timeout") != std::string::npos)
+                {
+                    spdlog::debug("[Telegram] Poll timeout (normal)");
+                }
+                else
+                {
+                    spdlog::warn("[Telegram] Poll error: {}", msg);
+                }
             }
         }
     }
