@@ -5,20 +5,14 @@ const BASE_URL = '/api'
 export function useApi() {
   function getHeaders(extra = {}) {
     const auth = useAuthStore()
-    const headers = { 'Content-Type': 'application/json', ...extra }
+    const headers = { ...extra }
     if (auth.token) {
       headers['Authorization'] = `Bearer ${auth.token}`
     }
     return headers
   }
 
-  async function request(path, options = {}) {
-    const url = `${BASE_URL}${path}`
-    const res = await fetch(url, {
-      ...options,
-      headers: getHeaders(options.headers),
-    })
-
+  async function handleError(res) {
     if (res.status === 401) {
       const auth = useAuthStore()
       auth.logout()
@@ -27,8 +21,23 @@ export function useApi() {
 
     if (!res.ok) {
       const text = await res.text()
-      throw new Error(`${res.status}: ${text}`)
+      let message = text
+      try {
+        const json = JSON.parse(text)
+        if (json.error) message = json.error
+      } catch {}
+      throw new Error(message)
     }
+  }
+
+  async function request(path, options = {}) {
+    const url = `${BASE_URL}${path}`
+    const res = await fetch(url, {
+      ...options,
+      headers: getHeaders({ 'Content-Type': 'application/json', ...options.headers }),
+    })
+
+    await handleError(res)
     return res.json()
   }
 
@@ -56,27 +65,22 @@ export function useApi() {
     const form = new FormData()
     files.forEach((f, i) => form.append(`file_${i}`, f))
     const url = `${BASE_URL}${path}`
-    const auth = useAuthStore()
-    const headers = {}
-    if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`
-    const res = await fetch(url, { method: 'POST', headers, body: form })
-    if (res.status === 401) { auth.logout(); throw new Error('Session expired') }
-    if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: form,
+    })
+
+    await handleError(res)
     return res.json()
   }
 
   async function downloadFile(path) {
     const clean = path.startsWith('/') ? path.slice(1) : path
     const url = `${BASE_URL}/files/download/${clean}`
-    const res = await fetch(url, { headers: getHeaders({}) })
+    const res = await fetch(url, { headers: getHeaders() })
 
-    if (res.status === 401) {
-      const auth = useAuthStore()
-      auth.logout()
-      throw new Error('Session expired')
-    }
-
-    if (!res.ok) throw new Error(`Download failed: ${res.status}`)
+    await handleError(res)
 
     const blob = await res.blob()
     const blobUrl = URL.createObjectURL(blob)

@@ -532,6 +532,14 @@ void Routes::handleFileRename(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
 
         if (fs::exists(destPath))
         {
+            // same file — treat as no-op success
+            if (fs::equivalent(canonicalPath, destPath))
+            {
+                auto relPath = fs::relative(canonicalPath, canonicalRoot).string();
+                sendJson(resp, {{"status", "ok"}, {"path", relPath}});
+                return;
+            }
+
             sendError(resp, "A file or folder with that name already exists", 400);
             return;
         }
