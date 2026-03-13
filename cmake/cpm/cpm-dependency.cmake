@@ -72,7 +72,45 @@ if(_ossl_target_platform)
     list(APPEND _ossl_cpm_options "OPENSSL_TARGET_PLATFORM ${_ossl_target_platform}")
 endif()
 
-# Android: pass API level to OpenSSL Configure and disable unnecessary modules
+# deployment target
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS" AND CMAKE_OSX_DEPLOYMENT_TARGET)
+    if(CMAKE_OSX_SYSROOT MATCHES "[Ss]imulator")
+        list(APPEND _ossl_cpm_options
+            "OPENSSL_CONFIGURE_OPTIONS -mios-simulator-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    else()
+        list(APPEND _ossl_cpm_options
+            "OPENSSL_CONFIGURE_OPTIONS -miphoneos-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    endif()
+elseif(CMAKE_SYSTEM_NAME STREQUAL "tvOS" AND CMAKE_OSX_DEPLOYMENT_TARGET)
+    if(CMAKE_OSX_SYSROOT MATCHES "[Ss]imulator")
+        list(APPEND _ossl_cpm_options
+            "OPENSSL_CONFIGURE_OPTIONS -mtvos-simulator-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    else()
+        list(APPEND _ossl_cpm_options
+            "OPENSSL_CONFIGURE_OPTIONS -mtvos-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    endif()
+elseif(CMAKE_SYSTEM_NAME STREQUAL "watchOS" AND CMAKE_OSX_DEPLOYMENT_TARGET)
+    if(CMAKE_OSX_SYSROOT MATCHES "[Ss]imulator")
+        list(APPEND _ossl_cpm_options
+            "OPENSSL_CONFIGURE_OPTIONS -mwatchos-simulator-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    else()
+        list(APPEND _ossl_cpm_options
+            "OPENSSL_CONFIGURE_OPTIONS -mwatchos-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    endif()
+elseif(CMAKE_SYSTEM_NAME STREQUAL "visionOS" AND CMAKE_OSX_DEPLOYMENT_TARGET)
+    if(CMAKE_OSX_SYSROOT MATCHES "[Ss]imulator")
+        list(APPEND _ossl_cpm_options
+            "OPENSSL_CONFIGURE_OPTIONS -mtargetos=xros${CMAKE_OSX_DEPLOYMENT_TARGET}-simulator")
+    else()
+        list(APPEND _ossl_cpm_options
+            "OPENSSL_CONFIGURE_OPTIONS -mtargetos=xros${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    endif()
+elseif(DEFINED CMAKE_OSX_DEPLOYMENT_TARGET AND CMAKE_OSX_DEPLOYMENT_TARGET AND CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    list(APPEND _ossl_cpm_options
+        "OPENSSL_CONFIGURE_OPTIONS -mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+endif()
+
+# android api level
 if(ANDROID)
     set(ENV{ANDROID_API} ${ANDROID_NATIVE_API_LEVEL})
     set(ENV{ANDROID_NDK_ROOT} ${CMAKE_ANDROID_NDK})
@@ -139,9 +177,9 @@ CPMAddPackage(
 # yaml parser
 CPMAddPackage(
     NAME "yaml-cpp"
-    VERSION "0.8.0"
+    VERSION "0.9.0"
     GITHUB_REPOSITORY "jbeder/yaml-cpp"
-    GIT_TAG "0.8.0"
+    GIT_TAG "yaml-cpp-0.9.0"
     OPTIONS
         "YAML_CPP_BUILD_TESTS OFF"
         "YAML_CPP_BUILD_TOOLS OFF"
@@ -158,7 +196,7 @@ CPMAddPackage(
 # jwt token (header-only, download only to avoid nlohmann json conflict)
 CPMAddPackage(
     NAME "jwt-cpp"
-    VERSION "0.7.0"
+    VERSION "0.7.2"
     GITHUB_REPOSITORY "Thalhammer/jwt-cpp"
     DOWNLOAD_ONLY YES
 )
@@ -170,7 +208,7 @@ if(jwt-cpp_ADDED)
     target_compile_definitions(jwt-cpp INTERFACE JWT_DISABLE_PICOJSON)
 endif()
 
-# SSL link targets
+# ssl link targets
 if(WIN32)
     set(IONCLAW_SSL_LIBS Poco::NetSSLWin)
 else()

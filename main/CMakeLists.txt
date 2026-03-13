@@ -214,4 +214,5 @@ else()
     # desktop executable
     add_executable(ionclaw-server ${CMAKE_CURRENT_SOURCE_DIR}/app/src/main.cpp)
     target_include_directories(ionclaw-server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib/include)
+    install(TARGETS ionclaw-server RUNTIME DESTINATION bin)
 endif()
