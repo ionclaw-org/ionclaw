@@ -209,25 +209,24 @@ Only available to the main agent when scheduler is enabled.
 
 #### memory_save
 
-Save conversation history and updated long-term memory (used during consolidation).
+Append a memory entry to today's daily log (`memory/YYYY-MM-DD.md`).
 
 | Parameter | Type | Required | Description |
 |----------|------|----------|-------------|
-| `history_entry` | string | Yes | Summary of recent conversation for HISTORY.md |
-| `updated_memory` | string | Yes | Updated long-term memory content for MEMORY.md |
+| `content` | string | Yes | Content to append to today's daily log |
 
 #### memory_read
 
-Read memory files on demand.
+Read any file from the memory directory.
 
 | Parameter | Type | Required | Description |
 |----------|------|----------|-------------|
-| `file` | string | Yes | `memory` for MEMORY.md, `history` for HISTORY.md |
-| `max_lines` | integer | No | Max lines from the end (default: all). Useful for history |
+| `file` | string | Yes | Filename (e.g. `MEMORY.md`, `2026-03-13.md`) or `list` to show available files |
+| `max_lines` | integer | No | Return only the last N lines |
 
 #### memory_search
 
-Search across memory and history for specific information. Supports multi-language queries including CJK (Chinese, Japanese, Korean) with codepoint-level tokenization.
+Search across all memory files for specific information. Supports multi-language queries including CJK (Chinese, Japanese, Korean) with codepoint-level tokenization.
 
 | Parameter | Type | Required | Description |
 |----------|------|----------|-------------|

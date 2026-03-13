@@ -1,6 +1,6 @@
 ---
 name: memory
-description: Two-layer memory system with search-based recall. Use to save important facts, search past events, or recall user preferences and project context across conversations.
+description: Memory system with daily logs and keyword search. Use to save facts, search past events, or recall user preferences and project context across conversations.
 always: true
 ---
 
@@ -8,12 +8,20 @@ always: true
 
 ## Structure
 
-- `memory/MEMORY.md` -- Long-term facts (preferences, project context, relationships). Always loaded into your context.
-- `memory/HISTORY.md` -- Append-only event log. NOT loaded into context. Search it with `memory_search`.
+- `memory/MEMORY.md` -- Long-term curated facts (preferences, project context). Always loaded into your context.
+- `memory/YYYY-MM-DD.md` -- Daily logs. Append-only, one file per day. Search them with `memory_search`.
+
+## Save Memories
+
+Use `memory_save` to store durable facts and context. Content is appended to today's daily log automatically:
+
+```
+memory_save(content="User prefers dark mode. Project uses OAuth2 for auth.")
+```
 
 ## Search Past Events
 
-Use `memory_search` to find information across both memory files:
+Use `memory_search` to find information across all memory files:
 
 ```
 memory_search(query="keyword")
@@ -23,23 +31,17 @@ Returns matching lines with surrounding context, indicating which file each matc
 
 ## Read Memory Files
 
-Use `memory_read` to read a full memory file:
+Use `memory_read` to read a specific memory file:
 
 ```
-memory_read(file="memory")
-memory_read(file="history")
-memory_read(file="history", max_lines=50)
+memory_read(file="MEMORY.md")
+memory_read(file="2026-03-13.md")
+memory_read(file="2026-03-13.md", max_lines=50)
+memory_read(file="list")
 ```
 
-Use `max_lines` to read only the most recent entries from HISTORY.md.
+Use `file="list"` to see all available memory files.
 
-## When to Update MEMORY.md
+## Pre-Compaction Flush
 
-Write important facts immediately using `memory_save`:
-- User preferences ("I prefer dark mode")
-- Project context ("The API uses OAuth2")
-- Relationships ("Alice is the project lead")
-
-## Auto-consolidation
-
-Old conversations are automatically summarized and appended to HISTORY.md when the session grows large. Long-term facts are extracted to MEMORY.md. You don't need to manage this.
+When the conversation context approaches its limit, durable facts are automatically saved to today's daily log before compaction. MEMORY.md is not modified automatically.

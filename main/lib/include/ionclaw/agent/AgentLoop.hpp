@@ -138,7 +138,6 @@ private:
         const ionclaw::tool::ToolContext &toolContext,
         AgentEventCallback &callback);
 
-    void checkConsolidation(const std::string &sessionKey);
     bool tryMemoryFlush(
         std::vector<ionclaw::provider::Message> &messages,
         const ionclaw::tool::ToolContext &toolContext,

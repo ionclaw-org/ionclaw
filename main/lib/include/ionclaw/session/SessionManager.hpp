@@ -48,7 +48,6 @@ struct Session
     std::string updatedAt;
     std::string lastTouchedAt;
     std::string displayName;
-    int lastConsolidated = 0;
     std::vector<SessionMessage> messages;
     nlohmann::json liveState;
 
@@ -83,7 +82,6 @@ public:
     void updateLiveStateField(const std::string &sessionKey, const std::string &field, const nlohmann::json &value);
     void updateLastMessageContent(const std::string &sessionKey, const std::string &content);
     void updateDisplayName(const std::string &sessionKey, const std::string &name);
-    void setLastConsolidated(const std::string &sessionKey, int count);
 
     // lru configuration (only call before threads start or use atomic)
     void setMaxCapacity(int capacity) { maxCapacity.store(capacity); }

@@ -486,7 +486,6 @@ void SessionManager::clearSession(const std::string &sessionKey)
         if (it != cache.end())
         {
             it->second.messages.clear();
-            it->second.lastConsolidated = 0;
             it->second.updatedAt = util::TimeHelper::now();
             it->second.liveState = nullptr;
 
@@ -544,7 +543,6 @@ void SessionManager::writeSessionFile(const Session &session)
     meta["key"] = session.key;
     meta["created_at"] = session.createdAt;
     meta["updated_at"] = session.updatedAt;
-    meta["last_consolidated"] = session.lastConsolidated;
 
     if (!session.displayName.empty())
     {
@@ -705,23 +703,6 @@ void SessionManager::updateDisplayName(const std::string &sessionKey, const std:
     }
 
     it->second.displayName = name;
-}
-
-void SessionManager::setLastConsolidated(const std::string &sessionKey, int count)
-{
-    auto &mtx = getSessionMutex(sessionKey);
-    std::lock_guard<std::mutex> lock(mtx);
-
-    std::lock_guard<std::mutex> glock(globalMutex);
-
-    auto it = cache.find(sessionKey);
-
-    if (it == cache.end())
-    {
-        return;
-    }
-
-    it->second.lastConsolidated = count;
 }
 
 void SessionManager::touch(Session &session)
@@ -921,7 +902,6 @@ void SessionManager::loadFromDisk(const std::string &sessionKey)
                 session.createdAt = j.value("created_at", "");
                 session.updatedAt = j.value("updated_at", "");
                 session.displayName = j.value("display_name", "");
-                session.lastConsolidated = j.value("last_consolidated", 0);
 
                 if (j.contains("live_state"))
                 {

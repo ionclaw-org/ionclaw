@@ -63,7 +63,6 @@ agents:
       deny: []                   # list -- Tool deny list. Deny overrides allow.
     agent_params:
       max_iterations: 40         # int  -- Maximum agentic loop iterations per request.
-      memory_window: 100         # int  -- Messages to keep before consolidation.
       max_concurrent: 1          # int  -- Parallel message processing limit.
       max_history: 500           # int  -- Maximum messages before trimming. 0 = no limit.
       context_tokens: 0          # int  -- Context window cap in tokens. 0 = use model limit.

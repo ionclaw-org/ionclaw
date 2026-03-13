@@ -14,7 +14,6 @@
 #include "ionclaw/agent/Compaction.hpp"
 #include "ionclaw/agent/ContextWindow.hpp"
 #include "ionclaw/agent/HookRunner.hpp"
-#include "ionclaw/agent/MemoryStore.hpp"
 #include "ionclaw/agent/Orchestrator.hpp"
 #include "ionclaw/agent/ToolLoopDetector.hpp"
 #include "ionclaw/provider/ProviderHelper.hpp"
@@ -591,7 +590,7 @@ void AgentLoop::processMessage(
     }
 
     // build messages from session history + current user message
-    auto history = sessionManager->getHistory(sessionKey, agentConfig.agentParams.memoryWindow);
+    auto history = sessionManager->getHistory(sessionKey, agentConfig.agentParams.maxHistory);
 
     // handle abort recovery: skip messages that were in flight during last crash
     {
@@ -834,9 +833,6 @@ void AgentLoop::processMessage(
 
         callback(streamEndEvent);
     }
-
-    // check if memory consolidation is needed
-    checkConsolidation(sessionKey);
 }
 
 std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
@@ -1491,8 +1487,8 @@ bool AgentLoop::tryMemoryFlush(
 
     static const std::string FLUSH_PROMPT =
         "Pre-compaction memory flush. "
-        "Store durable memories now (use memory_save tool). "
-        "If nothing to store, reply with [SILENT].";
+        "Save any durable facts, decisions, or context from this conversation to the daily log "
+        "(use memory_save tool). If nothing meaningful to save, reply with [SILENT].";
 
     // build flush messages: system prompt + current conversation + flush instruction
     auto flushMessages = messages;
@@ -1539,9 +1535,8 @@ bool AgentLoop::tryMemoryFlush(
                         }
                     }
 
-                    flushRegistry->executeTool(tc.name, args, toolContext);
-                    spdlog::info("[AgentLoop] Pre-compaction memory flush: saved to {}",
-                                 args.value("file", "memory"));
+                    auto result = flushRegistry->executeTool(tc.name, args, toolContext);
+                    spdlog::info("[AgentLoop] Pre-compaction memory flush: {}", result.text);
                 }
             }
 
@@ -1592,110 +1587,6 @@ void AgentLoop::compactWithHooks(
         ctx.sessionKey = sessionKey;
         ctx.taskId = taskId;
         hookRunnerPtr->run(HookPoint::AfterCompaction, ctx);
-    }
-}
-
-void AgentLoop::checkConsolidation(const std::string &sessionKey)
-{
-    try
-    {
-        auto session = sessionManager->getOrCreate(sessionKey);
-        auto total = static_cast<int>(session.messages.size());
-        auto unconsolidated = total - session.lastConsolidated;
-        auto memoryWindow = agentConfig.agentParams.memoryWindow;
-
-        if (unconsolidated < memoryWindow)
-        {
-            return;
-        }
-
-        spdlog::info("[AgentLoop] Triggering memory consolidation for session {} ({} unconsolidated)", sessionKey, unconsolidated);
-
-        // build consolidation messages
-        MemoryStore memory(agentConfig.workspace);
-        auto consolidationMessages = memory.getConsolidationMessages(session, memoryWindow);
-
-        if (consolidationMessages.empty())
-        {
-            return;
-        }
-
-        // create isolated tool registry with only MemorySaveTool (no builtins)
-        auto consolidationRegistry = std::make_shared<ionclaw::tool::ToolRegistry>(false);
-        consolidationRegistry->registerTool(std::make_shared<ionclaw::tool::builtin::MemorySaveTool>());
-
-        auto tools = consolidationRegistry->getOpenAiDefinitions();
-
-        // tool context for memory_save execution
-        ionclaw::tool::ToolContext toolContext;
-        toolContext.workspacePath = agentConfig.workspace;
-
-        bool memorySaveCalled = false;
-
-        for (int i = 0; i < 5; ++i)
-        {
-            auto response = provider->chat({
-                consolidationMessages,
-                agentConfig.model,
-                0.7,
-                4096,
-                tools,
-                false,
-                agentConfig.modelParams,
-            });
-
-            if (!response.toolCalls.empty())
-            {
-                // add assistant message with tool calls
-                ContextBuilder::addAssistantMessage(
-                    consolidationMessages, response.content, response.toolCalls);
-
-                // execute each tool call
-                for (const auto &tc : response.toolCalls)
-                {
-                    nlohmann::json args = tc.arguments;
-
-                    if (args.is_string())
-                    {
-                        try
-                        {
-                            args = nlohmann::json::parse(args.get<std::string>());
-                        }
-                        catch (...)
-                        {
-                        }
-                    }
-
-                    auto result = consolidationRegistry->executeTool(tc.name, args, toolContext);
-
-                    if (tc.name == "memory_save")
-                    {
-                        memorySaveCalled = true;
-                    }
-
-                    ContextBuilder::addToolResult(consolidationMessages, tc.id, tc.name, result.text);
-                }
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        if (memorySaveCalled)
-        {
-            sessionManager->setLastConsolidated(sessionKey, total);
-            sessionManager->save(sessionKey);
-            spdlog::info("[AgentLoop] Memory consolidation completed for session {}", sessionKey);
-        }
-        else
-        {
-            spdlog::info("[AgentLoop] Memory consolidation skipped (no save) for session {}", sessionKey);
-        }
-    }
-    catch (const std::exception &e)
-    {
-        spdlog::error("[AgentLoop] Memory consolidation failed: {}", e.what());
     }
 }
 

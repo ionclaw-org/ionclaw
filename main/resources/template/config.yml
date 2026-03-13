@@ -142,7 +142,6 @@ agents:
       temperature: 0.1
     agent_params:
       max_iterations: 40
-      memory_window: 100
       # channel_history_limits:
       #   telegram: 200
       #   web: 1000

@@ -36,7 +36,6 @@ void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
             {"tools", agent.tools},
             {"agent_params", {
                                  {"max_iterations", agent.agentParams.maxIterations},
-                                 {"memory_window", agent.agentParams.memoryWindow},
                                  {"max_concurrent", agent.agentParams.maxConcurrent},
                                  {"max_history", agent.agentParams.maxHistory},
                              }},
@@ -384,11 +383,6 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
                     if (params.contains("max_iterations"))
                     {
                         agent.agentParams.maxIterations = params["max_iterations"].get<int>();
-                    }
-
-                    if (params.contains("memory_window"))
-                    {
-                        agent.agentParams.memoryWindow = params["memory_window"].get<int>();
                     }
 
                     if (params.contains("max_concurrent"))

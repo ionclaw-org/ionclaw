@@ -391,7 +391,6 @@ Config ConfigLoader::load(const std::string &path)
             if (auto params = node["agent_params"])
             {
                 agent.agentParams.maxIterations = expandInt(params["max_iterations"], agent.agentParams.maxIterations);
-                agent.agentParams.memoryWindow = expandInt(params["memory_window"], agent.agentParams.memoryWindow);
                 agent.agentParams.maxConcurrent = expandInt(params["max_concurrent"], agent.agentParams.maxConcurrent);
                 agent.agentParams.maxHistory = expandInt(params["max_history"], agent.agentParams.maxHistory);
                 agent.agentParams.contextTokens = expandInt(params["context_tokens"], agent.agentParams.contextTokens);
@@ -664,7 +663,6 @@ std::string ConfigLoader::toYaml(const Config &config)
 
             out << YAML::Key << "agent_params" << YAML::Value << YAML::BeginMap;
             out << YAML::Key << "max_iterations" << YAML::Value << agent.agentParams.maxIterations;
-            out << YAML::Key << "memory_window" << YAML::Value << agent.agentParams.memoryWindow;
             out << YAML::Key << "max_concurrent" << YAML::Value << agent.agentParams.maxConcurrent;
             out << YAML::Key << "max_history" << YAML::Value << agent.agentParams.maxHistory;
 
