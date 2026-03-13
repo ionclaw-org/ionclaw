@@ -28,7 +28,6 @@ struct ServerConfig
 struct AgentParams
 {
     int maxIterations = 40;
-    int memoryWindow = 100;
     int maxConcurrent = 1;
     int maxHistory = 500;
     int contextTokens = 0;                           // global context window cap (0 = no cap, use model limit)

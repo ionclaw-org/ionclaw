@@ -515,59 +515,6 @@ std::string MemoryStore::getMemoryContext() const
     }
 }
 
-std::string MemoryStore::getHistoryContext(int maxLines) const
-{
-    auto historyPath = fs::path(memoryDir) / "HISTORY.md";
-
-    if (!fs::exists(historyPath) || !fs::is_regular_file(historyPath))
-    {
-        return "";
-    }
-
-    try
-    {
-        std::ifstream file(historyPath, std::ios::binary);
-
-        if (!file.is_open())
-        {
-            return "";
-        }
-
-        if (maxLines <= 0)
-        {
-            std::ostringstream content;
-            content << file.rdbuf();
-            return content.str();
-        }
-
-        std::vector<std::string> lines;
-        std::string line;
-
-        while (std::getline(file, line))
-        {
-            lines.push_back(line);
-        }
-
-        auto start = (static_cast<int>(lines.size()) > maxLines)
-                         ? lines.size() - maxLines
-                         : 0;
-
-        std::ostringstream output;
-
-        for (auto i = start; i < lines.size(); ++i)
-        {
-            output << lines[i] << "\n";
-        }
-
-        return output.str();
-    }
-    catch (const std::exception &e)
-    {
-        spdlog::warn("[MemoryStore] Failed to read history file: {}", e.what());
-        return "";
-    }
-}
-
 std::vector<std::string> MemoryStore::extractKeywords(const std::string &query)
 {
     auto codepoints = toCodepoints(query);
@@ -724,7 +671,7 @@ double MemoryStore::computeTemporalDecay(const std::string &filePath, const std:
                    [](unsigned char c)
                    { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
 
-    if (lowerBase == "memory.md" || lowerBase == "history.md")
+    if (lowerBase == "memory.md")
     {
         return 1.0;
     }
@@ -874,56 +821,6 @@ std::vector<MemorySearchResult> MemoryStore::searchMemory(const std::string &que
     }
 
     return results;
-}
-
-std::vector<ionclaw::provider::Message> MemoryStore::getConsolidationMessages(
-    const ionclaw::session::Session &session, int window) const
-{
-    auto total = static_cast<int>(session.messages.size());
-    auto start = session.lastConsolidated;
-    auto unconsolidated = total - start;
-
-    if (unconsolidated < window)
-    {
-        return {};
-    }
-
-    auto currentMemory = getMemoryContext();
-
-    std::vector<ionclaw::provider::Message> messages;
-
-    ionclaw::provider::Message systemMsg;
-    systemMsg.role = "system";
-    systemMsg.content =
-        "You are a memory consolidation agent. "
-        "Analyze the conversation below and:\n"
-        "1. Write a timestamped summary for HISTORY.md\n"
-        "2. Update the long-term MEMORY.md with important facts, "
-        "preferences, and context about the user.\n\n"
-        "Current MEMORY.md content:\n" +
-        (currentMemory.empty() ? std::string("(empty)") : currentMemory) +
-        "\n\nUse the memory_save tool to persist both.";
-    messages.push_back(std::move(systemMsg));
-
-    for (int i = start; i < total; ++i)
-    {
-        const auto &msg = session.messages[i];
-
-        if ((msg.role == "user" || msg.role == "assistant") && !msg.content.empty())
-        {
-            ionclaw::provider::Message m;
-            m.role = msg.role;
-            m.content = msg.content;
-            messages.push_back(std::move(m));
-        }
-    }
-
-    return messages;
-}
-
-void MemoryStore::markConsolidated(ionclaw::session::Session &session, int count)
-{
-    session.lastConsolidated = count;
 }
 
 } // namespace agent

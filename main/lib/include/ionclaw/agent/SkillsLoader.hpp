@@ -39,6 +39,9 @@ public:
     std::vector<std::pair<std::string, std::string>> getAlwaysSkills() const;
     std::string buildSkillsSummary() const;
 
+    // skill discovery (name → file path)
+    std::map<std::string, std::string> discoverSkills() const;
+
 private:
     std::string projectSkillsDir;
     std::string workspaceSkillsDir;
@@ -46,9 +49,6 @@ private:
     // skill discovery constants
     static const std::string SKILL_FILENAME;
     static const std::regex FRONTMATTER_RE;
-
-    // discovery and parsing
-    std::map<std::string, std::string> discoverSkills() const;
     static std::pair<nlohmann::json, std::string> parseFrontmatter(const std::string &content);
     std::string resolveSource(const std::string &path) const;
     void scanSkillsDir(const std::string &base, std::map<std::string, std::string> &skills) const;

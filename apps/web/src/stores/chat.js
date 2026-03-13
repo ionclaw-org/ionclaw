@@ -60,6 +60,9 @@ export const useChatStore = defineStore('chat', () => {
   const liveMessage = ref(null)
   const toolRunning = ref(false)
 
+  // draft state (survives page navigation)
+  const draft = ref({ text: '', attachments: [] })
+
   // per-chatId accumulator for streamed content (survives session switches)
   const _liveCache = new Map()
 
@@ -413,5 +416,6 @@ export const useChatStore = defineStore('chat', () => {
     switchSession,
     clearSession,
     newSession,
+    draft,
   }
 })

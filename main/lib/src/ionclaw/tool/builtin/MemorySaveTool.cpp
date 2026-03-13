@@ -1,7 +1,10 @@
 #include "ionclaw/tool/builtin/MemorySaveTool.hpp"
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <sstream>
 
 namespace ionclaw
 {
@@ -12,50 +15,66 @@ namespace builtin
 
 ToolResult MemorySaveTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
-    auto historyEntry = params.at("history_entry").get<std::string>();
-    auto updatedMemory = params.at("updated_memory").get<std::string>();
+    auto content = params.at("content").get<std::string>();
 
     auto memoryDir = context.workspacePath + "/memory";
     std::error_code ec;
     std::filesystem::create_directories(memoryDir, ec);
 
-    // append history entry to HISTORY.md
-    auto historyPath = memoryDir + "/HISTORY.md";
-    std::ofstream historyFile(historyPath, std::ios::app);
+    // build today's daily log filename (YYYY-MM-DD.md)
+    auto now = std::chrono::system_clock::now();
+    auto time = std::chrono::system_clock::to_time_t(now);
+    std::tm tm = {};
+#if defined(_WIN32)
+    localtime_s(&tm, &time);
+#else
+    localtime_r(&time, &tm);
+#endif
 
-    if (!historyFile.is_open())
+    std::ostringstream filename;
+    filename << std::put_time(&tm, "%Y-%m-%d") << ".md";
+
+    auto filePath = memoryDir + "/" + filename.str();
+
+    // check if file already has content (before opening for append)
+    bool hasContent = false;
+    auto fileSize = std::filesystem::file_size(filePath, ec);
+
+    if (!ec && fileSize > 0)
     {
-        return "Error: cannot write to HISTORY.md";
+        hasContent = true;
     }
 
-    historyFile << historyEntry << "\n\n";
-    historyFile.close();
+    // append to daily log
+    std::ofstream file(filePath, std::ios::app);
 
-    // overwrite MEMORY.md with updated memory
-    auto memoryPath = memoryDir + "/MEMORY.md";
-    std::ofstream memoryFile(memoryPath, std::ios::trunc);
-
-    if (!memoryFile.is_open())
+    if (!file.is_open())
     {
-        return "Error: cannot write to MEMORY.md";
+        return "Error: cannot write to " + filename.str();
     }
 
-    memoryFile << updatedMemory;
-    memoryFile.close();
+    // add separator between entries
+    if (hasContent)
+    {
+        file << "\n";
+    }
 
-    return "Memory saved successfully.";
+    file << content << "\n";
+    file.close();
+
+    return "Saved to " + filename.str();
 }
 
 ToolSchema MemorySaveTool::schema() const
 {
     return {
         "memory_save",
-        "Save conversation history and updated memory. Appends to HISTORY.md and overwrites MEMORY.md.",
+        "Append a memory entry to today's daily log (memory/YYYY-MM-DD.md). "
+        "Use for durable facts, conversation summaries, and important context.",
         {{"type", "object"},
          {"properties",
-          {{"history_entry", {{"type", "string"}, {"description", "Summary of the conversation to append to HISTORY.md"}}},
-           {"updated_memory", {{"type", "string"}, {"description", "Updated long-term memory content to save to MEMORY.md"}}}}},
-         {"required", nlohmann::json::array({"history_entry", "updated_memory"})}}};
+          {{"content", {{"type", "string"}, {"description", "Content to append to today's daily log"}}}}},
+         {"required", nlohmann::json::array({"content"})}}};
 }
 
 } // namespace builtin

@@ -21,7 +21,7 @@ This document explains the complete execution flow of IonClaw, from the moment y
 13. [Provider Selection](#13-provider-selection)
 14. [Tools](#14-tools)
 15. [Subagents](#15-subagents)
-16. [Memory and Consolidation](#16-memory-and-consolidation)
+16. [Memory](#16-memory)
 17. [Sessions](#17-sessions)
 18. [Task Management](#18-task-management)
 19. [WebSocket Events](#19-websocket-events)
@@ -159,7 +159,7 @@ credentials:
 | Setting | Default |
 |---|---|
 | Server | `host: 0.0.0.0`, `port: 8080` |
-| Agent params | `max_iterations: 40`, `memory_window: 100`, `max_concurrent: 1` |
+| Agent params | `max_iterations: 40`, `max_concurrent: 1`, `max_history: 500` |
 | Model params | `{}` (empty — set per provider or agent) |
 | Exec timeout | `60` seconds |
 | Queue mode | `collect` with 1000ms debounce |
@@ -263,7 +263,7 @@ In all cases, the message becomes an `InboundMessage`:
 | Field | Description |
 |---|---|
 | `channel` | Source: `"web"`, `"telegram"`, `"cron"`, or `"heartbeat"` |
-| `senderId` | Who sent it (e.g., `"web-user"`, Telegram user ID) |
+| `senderId` | Who sent it (e.g., `"web_user"`, Telegram user ID) |
 | `chatId` | Conversation identifier |
 | `content` | Message text |
 | `media` | List of attached file paths |
@@ -309,7 +309,7 @@ When a message arrives while the agent is already processing a request for the s
 | `steer` | Inject into the active turn between tool iterations |
 | `followup` | Enqueue and process as a separate turn after the current one completes |
 | `collect` | Batch multiple messages into a single prompt after a debounce period |
-| `steer-backlog` | Try steer first; if not streaming, fall back to followup |
+| `steer_backlog` | Try steer first; if not streaming, fall back to followup |
 | `interrupt` | Abort the current turn, clear the queue, process the new message immediately |
 
 ### Mode Resolution
@@ -545,7 +545,7 @@ When the Orchestrator calls `AgentLoop::processMessage()`, the following happens
 5. Create `ToolContext` (workspace paths, service pointers, hook runner)
 6. Resolve media (images → base64 content blocks, audio → transcription)
 7. Save user message to session (if not pre-saved by REST API)
-8. Build message history from session (respecting `memory_window`)
+8. Build message history from session (respecting `max_history`)
 9. Handle abort recovery (trim messages past crash cutoff)
 10. Prepend working directory context: `[cwd: /path/to/workspace]`
 11. Assemble messages: `[system prompt] + [history] + [user message]`
@@ -758,9 +758,9 @@ The `ToolRegistry` manages all tools:
 | `spawn` | Create subagents for parallel tasks | Desktop only |
 | `subagents` | List, kill, check status of subagent runs | Desktop only |
 | `cron` | Schedule recurring or one-time tasks | Desktop only |
-| `memory_save` | Save information to long-term memory | All |
-| `memory_read` | Read MEMORY.md or HISTORY.md on demand | All |
-| `memory_search` | Search across memory files | All |
+| `memory_save` | Append to today's daily memory log | All |
+| `memory_read` | Read any file from the memory directory | All |
+| `memory_search` | Search across all memory files | All |
 | `browser` | Browser automation (Chrome via CDP) | Desktop only |
 | `generate_image` | Generate images via AI | All |
 | `image_ops` | Local image operations (resize, draw, watermark) | All |
@@ -856,7 +856,7 @@ When a subagent is killed (timeout or manual), the kill cascades through all des
 
 ---
 
-## 16. Memory and Consolidation
+## 16. Memory
 
 The memory system allows the agent to remember important information across conversations.
 
@@ -867,43 +867,43 @@ Memory resides in the `memory/` folder of the workspace:
 ```
 workspace/
   memory/
-    MEMORY.md     # Long-term memory (facts, preferences)
-    HISTORY.md    # Consolidated history (conversation summaries)
-    topic-1.md    # Optional topic files
+    MEMORY.md       # Long-term curated memory (facts, preferences)
+    2026-03-13.md   # Daily log (append-only, one file per day)
+    2026-03-12.md   # Previous daily logs
 ```
 
 ### How Memory Is Used
 
-Memory is loaded **on every message**, not once at startup. The `ContextBuilder` reads `memory/MEMORY.md` from disk each time it assembles the system prompt. Changes to the file (from consolidation, the `memory_save` tool, or manual editing) take effect immediately on the next message.
+Memory is loaded **on every message**, not once at startup. The `ContextBuilder` reads `memory/MEMORY.md` from disk each time it assembles the system prompt. Changes to the file take effect immediately on the next message.
 
 The content is injected as a `# Memory` section in the system prompt, after the bootstrap files and before the skills.
 
 | File | Purpose | How It Changes |
 |---|---|---|
-| `MEMORY.md` | Active long-term memory. Included in every system prompt | Overwritten on consolidation. Also written by `memory_save` tool |
-| `HISTORY.md` | Chronological conversation summaries. Not included in the prompt | Appended to on each consolidation |
+| `MEMORY.md` | Curated long-term memory. Included in every system prompt | Manually maintained (not auto-modified) |
+| `YYYY-MM-DD.md` | Daily logs. Append-only, one per day. Not in prompt | Appended by `memory_save` tool and pre-compaction flush |
 
-Only `MEMORY.md` affects the agent's behavior. `HISTORY.md` is purely archival.
+Only `MEMORY.md` is injected into the system prompt. Daily logs are searchable via `memory_search`.
 
-### Automatic Consolidation
+### Pre-Compaction Memory Flush
 
-Consolidation runs automatically when unconsolidated messages exceed `memory_window` (default: **100 messages**):
+Before context compaction, the agent saves durable facts to today's daily log:
 
-1. Extract unconsolidated messages (only user and assistant text — tool calls/results excluded)
-2. Create a temporary consolidation agent with access only to `memory_save`
-3. LLM analyzes the messages and calls `memory_save(history_entry, updated_memory)`
-4. `HISTORY.md` gets a new timestamped summary appended
-5. `MEMORY.md` is overwritten with updated content
-6. Session's `lastConsolidated` index is updated
+1. Triggered when context approaches overflow (once per compaction cycle)
+2. Creates a temporary agent with access only to `memory_save`
+3. LLM analyzes the conversation and calls `memory_save(content="...")`
+4. Content is appended to today's daily log (`memory/YYYY-MM-DD.md`)
+
+This ensures important context is preserved before compaction summarizes the conversation.
 
 ### Memory Search
 
-The `memory_search` tool provides full-text search across memory files:
+The `memory_search` tool provides full-text search across all `.md` files in the memory directory:
 
 - **Multi-language support**: stop word filtering for EN, PT, ES, ZH, JA, KO, AR
 - **CJK tokenization**: character unigrams + bigrams for Chinese/Japanese, Hangul support
 - **Temporal decay**: half-life of 30 days (recently modified files score higher)
-- **Evergreen files**: MEMORY.md and HISTORY.md do not decay
+- **Evergreen files**: `MEMORY.md` does not decay
 - **Keyword ratio scoring** (`matched_keywords / total_keywords * decay_multiplier`)
 - Returns top 20 results sorted by relevance
 

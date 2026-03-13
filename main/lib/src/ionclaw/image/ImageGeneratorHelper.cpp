@@ -44,7 +44,8 @@ std::string ImageGeneratorHelper::saveToPublicMedia(const std::string &imageData
 
     outFile.close();
 
-    // return full URL if public_url is configured, otherwise relative path
+    std::string relativePath = "public/media/" + filename;
+
     if (!publicUrl.empty())
     {
         std::string base = publicUrl;
@@ -54,10 +55,10 @@ std::string ImageGeneratorHelper::saveToPublicMedia(const std::string &imageData
             base.pop_back();
         }
 
-        return base + "/public/media/" + filename;
+        return base + "/" + relativePath;
     }
 
-    return "/public/media/" + filename;
+    return relativePath;
 }
 
 std::string ImageGeneratorHelper::cleanReferencePath(const std::string &raw)

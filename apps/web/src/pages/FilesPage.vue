@@ -23,12 +23,15 @@ const isMobile = ref(window.innerWidth <= 768)
 const showNewFileDialog = ref(false)
 const showNewFolderDialog = ref(false)
 const showDeleteDialog = ref(false)
+const showRenameDialog = ref(false)
 const newFileForm = ref({ name: '' })
 const newFolderForm = ref({ name: '' })
+const renameForm = ref({ name: '' })
 const createParentPath = ref('')
 
 const fileSchema = [{ name: 'name', type: 'text', label: 'File Name', required: true }]
 const folderSchema = [{ name: 'name', type: 'text', label: 'Folder Name', required: true }]
+const renameSchema = [{ name: 'name', type: 'text', label: 'New Name', required: true }]
 const deleteTarget = ref(null)
 const uploadInput = ref(null)
 const uploading = ref(false)
@@ -139,6 +142,32 @@ function openCreateFolder(parentPath) {
   createParentPath.value = parentPath
   newFolderForm.value = { name: '' }
   showNewFolderDialog.value = true
+}
+
+function openRename() {
+  if (!selectedItem.value) return
+  renameForm.value = { name: selectedItem.value.name }
+  showRenameDialog.value = true
+}
+
+async function confirmRename() {
+  const name = renameForm.value.name.trim()
+  if (!name || !selectedItem.value) return
+  const path = selectedItem.value.path
+  try {
+    const res = await api.post(`/files/rename/${path}`, { name })
+    if (res.error) {
+      toast.add({ severity: 'error', summary: 'Error', detail: res.error, life: 3000 })
+      return
+    }
+    toast.add({ severity: 'success', summary: 'Renamed', detail: res.path, life: 2000 })
+    showRenameDialog.value = false
+    selectedItem.value = null
+    currentFile.value = null
+    await loadFiles()
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
+  }
 }
 
 function openDeleteConfirm() {
@@ -269,11 +298,13 @@ async function confirmDelete() {
           <Button icon="pi pi-upload" size="small" text severity="secondary" title="Upload here" :loading="uploading" @click="triggerUpload" />
           <Button icon="pi pi-file-plus" size="small" text severity="secondary" title="New File" @click="openCreateFile(selectedItem.path)" />
           <Button icon="pi pi-folder-plus" size="small" text severity="secondary" title="New Folder" @click="openCreateFolder(selectedItem.path)" />
+          <Button icon="pi pi-pencil" size="small" text severity="secondary" title="Rename" @click="openRename" />
           <Button icon="pi pi-trash" size="small" text severity="danger" title="Delete" @click="openDeleteConfirm" />
         </template>
         <template v-else>
           <Button v-if="isHtmlFile && isPublicPath(selectedItem.path)" icon="pi pi-external-link" size="small" text severity="secondary" title="Open in browser" @click="openFileInBrowser(selectedItem.path)" />
           <Button icon="pi pi-download" size="small" text severity="secondary" title="Download" @click="downloadSelectedFile" />
+          <Button icon="pi pi-pencil" size="small" text severity="secondary" title="Rename" @click="openRename" />
           <Button icon="pi pi-trash" size="small" text severity="danger" title="Delete" @click="openDeleteConfirm" />
         </template>
       </div>
@@ -386,6 +417,14 @@ async function confirmDelete() {
       <template #footer>
         <Button label="Cancel" severity="secondary" text size="small" @click="showNewFolderDialog = false" />
         <Button label="Create" icon="pi pi-check" size="small" @click="confirmCreateFolder" :disabled="!newFolderForm.name.trim()" />
+      </template>
+    </Dialog>
+
+    <Dialog v-model:visible="showRenameDialog" header="Rename" :modal="true" :style="{ width: '24rem' }" :breakpoints="{ '768px': '90vw' }">
+      <DynamicForm :schema="renameSchema" v-model="renameForm" />
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text size="small" @click="showRenameDialog = false" />
+        <Button label="Rename" icon="pi pi-pencil" size="small" @click="confirmRename" :disabled="!renameForm.name.trim()" />
       </template>
     </Dialog>
 

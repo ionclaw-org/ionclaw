@@ -53,7 +53,6 @@ void WebSocketHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Ne
 
         // upgrade to websocket and register connection
         Poco::Net::WebSocket ws(req, resp);
-        ws.setReceiveTimeout(Poco::Timespan(0, 0)); // no timeout for long-lived connection
 
         auto connectionId = ionclaw::util::UniqueId::uuid();
         auto conn = std::make_shared<WebSocketConnection>(std::move(ws), connectionId);

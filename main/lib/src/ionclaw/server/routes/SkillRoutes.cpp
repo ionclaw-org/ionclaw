@@ -30,6 +30,40 @@ agent::SkillsLoader Routes::createSkillsLoader(const config::Config &cfg, const 
     return agent::SkillsLoader(cfg.projectPath, workspacePath);
 }
 
+// find the workspace that contains a skill by searching all agent workspaces
+std::string Routes::resolveWorkspaceForSkill(const std::string &skillName) const
+{
+    // try project-level first (no workspace)
+    auto rootLoader = createSkillsLoader(*config, "");
+    auto rootSkills = rootLoader.discoverSkills();
+
+    if (rootSkills.count(skillName))
+    {
+        return "";
+    }
+
+    // search each agent workspace
+    std::set<std::string> seen;
+
+    for (const auto &[agentName, agentCfg] : config->agents)
+    {
+        if (agentCfg.workspace.empty() || !seen.insert(agentCfg.workspace).second)
+        {
+            continue;
+        }
+
+        auto loader = createSkillsLoader(*config, agentCfg.workspace);
+        auto skills = loader.discoverSkills();
+
+        if (skills.count(skillName))
+        {
+            return agentCfg.workspace;
+        }
+    }
+
+    return "";
+}
+
 void Routes::handleSkillsList(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp)
 {
     auto [hasAgent, agentName] = extractAgentParam(req);
@@ -167,6 +201,10 @@ void Routes::handleSkillGet(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
 
         workspace = it->second.workspace;
     }
+    else
+    {
+        workspace = resolveWorkspaceForSkill(name);
+    }
 
     auto loader = createSkillsLoader(*config, workspace);
     auto content = loader.loadSkillRaw(name);
@@ -198,6 +236,10 @@ void Routes::handleSkillUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTT
             }
 
             workspace = it->second.workspace;
+        }
+        else
+        {
+            workspace = resolveWorkspaceForSkill(name);
         }
 
         auto body = nlohmann::json::parse(readBody(req));
@@ -236,6 +278,10 @@ void Routes::handleSkillDelete(Poco::Net::HTTPServerRequest &req, Poco::Net::HTT
         }
 
         workspace = it->second.workspace;
+    }
+    else
+    {
+        workspace = resolveWorkspaceForSkill(name);
     }
 
     auto loader = createSkillsLoader(*config, workspace);

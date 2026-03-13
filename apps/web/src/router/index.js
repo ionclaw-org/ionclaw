@@ -20,7 +20,7 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   if (to.meta.public) return true
-  const token = localStorage.getItem('ionclaw-token')
+  const token = localStorage.getItem('ionclaw_token')
   if (!token) return { name: 'login' }
   return true
 })

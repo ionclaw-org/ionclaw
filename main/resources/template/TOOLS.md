@@ -38,6 +38,6 @@
 
 ## Memory
 
-- `memory_save(history_entry, updated_memory)` - Save to long-term memory
-- `memory_read(file, max_lines)` - Read memory or history files
-- `memory_search(query)` - Search across memory and history
+- `memory_save(content)` - Append to today's daily memory log
+- `memory_read(file, max_lines)` - Read any memory file (use "list" to see available)
+- `memory_search(query)` - Search across all memory files

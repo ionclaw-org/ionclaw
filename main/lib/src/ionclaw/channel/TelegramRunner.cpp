@@ -155,7 +155,7 @@ std::string TelegramRunner::mediaDatePath() const
 #else
     localtime_r(&time, &tm);
 #endif
-    char buf[16];
+    char buf[32];
     std::snprintf(buf, sizeof(buf), "%04d/%02d/%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
     return buf;
 }
@@ -752,18 +752,19 @@ void TelegramRunner::outboundLoop()
 {
     while (running.load())
     {
-        ionclaw::bus::OutboundMessage outbound;
-        if (!bus->consumeOutbound(outbound, OUTBOUND_POLL_MS))
-        {
-            continue;
-        }
-        if (outbound.channel != "telegram")
-        {
-            spdlog::debug("[Telegram] Skipping outbound for channel={}", outbound.channel);
-            continue;
-        }
         try
         {
+            ionclaw::bus::OutboundMessage outbound;
+            if (!bus->consumeOutbound(outbound, OUTBOUND_POLL_MS))
+            {
+                continue;
+            }
+            if (outbound.channel != "telegram")
+            {
+                spdlog::debug("[Telegram] Skipping outbound for channel={}", outbound.channel);
+                continue;
+            }
+
             std::string chatId = outbound.chatId;
             auto colon = chatId.find(':');
             if (colon != std::string::npos)
@@ -789,7 +790,11 @@ void TelegramRunner::outboundLoop()
         }
         catch (const std::exception &e)
         {
-            spdlog::error("[Telegram] Send failed: {}", e.what());
+            spdlog::error("[Telegram] Outbound error: {}", e.what());
+        }
+        catch (...)
+        {
+            spdlog::error("[Telegram] Outbound unknown error");
         }
     }
 }

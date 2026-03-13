@@ -17,57 +17,81 @@ namespace builtin
 // convert HTML to readable markdown-like text
 std::string WebFetchTool::stripHtml(const std::string &html)
 {
+    // pre-compiled regex objects (thread_local for thread safety)
+    thread_local static const std::regex reScript(R"(<script[^>]*>[\s\S]*?</script>)", std::regex::icase);
+    thread_local static const std::regex reStyle(R"(<style[^>]*>[\s\S]*?</style>)", std::regex::icase);
+    thread_local static const std::regex reNav(R"(<nav[^>]*>[\s\S]*?</nav>)", std::regex::icase);
+    thread_local static const std::regex reFooter(R"(<footer[^>]*>[\s\S]*?</footer>)", std::regex::icase);
+    thread_local static const std::regex reLink(R"RE(<a\s[^>]*href\s*=\s*"([^"]*)"[^>]*>([\s\S]*?)</a>)RE", std::regex::icase);
+    thread_local static const std::regex reH1(R"(<h1[^>]*>([\s\S]*?)</h1>)", std::regex::icase);
+    thread_local static const std::regex reH2(R"(<h2[^>]*>([\s\S]*?)</h2>)", std::regex::icase);
+    thread_local static const std::regex reH3(R"(<h3[^>]*>([\s\S]*?)</h3>)", std::regex::icase);
+    thread_local static const std::regex reH4(R"(<h4[^>]*>([\s\S]*?)</h4>)", std::regex::icase);
+    thread_local static const std::regex reH5(R"(<h5[^>]*>([\s\S]*?)</h5>)", std::regex::icase);
+    thread_local static const std::regex reH6(R"(<h6[^>]*>([\s\S]*?)</h6>)", std::regex::icase);
+    thread_local static const std::regex reLi(R"(<li[^>]*>)", std::regex::icase);
+    thread_local static const std::regex reBlock(R"(<(br|p|div|tr|blockquote|pre|hr|ul|ol|table|section|article|header|main)[^>]*>)", std::regex::icase);
+    thread_local static const std::regex reBold(R"(<(b|strong)[^>]*>([\s\S]*?)</\1>)", std::regex::icase);
+    thread_local static const std::regex reItalic(R"(<(i|em)[^>]*>([\s\S]*?)</\1>)", std::regex::icase);
+    thread_local static const std::regex reCode(R"(<code[^>]*>([\s\S]*?)</code>)", std::regex::icase);
+    thread_local static const std::regex reTag(R"(<[^>]+>)");
+    thread_local static const std::regex reAmp(R"(&amp;)");
+    thread_local static const std::regex reLt(R"(&lt;)");
+    thread_local static const std::regex reGt(R"(&gt;)");
+    thread_local static const std::regex reQuot(R"(&quot;)");
+    thread_local static const std::regex reApos(R"(&#39;|&apos;)");
+    thread_local static const std::regex reNbsp(R"(&nbsp;)");
+    thread_local static const std::regex reSpaces(R"([ \t]+)");
+    thread_local static const std::regex reLeadingSpaces(R"(\n[ \t]+)");
+    thread_local static const std::regex reMultiNewlines(R"(\n{3,})");
+
     std::string result = html;
 
     // remove script, style, nav, and footer blocks
-    result = std::regex_replace(result, std::regex(R"(<script[^>]*>[\s\S]*?</script>)", std::regex::icase), "");
-    result = std::regex_replace(result, std::regex(R"(<style[^>]*>[\s\S]*?</style>)", std::regex::icase), "");
-    result = std::regex_replace(result, std::regex(R"(<nav[^>]*>[\s\S]*?</nav>)", std::regex::icase), "");
-    result = std::regex_replace(result, std::regex(R"(<footer[^>]*>[\s\S]*?</footer>)", std::regex::icase), "");
+    result = std::regex_replace(result, reScript, "");
+    result = std::regex_replace(result, reStyle, "");
+    result = std::regex_replace(result, reNav, "");
+    result = std::regex_replace(result, reFooter, "");
 
     // convert links to markdown: <a href="url">text</a> → [text](url)
-    result = std::regex_replace(result,
-                                std::regex(R"RE(<a\s[^>]*href\s*=\s*"([^"]*)"[^>]*>([\s\S]*?)</a>)RE", std::regex::icase),
-                                "[$2]($1)");
+    result = std::regex_replace(result, reLink, "[$2]($1)");
 
-    // convert headings to markdown: <h1>text</h1> → \n# text\n
-    result = std::regex_replace(result, std::regex(R"(<h1[^>]*>([\s\S]*?)</h1>)", std::regex::icase), "\n# $1\n");
-    result = std::regex_replace(result, std::regex(R"(<h2[^>]*>([\s\S]*?)</h2>)", std::regex::icase), "\n## $1\n");
-    result = std::regex_replace(result, std::regex(R"(<h3[^>]*>([\s\S]*?)</h3>)", std::regex::icase), "\n### $1\n");
-    result = std::regex_replace(result, std::regex(R"(<h4[^>]*>([\s\S]*?)</h4>)", std::regex::icase), "\n#### $1\n");
-    result = std::regex_replace(result, std::regex(R"(<h5[^>]*>([\s\S]*?)</h5>)", std::regex::icase), "\n##### $1\n");
-    result = std::regex_replace(result, std::regex(R"(<h6[^>]*>([\s\S]*?)</h6>)", std::regex::icase), "\n###### $1\n");
+    // convert headings to markdown
+    result = std::regex_replace(result, reH1, "\n# $1\n");
+    result = std::regex_replace(result, reH2, "\n## $1\n");
+    result = std::regex_replace(result, reH3, "\n### $1\n");
+    result = std::regex_replace(result, reH4, "\n#### $1\n");
+    result = std::regex_replace(result, reH5, "\n##### $1\n");
+    result = std::regex_replace(result, reH6, "\n###### $1\n");
 
     // convert list items to markdown
-    result = std::regex_replace(result, std::regex(R"(<li[^>]*>)", std::regex::icase), "\n- ");
+    result = std::regex_replace(result, reLi, "\n- ");
 
     // block elements → newlines
-    result = std::regex_replace(result,
-                                std::regex(R"(<(br|p|div|tr|blockquote|pre|hr|ul|ol|table|section|article|header|main)[^>]*>)", std::regex::icase),
-                                "\n");
+    result = std::regex_replace(result, reBlock, "\n");
 
     // bold and italic
-    result = std::regex_replace(result, std::regex(R"(<(b|strong)[^>]*>([\s\S]*?)</\1>)", std::regex::icase), "**$2**");
-    result = std::regex_replace(result, std::regex(R"(<(i|em)[^>]*>([\s\S]*?)</\1>)", std::regex::icase), "*$2*");
+    result = std::regex_replace(result, reBold, "**$2**");
+    result = std::regex_replace(result, reItalic, "*$2*");
 
     // code blocks
-    result = std::regex_replace(result, std::regex(R"(<code[^>]*>([\s\S]*?)</code>)", std::regex::icase), "`$1`");
+    result = std::regex_replace(result, reCode, "`$1`");
 
     // remove all remaining tags
-    result = std::regex_replace(result, std::regex(R"(<[^>]+>)"), "");
+    result = std::regex_replace(result, reTag, "");
 
     // unescape HTML entities
-    result = std::regex_replace(result, std::regex(R"(&amp;)"), "&");
-    result = std::regex_replace(result, std::regex(R"(&lt;)"), "<");
-    result = std::regex_replace(result, std::regex(R"(&gt;)"), ">");
-    result = std::regex_replace(result, std::regex(R"(&quot;)"), "\"");
-    result = std::regex_replace(result, std::regex(R"(&#39;|&apos;)"), "'");
-    result = std::regex_replace(result, std::regex(R"(&nbsp;)"), " ");
+    result = std::regex_replace(result, reAmp, "&");
+    result = std::regex_replace(result, reLt, "<");
+    result = std::regex_replace(result, reGt, ">");
+    result = std::regex_replace(result, reQuot, "\"");
+    result = std::regex_replace(result, reApos, "'");
+    result = std::regex_replace(result, reNbsp, " ");
 
     // collapse whitespace
-    result = std::regex_replace(result, std::regex(R"([ \t]+)"), " ");
-    result = std::regex_replace(result, std::regex(R"(\n[ \t]+)"), "\n");
-    result = std::regex_replace(result, std::regex(R"(\n{3,})"), "\n\n");
+    result = std::regex_replace(result, reSpaces, " ");
+    result = std::regex_replace(result, reLeadingSpaces, "\n");
+    result = std::regex_replace(result, reMultiNewlines, "\n\n");
 
     // trim
     auto start = result.find_first_not_of(" \t\n\r");

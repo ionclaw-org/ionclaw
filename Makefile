@@ -502,11 +502,13 @@ version: ## Set project version: make version V=1.0.0+2
 	SED_INPLACE "s|^version: [0-9].*|version: $$VER|" apps/flutter/plugin/pubspec.yaml; \
 	SED_INPLACE "s|^version '[0-9][^']*'|version '$$VER'|" apps/flutter/plugin/android/build.gradle; \
 	SED_INPLACE "s|\"version\": \"[0-9][^\"]*\"|\"version\": \"$$VER\"|" apps/web/package.json; \
+	SED_INPLACE "s|const CACHE_NAME = 'ionclaw_[^']*'|const CACHE_NAME = 'ionclaw_$$VER'|" apps/web/public/sw.js; \
 	echo "  CMakeLists.txt          → $$VER"; \
 	echo "  flutter/runner/pubspec  → $$VER+$$BUILD"; \
 	echo "  flutter/plugin/pubspec  → $$VER"; \
 	echo "  plugin/android/gradle   → $$VER"; \
 	echo "  web/package.json        → $$VER"; \
+	echo "  web/sw.js               → $$VER"; \
 	echo "==> Done."
 
 # ============================================================

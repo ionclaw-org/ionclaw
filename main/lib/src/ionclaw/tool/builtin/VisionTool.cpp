@@ -12,6 +12,7 @@
 
 #include "spdlog/spdlog.h"
 
+#include "ionclaw/tool/builtin/ToolHelper.hpp"
 #include "ionclaw/util/Base64.hpp"
 #include "ionclaw/util/HttpClient.hpp"
 
@@ -167,18 +168,18 @@ void stbWriteToVector(void *context, void *data, int size)
 
 } // anonymous namespace
 
-ToolResult VisionTool::execute(const nlohmann::json &params, const ToolContext & /*context*/)
+ToolResult VisionTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto path = params.value("path", "");
     auto url = params.value("url", "");
     auto base64Input = params.value("base64", "");
     auto question = params.value("question", "");
 
-    spdlog::debug("vision: execute (path={}, url={}, base64_len={}, question={})",
-                  path.empty() ? "(none)" : path,
-                  url.empty() ? "(none)" : url,
-                  base64Input.size(),
-                  question.empty() ? "(none)" : question);
+    spdlog::info("vision: execute (path={}, url={}, base64_len={}, question={})",
+                 path.empty() ? "(none)" : path,
+                 url.empty() ? "(none)" : url,
+                 base64Input.size(),
+                 question.empty() ? "(none)" : question);
 
     // exactly one source required
     int sources = (!path.empty() ? 1 : 0) + (!url.empty() ? 1 : 0) + (!base64Input.empty() ? 1 : 0);
@@ -186,8 +187,8 @@ ToolResult VisionTool::execute(const nlohmann::json &params, const ToolContext &
     if (sources == 0)
     {
         spdlog::warn("vision: no image source provided");
-        return "Error: one of 'path', 'url', or 'base64' is required. "
-               "Provide a local file path, a remote URL, or base64-encoded image data.";
+        return "Error: you must provide one of 'path', 'url', or 'base64'. "
+               "For user-uploaded images, use the path from the [image attached: path] annotation.";
     }
 
     if (sources > 1)
@@ -204,6 +205,19 @@ ToolResult VisionTool::execute(const nlohmann::json &params, const ToolContext &
     if (!path.empty())
     {
         sourceLabel = path;
+
+        // resolve relative paths against workspace/public root
+        try
+        {
+            path = ToolHelper::validateAndResolvePath(context.workspacePath, path, context.publicPath);
+            spdlog::info("vision: resolved path to: {}", path);
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::warn("vision: path resolution failed: {}", e.what());
+            return "Error: " + std::string(e.what());
+        }
+
         std::error_code ec;
 
         if (!std::filesystem::exists(path, ec) || ec)
@@ -512,19 +526,17 @@ ToolSchema VisionTool::schema() const
 {
     return {
         "vision",
-        "Analyze and describe images using the AI model's vision capabilities. "
-        "Accepts images from local files, URLs, or base64 data. "
-        "The image is sent directly to the model for visual analysis — no external vision API needed. "
-        "IMPORTANT: If the user already sent an image in the chat, you can see it directly — "
-        "do NOT use this tool for images already in the conversation.",
+        "Analyze images from local files, URLs, or base64 data. "
+        "You MUST provide exactly one source parameter: 'path', 'url', or 'base64'. "
+        "For user-uploaded images, the path is provided in the [image attached: path] annotation.",
         {{"type", "object"},
          {"properties",
           {
-              {"path", {{"type", "string"}, {"description", "Path to a local image file (use the path from [media: path (type)] annotations for user-uploaded images)"}}},
-              {"url", {{"type", "string"}, {"description", "URL of a remote image to fetch and analyze"}}},
-              {"base64", {{"type", "string"}, {"description", "Base64-encoded image data (with or without data URI prefix)"}}},
-              {"question", {{"type", "string"}, {"description", "Specific question about the image (e.g. 'What text is in this image?'). If omitted, provides a general description."}}},
-              {"mime_type", {{"type", "string"}, {"description", "Override MIME type (e.g. image/png, image/jpeg). Auto-detected from file extension or URL if not specified."}}},
+              {"path", {{"type", "string"}, {"description", "Local image file path (relative to workspace or absolute). For screenshots or files on disk."}}},
+              {"url", {{"type", "string"}, {"description", "URL of a remote image to fetch and analyze."}}},
+              {"base64", {{"type", "string"}, {"description", "Base64-encoded image data (with or without data URI prefix)."}}},
+              {"question", {{"type", "string"}, {"description", "Specific question about the image. If omitted, provides a general description."}}},
+              {"mime_type", {{"type", "string"}, {"description", "Override MIME type (e.g. image/png). Auto-detected if not specified."}}},
           }}}};
 }
 

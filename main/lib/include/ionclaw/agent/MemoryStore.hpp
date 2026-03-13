@@ -1,11 +1,9 @@
 #pragma once
 
+#include <cstdint>
 #include <set>
 #include <string>
 #include <vector>
-
-#include "ionclaw/provider/LlmProvider.hpp"
-#include "ionclaw/session/SessionManager.hpp"
 
 namespace ionclaw
 {
@@ -26,14 +24,8 @@ public:
     explicit MemoryStore(const std::string &workspacePath);
 
     std::string getMemoryContext() const;
-    std::string getHistoryContext(int maxLines = 0) const;
 
     std::vector<MemorySearchResult> searchMemory(const std::string &query) const;
-
-    std::vector<ionclaw::provider::Message> getConsolidationMessages(
-        const ionclaw::session::Session &session, int window) const;
-
-    static void markConsolidated(ionclaw::session::Session &session, int count);
 
 private:
     std::string memoryDir;

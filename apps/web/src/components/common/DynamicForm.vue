@@ -146,9 +146,9 @@ function confirmGenerate() {
         :inputProps="{ autocomplete: 'off', 'data-1p-ignore': '' }"
       />
 
-      <!-- long-text -->
+      <!-- long_text -->
       <Textarea
-        v-else-if="field.type === 'long-text'"
+        v-else-if="field.type === 'long_text'"
         :model-value="modelValue[field.name] ?? ''"
         @update:model-value="update(field.name, $event)"
         :placeholder="field.placeholder || ''"

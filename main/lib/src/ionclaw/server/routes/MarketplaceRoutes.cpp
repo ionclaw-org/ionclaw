@@ -152,7 +152,7 @@ void Routes::handleMarketplaceInstall(Poco::Net::HTTPServerRequest &req, Poco::N
         std::error_code ec;
         fs::create_directories(targetDir, ec);
 
-        fs::path tempZip = fs::temp_directory_path() / ("ionclaw-skill-" + source + "-" + name + ".zip");
+        fs::path tempZip = fs::temp_directory_path() / ("ionclaw_skill_" + source + "_" + name + ".zip");
 
         try
         {

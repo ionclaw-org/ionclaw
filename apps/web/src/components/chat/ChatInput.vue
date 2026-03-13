@@ -2,22 +2,21 @@
 import { ref } from 'vue'
 import Button from 'primevue/button'
 import Textarea from 'primevue/textarea'
+import { useChatStore } from '../../stores/chat'
 
 const emit = defineEmits(['send'])
-const text = ref('')
-const attachments = ref([])
+const chatStore = useChatStore()
 const fileInput = ref(null)
 const recording = ref(false)
 let mediaRecorder = null
 let audioChunks = []
 
 function handleSend() {
-  const msg = text.value.trim()
-  const hasFiles = attachments.value.length > 0
+  const msg = chatStore.draft.text.trim()
+  const hasFiles = chatStore.draft.attachments.length > 0
   if (!msg && !hasFiles) return
-  emit('send', { text: msg, files: [...attachments.value] })
-  text.value = ''
-  attachments.value = []
+  emit('send', { text: msg, files: [...chatStore.draft.attachments] })
+  chatStore.draft = { text: '', attachments: [] }
 }
 
 function handleKeydown(e) {
@@ -27,18 +26,30 @@ function handleKeydown(e) {
   }
 }
 
+function handlePaste(e) {
+  const items = e.clipboardData?.items
+  if (!items) return
+  for (const item of items) {
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      e.preventDefault()
+      const file = item.getAsFile()
+      if (file) chatStore.draft.attachments.push(file)
+    }
+  }
+}
+
 function openFilePicker() {
   fileInput.value?.click()
 }
 
 function onFilesSelected(e) {
   const files = Array.from(e.target.files || [])
-  attachments.value.push(...files)
+  chatStore.draft.attachments.push(...files)
   e.target.value = ''
 }
 
 function removeAttachment(index) {
-  attachments.value.splice(index, 1)
+  chatStore.draft.attachments.splice(index, 1)
 }
 
 function fileIcon(file) {
@@ -71,7 +82,7 @@ async function toggleRecording() {
         const now = new Date()
         const ts = now.toTimeString().slice(0, 8).replace(/:/g, '-')
         const file = new File([blob], `recording-${ts}.webm`, { type: 'audio/webm' })
-        attachments.value.push(file)
+        chatStore.draft.attachments.push(file)
       }
     }
 
@@ -94,8 +105,8 @@ async function toggleRecording() {
       @change="onFilesSelected"
     />
 
-    <div v-if="attachments.length" class="attachments">
-      <div v-for="(file, i) in attachments" :key="i" class="attachment-chip">
+    <div v-if="chatStore.draft.attachments.length" class="attachments">
+      <div v-for="(file, i) in chatStore.draft.attachments" :key="i" class="attachment-chip">
         <i :class="fileIcon(file)"></i>
         <span class="attachment-name">{{ file.name }}</span>
         <button class="remove-btn" @click="removeAttachment(i)">
@@ -123,18 +134,19 @@ async function toggleRecording() {
         :class="{ 'recording-pulse': recording }"
       />
       <Textarea
-        v-model="text"
+        v-model="chatStore.draft.text"
         placeholder="Type a message..."
         auto-resize
         :rows="1"
         class="input-field"
         @keydown="handleKeydown"
+        @paste="handlePaste"
       />
       <Button
         icon="pi pi-send"
         rounded
         @click="handleSend"
-        :disabled="!text.trim() && !attachments.length"
+        :disabled="!chatStore.draft.text.trim() && !chatStore.draft.attachments.length"
       />
     </div>
   </div>

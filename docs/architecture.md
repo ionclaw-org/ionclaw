@@ -126,7 +126,7 @@ See [API Reference](api.md#websocket) for full payload shapes.
 | `steer` | Inject into the active streaming turn between tool iterations |
 | `followup` | Enqueue and process as a separate turn after current completes |
 | `collect` | Batch multiple messages into a single prompt after debounce |
-| `steer-backlog` | Try steer; if not streaming, fallback to followup |
+| `steer_backlog` | Try steer; if not streaming, fallback to followup |
 | `interrupt` | Abort current turn, clear queue, process immediately |
 
 **Drop policies** control what happens when queue depth exceeds the cap:
@@ -380,7 +380,7 @@ This is separate from the `tools` field (which controls tool registration). Tool
 
 ### Memory
 
-- **MemoryStore** (`agent/MemoryStore.hpp`) — Two-layer memory system: `MEMORY.md` (long-term knowledge) and `HISTORY.md` (conversation summaries). Provides memory context for the system prompt and consolidation messages for the memory save flow.
+- **MemoryStore** (`agent/MemoryStore.hpp`) — Memory system with `MEMORY.md` (curated long-term knowledge) and daily logs (`YYYY-MM-DD.md`). Provides memory context for the system prompt and full-text search across all memory files.
 - **Memory Search** — Full-text search across memory and history files with multi-language support. Features include:
   - Case-insensitive keyword extraction and matching
   - CJK (Chinese, Japanese, Korean) codepoint-level tokenization for languages without whitespace separation

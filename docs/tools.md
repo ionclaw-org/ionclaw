@@ -209,25 +209,24 @@ Only available to the main agent when scheduler is enabled.
 
 #### memory_save
 
-Save conversation history and updated long-term memory (used during consolidation).
+Append a memory entry to today's daily log (`memory/YYYY-MM-DD.md`).
 
 | Parameter | Type | Required | Description |
 |----------|------|----------|-------------|
-| `history_entry` | string | Yes | Summary of recent conversation for HISTORY.md |
-| `updated_memory` | string | Yes | Updated long-term memory content for MEMORY.md |
+| `content` | string | Yes | Content to append to today's daily log |
 
 #### memory_read
 
-Read memory files on demand.
+Read any file from the memory directory.
 
 | Parameter | Type | Required | Description |
 |----------|------|----------|-------------|
-| `file` | string | Yes | `memory` for MEMORY.md, `history` for HISTORY.md |
-| `max_lines` | integer | No | Max lines from the end (default: all). Useful for history |
+| `file` | string | Yes | Filename (e.g. `MEMORY.md`, `2026-03-13.md`) or `list` to show available files |
+| `max_lines` | integer | No | Return only the last N lines |
 
 #### memory_search
 
-Search across memory and history for specific information. Supports multi-language queries including CJK (Chinese, Japanese, Korean) with codepoint-level tokenization.
+Search across all memory files for specific information. Supports multi-language queries including CJK (Chinese, Japanese, Korean) with codepoint-level tokenization.
 
 | Parameter | Type | Required | Description |
 |----------|------|----------|-------------|
@@ -347,7 +346,7 @@ Analyze and describe images using the AI model's native vision capabilities. Acc
 | `path` | string | One of path/url/base64 | Absolute path to a local image file |
 | `url` | string | One of path/url/base64 | URL of a remote image to fetch and analyze |
 | `base64` | string | One of path/url/base64 | Base64-encoded image data (with or without data URI prefix) |
-| `question` | string | No | Specific question about the image. If omitted, provides a general description |
+| `question` | string | No | Optional. A question that focuses the analysis on a specific aspect of the image. When not provided, the system returns a detailed visual description of the image, covering elements such as objects, people, environment, actions, colors, spatial relationships, and other relevant contextual details visible in the scene. |
 | `mime_type` | string | No | Override MIME type (auto-detected from file extension or URL) |
 
 Supported formats: JPEG, PNG, GIF, WebP, SVG, BMP, ICO, TIFF, AVIF. Max 20MB.

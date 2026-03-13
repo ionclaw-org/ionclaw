@@ -15,27 +15,46 @@ namespace builtin
 ToolResult MemoryReadTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto file = params.at("file").get<std::string>();
+    auto memoryDir = context.workspacePath + "/memory";
 
-    std::string filename;
+    // list available files when requested
+    if (file == "list")
+    {
+        std::ostringstream output;
+        std::error_code ec;
 
-    if (file == "memory")
-    {
-        filename = "MEMORY.md";
-    }
-    else if (file == "history")
-    {
-        filename = "HISTORY.md";
-    }
-    else
-    {
-        return "Error: file must be 'memory' or 'history'";
+        for (const auto &entry : std::filesystem::directory_iterator(memoryDir, ec))
+        {
+            if (entry.is_regular_file() && entry.path().extension() == ".md")
+            {
+                output << entry.path().filename().string() << "\n";
+            }
+        }
+
+        auto result = output.str();
+        return result.empty() ? "No memory files found." : result;
     }
 
-    auto filePath = context.workspacePath + "/memory/" + filename;
+    // resolve filename (accept with or without .md extension)
+    auto filename = file;
+
+    if (filename.size() < 3 || filename.substr(filename.size() - 3) != ".md")
+    {
+        filename += ".md";
+    }
+
+    // prevent path traversal
+    if (filename.find('/') != std::string::npos || filename.find('\\') != std::string::npos ||
+        filename.find("..") != std::string::npos)
+    {
+        return "Error: invalid filename";
+    }
+
+    auto filePath = memoryDir + "/" + filename;
 
     if (!std::filesystem::exists(filePath))
     {
-        return filename + " does not exist yet.";
+        return filename + " does not exist.";
     }
 
     std::ifstream inFile(filePath, std::ios::binary);
@@ -89,10 +108,13 @@ ToolSchema MemoryReadTool::schema() const
 {
     return {
         "memory_read",
-        "Read memory files. 'memory' reads long-term facts (MEMORY.md), 'history' reads conversation summaries (HISTORY.md).",
+        "Read a memory file from the memory directory. Use 'list' to see available files.",
         {{"type", "object"},
          {"properties",
-          {{"file", {{"type", "string"}, {"enum", nlohmann::json::array({"memory", "history"})}, {"description", "Which memory file to read"}}},
+          {{"file",
+            {{"type", "string"},
+             {"description",
+              "Filename to read (e.g. 'MEMORY.md', '2026-03-13.md') or 'list' to show available files"}}},
            {"max_lines", {{"type", "integer"}, {"description", "Return only the last N lines"}}}}},
          {"required", nlohmann::json::array({"file"})}}};
 }
