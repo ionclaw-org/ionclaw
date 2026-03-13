@@ -91,6 +91,7 @@ Open `http://localhost:8080` in your browser. The web panel is served automatica
 - [About IonClaw](docs/about.md) — Overview, advantages, and audience
 - [How It Works](docs/flow.md) — Complete execution flow from message to response
 - [Architecture](docs/architecture.md) — System design and components
+- [Installation](docs/installation.md) — Homebrew, build from source, Docker, and cloud deploy
 - [Build](docs/build.md) — Build system and Makefile targets
 - [Configuration](docs/configuration.md) — Full config.yml reference
 - [Custom Providers](docs/custom-providers.md) — Ollama, LM Studio, MiniMax, and other OpenAI-compatible providers
