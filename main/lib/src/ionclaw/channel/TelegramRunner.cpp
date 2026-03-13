@@ -155,7 +155,7 @@ std::string TelegramRunner::mediaDatePath() const
 #else
     localtime_r(&time, &tm);
 #endif
-    char buf[16];
+    char buf[32];
     std::snprintf(buf, sizeof(buf), "%04d/%02d/%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
     return buf;
 }
