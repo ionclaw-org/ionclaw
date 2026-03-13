@@ -116,19 +116,19 @@ http_client(method="GET", url="https://api.example.com/data", headers={"X-API-Ke
 
 ## Download
 
-Save a response directly to a file using `download_path`. Use the absolute paths from your system prompt:
+Save a response directly to a file using `download_path`. Use paths relative to the project root:
 
 ```
-http_client(method="GET", url="https://example.com/report.pdf", download_path="/path/to/workspace/reports/report.pdf")
+http_client(method="GET", url="https://example.com/report.pdf", download_path="reports/report.pdf")
 ```
 
 Download an image to the public media directory:
 
 ```
-http_client(method="GET", url="https://example.com/photo.jpg", download_path="/path/to/public/media/photo.jpg")
+http_client(method="GET", url="https://example.com/photo.jpg", download_path="public/media/photo.jpg")
 ```
 
-Returns: `{"status": 200, "path": "/absolute/path/to/file", "size": 12345, "content_type": "application/pdf"}`
+Returns: `{"status": 200, "path": "public/media/photo.jpg", "size": 12345, "content_type": "application/pdf"}`
 
 ## Upload
 

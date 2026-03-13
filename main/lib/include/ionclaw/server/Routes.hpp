@@ -178,6 +178,7 @@ private:
     // skill route helpers
     static std::pair<bool, std::string> extractAgentParam(Poco::Net::HTTPServerRequest &req);
     static ionclaw::agent::SkillsLoader createSkillsLoader(const ionclaw::config::Config &cfg, const std::string &workspacePath);
+    std::string resolveWorkspaceForSkill(const std::string &skillName) const;
 };
 
 } // namespace server

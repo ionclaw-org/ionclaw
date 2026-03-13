@@ -185,6 +185,11 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
             return "Error: resize requires input_path, output_path, width, height.";
         }
 
+        if (outW > 8192 || outH > 8192)
+        {
+            return "Error: resize dimensions must not exceed 8192x8192.";
+        }
+
         std::string inResolved = resolve(inputPath);
         std::string outResolved = resolve(outputPath);
 
@@ -358,6 +363,13 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
 
         if (overlayW > 0 && overlayH > 0)
         {
+            if (overlayW > 8192 || overlayH > 8192)
+            {
+                stbi_image_free(base);
+                stbi_image_free(over);
+                return "Error: overlay dimensions must not exceed 8192x8192.";
+            }
+
             resizedOverlay.resize(static_cast<size_t>(overlayW * overlayH * 3));
 
             if (stbir_resize_uint8_linear(over, ow, oh, 0, resizedOverlay.data(), overlayW, overlayH, 0, STBIR_RGB) != nullptr)

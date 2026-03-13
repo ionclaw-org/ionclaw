@@ -112,6 +112,9 @@ int Application::cmdStart(int argc, char *argv[])
     // signal handling
     std::signal(SIGINT, signalHandler);
     std::signal(SIGTERM, signalHandler);
+#ifndef _WIN32
+    std::signal(SIGPIPE, SIG_IGN);
+#endif
 
     // wait for shutdown
     while (!shutdownRequested.load())

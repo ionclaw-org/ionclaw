@@ -127,7 +127,7 @@ Device presets: iPhone 14, iPhone 14 Pro Max, iPhone SE, iPad, iPad Pro, Pixel 7
 ### Visit a page and read its content
 ```
 navigate url="https://example.com"   → auto-starts browser, loads page
-snapshot                              → read the page text content
+snapshot                             → read the page text content
 ```
 
 ### Fill a form and submit
@@ -161,14 +161,14 @@ reload                                → reloads page2.com
 ### Save screenshot to a specific path
 ```
 navigate url="https://example.com"
-screenshot output_path="/project/public/home.png"  → saves to specified path
-screenshot                                          → saves to temp directory (default)
+screenshot output_path="public/home.png"  → saves to specified path
+screenshot                                → saves to temp directory (default)
 ```
 
 ### Save PDF to a specific path
 ```
 navigate url="https://example.com/report"
-pdf output_path="/project/docs/report.pdf"  → saves to specified path
+pdf output_path="public/docs/report.pdf"  → saves to specified path
 ```
 
 ### Mobile testing
@@ -195,15 +195,15 @@ If navigation failed:
 Error: navigation to https://bad.example failed: net::ERR_NAME_NOT_RESOLVED (tab 1/1)
 ```
 
-Screenshot responses include a resized preview image (sent as a visual block you can see) and file info:
+Screenshot responses include a resized preview image (sent as a visual block you can see) and file info. Without `output_path`, files go to a temp directory (absolute path). With `output_path`, use a path relative to the project root:
 ```
 [image preview is displayed inline for visual analysis]
-Screenshot captured (1920x1080, 245KB). Preview: 1024x576 (32KB). Full resolution: /tmp/ionclaw/browser/screenshot_1710043200000.png
+Screenshot captured (1920x1080, 245KB). Preview: 1024x576 (32KB). Full resolution: public/screenshots/home.png
 ```
 
-PDF responses return only the file path:
+PDF responses return the file path:
 ```
-PDF saved: /tmp/ionclaw/browser/page_1710043200000.pdf (156KB)
+PDF saved: public/docs/report.pdf (156KB)
 ```
 
 Wait timeout responses report which conditions failed:

@@ -41,6 +41,7 @@ void HttpServer::start()
     auto params = new Poco::Net::HTTPServerParams;
     params->setMaxQueued(64);
     params->setMaxThreads(16);
+    params->setThreadIdleTime(Poco::Timespan(10, 0));
 
     // create and start server with request handler factory
     auto factory = new handler::RequestHandlerFactory(routes, auth, wsManager, mcpDispatcher, webDir, publicDir);

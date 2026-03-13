@@ -238,4 +238,4 @@ image_ops(operation="overlay", input_path="public/media/photo.jpg", overlay_path
 
 ## After operations
 
-Return the resulting path to the user so they can open or link to the image (e.g. `/public/media/result.png` or the path you used in `output_path`).
+Return the resulting path to the user so they can open or link to the image (e.g. `public/media/result.png` or the path you used in `output_path`).

@@ -11,7 +11,7 @@ Analyze images using the `vision` tool. The image is sent directly to the AI mod
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `path` | string | one of path/url/base64 | Absolute path to a local image file |
+| `path` | string | one of path/url/base64 | Path to a local image file (relative to project root, or absolute for temp files) |
 | `url` | string | one of path/url/base64 | URL of a remote image to fetch and analyze |
 | `base64` | string | one of path/url/base64 | Base64-encoded image data (with or without data URI prefix) |
 | `question` | string | no | Specific question about the image. If omitted, provides a general description |
@@ -34,12 +34,12 @@ The `vision` tool loads an image from any source, resizes it to an LLM-friendly 
 
 ### Describe a local image
 ```
-vision path="/path/to/photo.jpg"
+vision path="public/media/photo.jpg"
 ```
 
 ### Analyze a screenshot
 ```
-vision path="/tmp/screenshot.png" question="What error message is shown?"
+vision path="public/screenshots/page.png" question="What error message is shown?"
 ```
 
 ### Analyze an image from a URL
@@ -49,13 +49,13 @@ vision url="https://example.com/chart.png" question="What trends does this chart
 
 ### Read text from an image (OCR)
 ```
-vision path="/path/to/document.png" question="Extract all text from this image"
+vision path="public/documents/scan.png" question="Extract all text from this image"
 ```
 
-### Analyze a browser screenshot
+### Analyze a browser screenshot (with output_path)
 ```
-browser action="screenshot"     → captures the page
-vision path="/tmp/ionclaw/browser/screenshot_xxx.png" question="What is displayed on this page?"
+browser action="screenshot" output_path="public/screenshots/page.png"
+vision path="public/screenshots/page.png" question="What is displayed on this page?"
 ```
 
 ### Use with base64 data

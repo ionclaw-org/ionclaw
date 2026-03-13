@@ -188,6 +188,11 @@ ToolResult ToolRegistry::executeTool(const std::string &name, const nlohmann::js
         spdlog::error("[ToolRegistry] Tool {} failed: {}", name, e.what());
         return "Error executing " + name + ": " + std::string(e.what()) + HINT;
     }
+    catch (...)
+    {
+        spdlog::error("[ToolRegistry] Tool {} failed with unknown exception", name);
+        return "Error executing " + name + ": unknown internal error" + HINT;
+    }
 }
 
 bool ToolRegistry::hasTool(const std::string &name) const

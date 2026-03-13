@@ -260,35 +260,53 @@ void Orchestrator::run()
 
     while (running.load())
     {
-        // periodically clean up expired announce entries
-        if (announceQueue)
+        try
         {
-            announceQueue->processExpired();
+            // periodically clean up expired announce entries
+            if (announceQueue)
+            {
+                announceQueue->processExpired();
+            }
+
+            ionclaw::bus::InboundMessage message;
+
+            if (bus->consumeInbound(message, 500))
+            {
+                try
+                {
+                    handleMessage(message);
+                }
+                catch (const std::exception &e)
+                {
+                    spdlog::error("[Orchestrator] Error handling message: {}", e.what());
+
+                    try
+                    {
+                        auto sessionKey = message.sessionKey();
+                        dispatcher->broadcast("chat:message", {
+                                                                  {"chat_id", sessionKey},
+                                                                  {"content", std::string("I encountered an error: ") + e.what()},
+                                                                  {"error", e.what()},
+                                                              });
+
+                        dispatcher->broadcast("chat:stream_end", {
+                                                                     {"chat_id", sessionKey},
+                                                                 });
+                    }
+                    catch (...)
+                    {
+                        spdlog::error("[Orchestrator] Failed to broadcast error notification");
+                    }
+                }
+            }
         }
-
-        ionclaw::bus::InboundMessage message;
-
-        if (bus->consumeInbound(message, 500))
+        catch (const std::exception &e)
         {
-            try
-            {
-                handleMessage(message);
-            }
-            catch (const std::exception &e)
-            {
-                spdlog::error("[Orchestrator] Error handling message: {}", e.what());
-
-                auto sessionKey = message.sessionKey();
-                dispatcher->broadcast("chat:message", {
-                                                          {"chat_id", sessionKey},
-                                                          {"content", std::string("I encountered an error: ") + e.what()},
-                                                          {"error", e.what()},
-                                                      });
-
-                dispatcher->broadcast("chat:stream_end", {
-                                                             {"chat_id", sessionKey},
-                                                         });
-            }
+            spdlog::error("[Orchestrator] Worker loop error: {}", e.what());
+        }
+        catch (...)
+        {
+            spdlog::error("[Orchestrator] Worker loop unknown error");
         }
     }
 

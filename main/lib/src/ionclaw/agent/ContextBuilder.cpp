@@ -102,7 +102,7 @@ std::string ContextBuilder::buildDirectoryContext() const
 {
     std::ostringstream lines;
 
-    lines << "You have access to your workspace and the public directory. Always use absolute paths.\n\n";
+    lines << "You have access to your workspace and the public directory (at the project root, not inside the workspace). Always use paths relative to the project root (e.g. public/media/image.png, not /public/media/image.png).\n\n";
 
     // agent workspace (sanitize paths for prompt safety)
     auto safePath = ionclaw::util::StringHelper::sanitizeForPrompt(workspacePath);

@@ -72,7 +72,7 @@ std::string LocalImageGenerator::generate(const std::string &prompt,
         return "Error: failed to write local image";
     }
 
-    return "Image saved: /public/media/" + filename;
+    return "Image saved: public/media/" + filename;
 #else
     (void)filename;
     (void)params;

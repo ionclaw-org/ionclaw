@@ -1,7 +1,7 @@
 // The Android Gradle Plugin builds the native code with the Android NDK.
 
 group 'com.ionclaw.app'
-version '1.0.1'
+version '1.0.2'
 
 buildscript {
     repositories {

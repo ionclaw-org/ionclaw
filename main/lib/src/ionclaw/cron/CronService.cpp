@@ -117,26 +117,30 @@ void CronService::runLoop()
 {
     while (running.load())
     {
-        // sleep in small increments for fast shutdown
-        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(TICK_INTERVAL_MS);
-
-        while (running.load() && std::chrono::steady_clock::now() < deadline)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        }
-
-        if (!running.load())
-        {
-            break;
-        }
-
         try
         {
+            // sleep in small increments for fast shutdown
+            auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(TICK_INTERVAL_MS);
+
+            while (running.load() && std::chrono::steady_clock::now() < deadline)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            }
+
+            if (!running.load())
+            {
+                break;
+            }
+
             tick();
         }
         catch (const std::exception &e)
         {
             spdlog::error("[CronService] tick error: {}", e.what());
+        }
+        catch (...)
+        {
+            spdlog::error("[CronService] unknown error in run loop");
         }
     }
 }

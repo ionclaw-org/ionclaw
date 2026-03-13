@@ -1,6 +1,9 @@
 #include "ionclaw/tool/builtin/ExecTool.hpp"
 
 #include <array>
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
 
 #include "ionclaw/config/Config.hpp"
 #include "ionclaw/tool/builtin/ToolHelper.hpp"
@@ -150,7 +153,14 @@ ToolResult ExecTool::execute(const nlohmann::json &params, const ToolContext &co
 #else
     if (exitCode != 0)
     {
-        output += "\n[exit code: " + std::to_string(WEXITSTATUS(exitCode)) + "]";
+        if (WIFSIGNALED(exitCode))
+        {
+            output += "\n[killed by signal: " + std::to_string(WTERMSIG(exitCode)) + "]";
+        }
+        else
+        {
+            output += "\n[exit code: " + std::to_string(WEXITSTATUS(exitCode)) + "]";
+        }
     }
 #endif
 
