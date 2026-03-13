@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import * as storage from '../utils/storage'
 
 const routes = [
   { path: '/login', name: 'login', component: () => import('../pages/LoginPage.vue'), meta: { public: true } },
@@ -20,7 +21,7 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   if (to.meta.public) return true
-  const token = localStorage.getItem('ionclaw_token')
+  const token = storage.getItem('ionclaw_token')
   if (!token) return { name: 'login' }
   return true
 })

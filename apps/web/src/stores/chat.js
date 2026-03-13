@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { v4 as uuidv4 } from 'uuid'
 import { useApi } from '../composables/useApi'
+import * as storage from '../utils/storage'
 
 /**
  * Extract the chat_id from a session key.
@@ -48,14 +50,14 @@ export const useChatStore = defineStore('chat', () => {
   const api = useApi()
   const messages = ref([])
   const sessions = ref([])
-  let stored = localStorage.getItem('chat_session')
+  let stored = storage.getItem('chat_session')
   // migrate bare UUIDs from older versions to full session keys
   if (stored && !stored.includes(':')) {
     stored = `web:${stored}`
-    localStorage.setItem('chat_session', stored)
+    storage.setItem('chat_session', stored)
   }
-  const currentSessionId = ref(stored || `web:${crypto.randomUUID()}`)
-  if (!stored) localStorage.setItem('chat_session', currentSessionId.value)
+  const currentSessionId = ref(stored || `web:${uuidv4()}`)
+  if (!stored) storage.setItem('chat_session', currentSessionId.value)
 
   const liveMessage = ref(null)
   const toolRunning = ref(false)
@@ -286,7 +288,7 @@ export const useChatStore = defineStore('chat', () => {
     const switching = currentSessionId.value !== sessionKey
 
     currentSessionId.value = sessionKey
-    localStorage.setItem('chat_session', sessionKey)
+    storage.setItem('chat_session', sessionKey)
 
     // clear display immediately when switching so the previous session's
     // stale messages / live indicators are never visible on the new session
@@ -387,9 +389,9 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function newSession() {
-    const key = `web:${crypto.randomUUID()}`
+    const key = `web:${uuidv4()}`
     currentSessionId.value = key
-    localStorage.setItem('chat_session', key)
+    storage.setItem('chat_session', key)
     messages.value = []
     liveMessage.value = null
     toolRunning.value = false
