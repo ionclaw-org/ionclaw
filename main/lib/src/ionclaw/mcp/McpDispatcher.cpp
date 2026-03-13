@@ -439,7 +439,7 @@ nlohmann::json McpDispatcher::toolChat(
 
     // subscribe to agent output events for this task/session
     auto stream = std::make_shared<ChatStream>();
-    auto handlerId = "mcp-" + ionclaw::util::UniqueId::shortId();
+    auto handlerId = "mcp_" + ionclaw::util::UniqueId::shortId();
 
     dispatcher->addNamedHandler(handlerId,
                                 [stream, sessionKey, taskId](const std::string &eventType, const nlohmann::json &data)
@@ -498,7 +498,7 @@ nlohmann::json McpDispatcher::toolChat(
     // publish message to the agent
     ionclaw::bus::InboundMessage inbound;
     inbound.channel = MCP_CHANNEL;
-    inbound.senderId = "mcp-client";
+    inbound.senderId = "mcp_client";
     inbound.chatId = chatId;
     inbound.content = message;
     inbound.metadata = {{"task_id", taskId}, {"message_saved", true}};

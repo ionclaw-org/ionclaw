@@ -347,7 +347,7 @@ Analyze and describe images using the AI model's native vision capabilities. Acc
 | `path` | string | One of path/url/base64 | Absolute path to a local image file |
 | `url` | string | One of path/url/base64 | URL of a remote image to fetch and analyze |
 | `base64` | string | One of path/url/base64 | Base64-encoded image data (with or without data URI prefix) |
-| `question` | string | No | Specific question about the image. If omitted, provides a general description |
+| `question` | string | No | Optional. A question that focuses the analysis on a specific aspect of the image. When not provided, the system returns a detailed visual description of the image, covering elements such as objects, people, environment, actions, colors, spatial relationships, and other relevant contextual details visible in the scene. |
 | `mime_type` | string | No | Override MIME type (auto-detected from file extension or URL) |
 
 Supported formats: JPEG, PNG, GIF, WebP, SVG, BMP, ICO, TIFF, AVIF. Max 20MB.

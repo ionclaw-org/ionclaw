@@ -371,7 +371,7 @@ std::string ContextBuilder::buildSystemPrompt(
 }
 
 // build media annotation text from session media paths
-static std::string buildMediaAnnotation(const std::vector<nlohmann::json> &media)
+std::string ContextBuilder::buildMediaAnnotation(const std::vector<nlohmann::json> &media)
 {
     if (media.empty())
     {
@@ -390,7 +390,7 @@ static std::string buildMediaAnnotation(const std::vector<nlohmann::json> &media
         auto path = m.get<std::string>();
 
         // detect MIME type from extension
-        std::string mime = "image";
+        std::string mime = "application/octet-stream";
         auto dot = path.rfind('.');
 
         if (dot != std::string::npos)
@@ -424,14 +424,17 @@ static std::string buildMediaAnnotation(const std::vector<nlohmann::json> &media
                 mime = "application/pdf";
         }
 
-        // indicate audio files were already transcribed so the model doesn't try vision on them
         if (mime.rfind("audio/", 0) == 0)
         {
-            annotation += "\n[media: " + path + " (" + mime + ") — audio already transcribed above]";
+            annotation += "\n[media attached: " + path + " (" + mime + ") — audio already transcribed above]";
+        }
+        else if (mime.rfind("image/", 0) == 0)
+        {
+            annotation += "\n[image attached: " + path + " — use vision tool with path=\"" + path + "\" to analyze]";
         }
         else
         {
-            annotation += "\n[media: " + path + " (" + mime + ")]";
+            annotation += "\n[media attached: " + path + " (" + mime + ")]";
         }
     }
 

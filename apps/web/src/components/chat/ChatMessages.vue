@@ -243,6 +243,10 @@ watch(
   border-color: color-mix(in srgb, var(--p-primary-color) 25%, var(--p-content-background));
 }
 
+.message.user .message-media {
+  justify-content: flex-end;
+}
+
 .message-content :deep(p) {
   margin: 0 0 0.5rem 0;
 }

@@ -126,7 +126,7 @@ See [API Reference](api.md#websocket) for full payload shapes.
 | `steer` | Inject into the active streaming turn between tool iterations |
 | `followup` | Enqueue and process as a separate turn after current completes |
 | `collect` | Batch multiple messages into a single prompt after debounce |
-| `steer-backlog` | Try steer; if not streaming, fallback to followup |
+| `steer_backlog` | Try steer; if not streaming, fallback to followup |
 | `interrupt` | Abort current turn, clear queue, process immediately |
 
 **Drop policies** control what happens when queue depth exceeds the cap:

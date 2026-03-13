@@ -11,10 +11,6 @@
 #include <fstream>
 #include <thread>
 
-#include "stb_image.h"
-#include "stb_image_resize2.h"
-#include "stb_image_write.h"
-
 #include "ionclaw/agent/Compaction.hpp"
 #include "ionclaw/agent/ContextWindow.hpp"
 #include "ionclaw/agent/HookRunner.hpp"
@@ -24,7 +20,6 @@
 #include "ionclaw/provider/ProviderHelper.hpp"
 #include "ionclaw/tool/builtin/MemorySaveTool.hpp"
 #include "ionclaw/transcription/TranscriptionProviderRegistry.hpp"
-#include "ionclaw/util/Base64.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
 #include "ionclaw/util/UniqueId.hpp"
@@ -34,22 +29,6 @@ namespace ionclaw
 {
 namespace agent
 {
-
-namespace
-{
-
-// preview constraints for user-uploaded images
-constexpr int MEDIA_PREVIEW_MAX_WIDTH = 1024;
-constexpr int MEDIA_PREVIEW_JPEG_QUALITY = 50;
-
-void stbWriteCallback(void *context, void *data, int size)
-{
-    auto *vec = static_cast<std::vector<unsigned char> *>(context);
-    auto *bytes = static_cast<unsigned char *>(data);
-    vec->insert(vec->end(), bytes, bytes + size);
-}
-
-} // anonymous namespace
 
 // graduated thinking level downgrade: high→medium→low→(empty = remove)
 std::string pickFallbackThinkingLevel(const std::string &current)
@@ -227,6 +206,17 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
 
     for (const auto &path : paths)
     {
+        // only process audio files for transcription; images are handled via vision tool
+        auto ext = fs::path(path).extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(),
+                       [](unsigned char c)
+                       { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+
+        if (AUDIO_EXTENSIONS.count(ext) == 0)
+        {
+            continue;
+        }
+
         auto fullPath = projectRoot + "/" + path;
 
         if (!fs::exists(fullPath) || !fs::is_regular_file(fullPath))
@@ -235,178 +225,69 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
             continue;
         }
 
-        // determine extension
-        auto ext = fs::path(fullPath).extension().string();
-        std::transform(ext.begin(), ext.end(), ext.begin(),
-                       [](unsigned char c)
-                       { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+        // audio: transcribe if configured
+        auto format = ext.substr(1); // strip leading dot
 
-        if (AUDIO_EXTENSIONS.count(ext) > 0)
+        if (configPtr && !configPtr->transcription.model.empty())
         {
-            // audio: transcribe if configured
-            auto format = ext.substr(1); // strip leading dot
+            auto model = configPtr->transcription.model;
+            auto slashPos = model.find('/');
+            auto providerName = slashPos != std::string::npos ? model.substr(0, slashPos) : model;
 
-            if (configPtr && !configPtr->transcription.model.empty())
+            auto *provider = ionclaw::transcription::TranscriptionProviderRegistry::instance().get(providerName);
+
+            if (!provider)
             {
-                auto model = configPtr->transcription.model;
-                auto slashPos = model.find('/');
-                auto providerName = slashPos != std::string::npos ? model.substr(0, slashPos) : model;
+                spdlog::warn("[transcription] no provider found for '{}', skipping audio", providerName);
+                blocks.push_back({{"type", "warning"}, {"text", "Transcription provider '" + providerName + "' not found. Audio was ignored."}});
+                continue;
+            }
 
-                auto *provider = ionclaw::transcription::TranscriptionProviderRegistry::instance().get(providerName);
+            // read raw bytes
+            std::ifstream f(fullPath, std::ios::binary);
 
-                if (!provider)
+            if (!f.is_open())
+            {
+                spdlog::warn("[transcription] failed to open: {}", fullPath);
+                continue;
+            }
+
+            std::string audioData((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+            f.close();
+
+            if (audioData.empty())
+            {
+                spdlog::warn("[transcription] empty audio file: {}", fullPath);
+                continue;
+            }
+
+            ionclaw::transcription::TranscriptionContext ctx;
+            ctx.model = model;
+            ctx.providerName = providerName;
+            ctx.config = configPtr;
+
+            try
+            {
+                auto result = provider->transcribe(audioData, format, ctx);
+
+                if (!result.text.empty())
                 {
-                    spdlog::warn("[transcription] no provider found for '{}', skipping audio", providerName);
-                    blocks.push_back({{"type", "warning"}, {"text", "Transcription provider '" + providerName + "' not found. Audio was ignored."}});
-                    continue;
+                    blocks.push_back({{"type", "transcription"}, {"text", result.text}});
                 }
-
-                // read raw bytes
-                std::ifstream f(fullPath, std::ios::binary);
-
-                if (!f.is_open())
+                else
                 {
-                    spdlog::warn("[transcription] failed to open: {}", fullPath);
-                    continue;
-                }
-
-                std::string audioData((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
-                f.close();
-
-                if (audioData.empty())
-                {
-                    spdlog::warn("[transcription] empty audio file: {}", fullPath);
-                    continue;
-                }
-
-                ionclaw::transcription::TranscriptionContext ctx;
-                ctx.model = model;
-                ctx.providerName = providerName;
-                ctx.config = configPtr;
-
-                try
-                {
-                    auto result = provider->transcribe(audioData, format, ctx);
-
-                    if (!result.text.empty())
-                    {
-                        blocks.push_back({{"type", "transcription"}, {"text", result.text}});
-                    }
-                    else
-                    {
-                        spdlog::warn("[transcription] empty result for: {}", fullPath);
-                    }
-                }
-                catch (const std::exception &e)
-                {
-                    spdlog::error("[transcription] error: {}", e.what());
+                    spdlog::warn("[transcription] empty result for: {}", fullPath);
                 }
             }
-            else
+            catch (const std::exception &e)
             {
-                spdlog::warn("[transcription] no model configured, skipping audio: {}", fullPath);
-                blocks.push_back({{"type", "warning"}, {"text", "No transcription model configured. Audio was ignored. Configure it in Settings."}});
+                spdlog::error("[transcription] error: {}", e.what());
             }
         }
         else
         {
-            // image: read raw bytes, generate LLM-friendly JPEG preview
-            std::ifstream file(fullPath, std::ios::binary);
-
-            if (!file.good())
-            {
-                spdlog::warn("[resolveMedia] failed to open image: {}", fullPath);
-                continue;
-            }
-
-            std::string rawBytes((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-
-            if (rawBytes.empty())
-            {
-                spdlog::warn("[resolveMedia] empty image file: {}", fullPath);
-                continue;
-            }
-
-            // decode → resize → JPEG preview (same as VisionTool/BrowserTool)
-            int w = 0, h = 0, channels = 0;
-            unsigned char *pixels = stbi_load_from_memory(
-                reinterpret_cast<const unsigned char *>(rawBytes.data()),
-                static_cast<int>(rawBytes.size()), &w, &h, &channels, 3);
-
-            if (!pixels)
-            {
-                // SVG, ICO, TIFF etc. — send raw data with original MIME type
-                std::string mime = "image/png";
-
-                if (ext == ".jpg" || ext == ".jpeg")
-                    mime = "image/jpeg";
-                else if (ext == ".gif")
-                    mime = "image/gif";
-                else if (ext == ".webp")
-                    mime = "image/webp";
-                else if (ext == ".svg")
-                    mime = "image/svg+xml";
-                else if (ext == ".bmp")
-                    mime = "image/bmp";
-
-                auto b64 = ionclaw::util::Base64::encode(rawBytes);
-                spdlog::info("[resolveMedia] image raw (not rasterizable): {} ({}, {}KB)", fullPath, mime, rawBytes.size() / 1024);
-                blocks.push_back({{"type", "image"}, {"url", "data:" + mime + ";base64," + b64}});
-                continue;
-            }
-
-            int previewW = w;
-            int previewH = h;
-            std::vector<unsigned char> resizedPixels;
-            unsigned char *previewData = pixels;
-
-            if (w > MEDIA_PREVIEW_MAX_WIDTH)
-            {
-                previewW = MEDIA_PREVIEW_MAX_WIDTH;
-                previewH = static_cast<int>(static_cast<double>(h) * MEDIA_PREVIEW_MAX_WIDTH / w);
-
-                if (previewH < 1)
-                    previewH = 1;
-
-                resizedPixels.resize(static_cast<size_t>(previewW * previewH * 3));
-                auto *ok = stbir_resize_uint8_linear(
-                    pixels, w, h, 0,
-                    resizedPixels.data(), previewW, previewH, 0, STBIR_RGB);
-
-                if (ok)
-                {
-                    previewData = resizedPixels.data();
-                }
-                else
-                {
-                    spdlog::warn("[resolveMedia] resize failed for {}x{}, using original dimensions", w, h);
-                    previewW = w;
-                    previewH = h;
-                }
-            }
-
-            // encode as JPEG
-            std::vector<unsigned char> jpegBuf;
-            jpegBuf.reserve(static_cast<size_t>(previewW * previewH));
-            stbi_write_jpg_to_func(stbWriteCallback, &jpegBuf, previewW, previewH, 3,
-                                   previewData, MEDIA_PREVIEW_JPEG_QUALITY);
-
-            stbi_image_free(pixels);
-
-            if (jpegBuf.empty())
-            {
-                spdlog::warn("[resolveMedia] JPEG encode failed for {}, skipping", fullPath);
-                continue;
-            }
-
-            auto previewB64 = ionclaw::util::Base64::encode(
-                reinterpret_cast<const unsigned char *>(jpegBuf.data()), jpegBuf.size());
-
-            spdlog::info("[resolveMedia] image preview: {} ({}x{} -> {}x{}, {}KB JPEG from {}KB {})",
-                         fullPath, w, h, previewW, previewH,
-                         jpegBuf.size() / 1024, rawBytes.size() / 1024, ext);
-
-            blocks.push_back({{"type", "image"}, {"url", "data:image/jpeg;base64," + previewB64}});
+            spdlog::warn("[transcription] no model configured, skipping audio: {}", fullPath);
+            blocks.push_back({{"type", "warning"}, {"text", "No transcription model configured. Audio was ignored. Configure it in Settings."}});
         }
     }
 
@@ -643,8 +524,8 @@ void AgentLoop::processMessage(
     auto mediaBlocks = resolveMedia(message.media, projectRoot);
 
     // extract transcription blocks and prepend text to user content
+    // images are NOT embedded as content blocks — the model uses the vision tool to analyze them
     std::string effectiveContent = content;
-    nlohmann::json imageBlocks = nlohmann::json::array();
 
     for (const auto &block : mediaBlocks)
     {
@@ -681,10 +562,6 @@ void AgentLoop::processMessage(
                                                       {"chat_id", message.chatId},
                                                       {"agent_name", agentName},
                                                   });
-        }
-        else
-        {
-            imageBlocks.push_back(block);
         }
     }
 
@@ -749,71 +626,30 @@ void AgentLoop::processMessage(
     // strip incomplete trailing directive markers
     effectiveContent = stripTrailingDirectives(effectiveContent);
 
-    // re-resolve media for recent historical user messages so images persist across turns
-    std::map<int, nlohmann::json> historyMediaBlocks;
-
+    // append media annotations for the current message (e.g. "[image attached: path — use vision tool...]")
+    if (!message.media.empty())
     {
-        int userCount = 0;
-        // pruneHistoryImages keeps 4 user messages total (1 current + 3 historical),
-        // so we only need to resolve 3 historical messages to avoid wasted work
-        constexpr int HISTORY_MEDIA_KEEP = 3;
+        std::vector<nlohmann::json> mediaPaths;
+        mediaPaths.reserve(message.media.size());
 
-        for (int i = static_cast<int>(history.size()) - 1; i >= 0; --i)
+        for (const auto &p : message.media)
         {
-            if (history[i].role != "user" || history[i].media.empty())
-            {
-                continue;
-            }
-
-            userCount++;
-
-            if (userCount > HISTORY_MEDIA_KEEP)
-            {
-                break;
-            }
-
-            // extract file paths from session media entries
-            std::vector<std::string> paths;
-
-            for (const auto &m : history[i].media)
-            {
-                if (m.is_string())
-                {
-                    paths.push_back(m.get<std::string>());
-                }
-            }
-
-            if (!paths.empty())
-            {
-                auto blocks = resolveMedia(paths, projectRoot);
-
-                // filter to image blocks only (transcriptions are already in content)
-                nlohmann::json imageOnly = nlohmann::json::array();
-
-                for (const auto &block : blocks)
-                {
-                    auto type = block.value("type", "");
-
-                    if (type == "image" || type == "image_url")
-                    {
-                        imageOnly.push_back(block);
-                    }
-                }
-
-                if (!imageOnly.empty())
-                {
-                    historyMediaBlocks[i] = imageOnly;
-                }
-            }
+            mediaPaths.push_back(p);
         }
 
-        if (!historyMediaBlocks.empty())
+        auto annotation = ContextBuilder::buildMediaAnnotation(mediaPaths);
+
+        if (!annotation.empty())
         {
-            spdlog::info("[AgentLoop] Re-resolved media for {} historical message(s)", historyMediaBlocks.size());
+            effectiveContent += annotation;
         }
     }
 
-    auto messages = ContextBuilder::buildMessages(systemPrompt, history, effectiveContent, imageBlocks, historyMediaBlocks);
+    // images are not embedded — the model uses the vision tool via file paths in annotations
+    nlohmann::json emptyBlocks = nlohmann::json::array();
+    std::map<int, nlohmann::json> emptyHistoryMedia;
+
+    auto messages = ContextBuilder::buildMessages(systemPrompt, history, effectiveContent, emptyBlocks, emptyHistoryMedia);
 
     // prompt size validation: defense-in-depth against oversized payloads
     auto promptBytes = estimatePromptBytes(messages);

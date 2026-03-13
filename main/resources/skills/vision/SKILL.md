@@ -1,11 +1,11 @@
 ---
 name: vision
-description: Analyze and describe images using AI vision. Use when the user asks to look at, describe, read, analyze, or extract information from an image — from a local file, URL, or base64 data.
+description: Analyze images from local files, URLs, or base64 data. For user-uploaded images, the path is provided in the [image attached] annotation.
 ---
 
 # Vision
 
-Analyze images using the `vision` tool. The image is sent directly to the AI model for visual analysis.
+Analyze images using the `vision` tool. When a user uploads an image, you receive an `[image attached: path]` annotation — use that path as the `path` parameter.
 
 ## Parameters
 
@@ -16,15 +16,6 @@ Analyze images using the `vision` tool. The image is sent directly to the AI mod
 | `base64` | string | one of path/url/base64 | Base64-encoded image data (with or without data URI prefix) |
 | `question` | string | no | Specific question about the image. If omitted, provides a general description |
 | `mime_type` | string | no | Override MIME type (auto-detected from file extension or URL) |
-
-## CRITICAL: When NOT to Use This Tool
-
-If the user already sent an image in the chat message, you can **see it directly** — do NOT use this tool. Just describe it from context.
-
-Use this tool ONLY when you need to load an image from:
-- A file path on disk (e.g. from a previous `browser action="screenshot"`)
-- A remote URL
-- External base64 data
 
 ## How It Works
 

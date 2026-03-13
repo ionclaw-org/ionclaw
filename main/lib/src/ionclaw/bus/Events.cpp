@@ -23,7 +23,7 @@ std::string queueModeToString(QueueMode mode)
     case QueueMode::Collect:
         return "collect";
     case QueueMode::SteerBacklog:
-        return "steer-backlog";
+        return "steer_backlog";
     case QueueMode::Interrupt:
         return "interrupt";
     }
@@ -59,27 +59,22 @@ std::optional<QueueMode> normalizeQueueMode(const std::string &raw)
         return QueueMode::Steer;
     }
 
-    if (s == "queue" || s == "queued")
-    {
-        return QueueMode::Steer;
-    }
-
-    if (s == "followup" || s == "follow-up")
+    if (s == "followup")
     {
         return QueueMode::Followup;
     }
 
-    if (s == "collect" || s == "coalesce" || s == "batch")
+    if (s == "collect")
     {
         return QueueMode::Collect;
     }
 
-    if (s == "steer-backlog" || s == "steer+backlog" || s == "steer_backlog")
+    if (s == "steer_backlog")
     {
         return QueueMode::SteerBacklog;
     }
 
-    if (s == "interrupt" || s == "interrupts" || s == "abort")
+    if (s == "interrupt")
     {
         return QueueMode::Interrupt;
     }
@@ -94,17 +89,17 @@ std::optional<QueueDropPolicy> normalizeQueueDropPolicy(const std::string &raw)
                    [](unsigned char c)
                    { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
 
-    if (s == "old" || s == "oldest")
+    if (s == "old")
     {
         return QueueDropPolicy::Old;
     }
 
-    if (s == "new" || s == "newest" || s == "reject")
+    if (s == "new")
     {
         return QueueDropPolicy::New;
     }
 
-    if (s == "summarize" || s == "summary")
+    if (s == "summarize")
     {
         return QueueDropPolicy::Summarize;
     }

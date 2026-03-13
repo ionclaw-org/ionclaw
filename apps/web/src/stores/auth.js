@@ -3,8 +3,8 @@ import { ref, computed } from 'vue'
 import router from '../router'
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(localStorage.getItem('ionclaw-token') || '')
-  const username = ref(localStorage.getItem('ionclaw-username') || '')
+  const token = ref(localStorage.getItem('ionclaw_token') || '')
+  const username = ref(localStorage.getItem('ionclaw_username') || '')
   const isAuthenticated = computed(() => !!token.value)
 
   async function login(user, password) {
@@ -22,15 +22,15 @@ export const useAuthStore = defineStore('auth', () => {
     const data = await res.json()
     token.value = data.token
     username.value = data.username
-    localStorage.setItem('ionclaw-token', data.token)
-    localStorage.setItem('ionclaw-username', data.username)
+    localStorage.setItem('ionclaw_token', data.token)
+    localStorage.setItem('ionclaw_username', data.username)
   }
 
   function logout() {
     token.value = ''
     username.value = ''
-    localStorage.removeItem('ionclaw-token')
-    localStorage.removeItem('ionclaw-username')
+    localStorage.removeItem('ionclaw_token')
+    localStorage.removeItem('ionclaw_username')
     router.push('/login')
   }
 

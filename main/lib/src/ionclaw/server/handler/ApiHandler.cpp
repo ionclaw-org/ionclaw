@@ -349,6 +349,14 @@ void ApiHandler::routeRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
             return;
         }
 
+        auto renamePath = HttpHelper::extractPathParam(path, "/api/files/rename/");
+
+        if (!renamePath.empty() && method == "POST")
+        {
+            routes->handleFileRename(req, resp, renamePath);
+            return;
+        }
+
         // file upload
         if ((path == "/api/files/upload" || path == "/api/files/upload/") && method == "POST")
         {

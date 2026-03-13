@@ -33,9 +33,11 @@ HttpServer::HttpServer(
 
 void HttpServer::start()
 {
-    // bind server socket
+    // bind server socket with explicit options for cross-platform compatibility
     Poco::Net::SocketAddress address(serverConfig.host, serverConfig.port);
-    Poco::Net::ServerSocket socket(address);
+    Poco::Net::ServerSocket socket;
+    socket.bind(address, true);
+    socket.listen(64);
 
     // configure thread pool
     auto params = new Poco::Net::HTTPServerParams;

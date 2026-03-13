@@ -263,7 +263,7 @@ In all cases, the message becomes an `InboundMessage`:
 | Field | Description |
 |---|---|
 | `channel` | Source: `"web"`, `"telegram"`, `"cron"`, or `"heartbeat"` |
-| `senderId` | Who sent it (e.g., `"web-user"`, Telegram user ID) |
+| `senderId` | Who sent it (e.g., `"web_user"`, Telegram user ID) |
 | `chatId` | Conversation identifier |
 | `content` | Message text |
 | `media` | List of attached file paths |
@@ -309,7 +309,7 @@ When a message arrives while the agent is already processing a request for the s
 | `steer` | Inject into the active turn between tool iterations |
 | `followup` | Enqueue and process as a separate turn after the current one completes |
 | `collect` | Batch multiple messages into a single prompt after a debounce period |
-| `steer-backlog` | Try steer first; if not streaming, fall back to followup |
+| `steer_backlog` | Try steer first; if not streaming, fall back to followup |
 | `interrupt` | Abort the current turn, clear the queue, process the new message immediately |
 
 ### Mode Resolution

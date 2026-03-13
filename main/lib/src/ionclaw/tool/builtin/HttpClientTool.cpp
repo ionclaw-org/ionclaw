@@ -452,12 +452,17 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
 #ifdef IONCLAW_HAS_SSL
             if (scheme == "https")
             {
+#ifdef _WIN32
+                auto context = new Poco::Net::Context(
+                    Poco::Net::Context::CLIENT_USE, "");
+#else
                 auto context = new Poco::Net::Context(
                     Poco::Net::Context::CLIENT_USE,
                     "", "", "",
                     Poco::Net::Context::VERIFY_NONE,
                     9, true,
                     "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
+#endif
                 session = std::make_unique<Poco::Net::HTTPSClientSession>(host, port, context);
             }
             else

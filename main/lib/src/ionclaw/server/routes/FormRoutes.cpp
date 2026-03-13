@@ -76,7 +76,7 @@ nlohmann::json Routes::buildFormSchemas()
         {{"name", "workspace"}, {"type", "text"}, {"label", "Workspace"}},
         {{"name", "model"}, {"type", "text"}, {"label", "Model"}, {"required", true}},
         {{"name", "description"}, {"type", "text"}, {"label", "Description"}},
-        {{"name", "instructions"}, {"type", "long-text"}, {"label", "Instructions"}},
+        {{"name", "instructions"}, {"type", "long_text"}, {"label", "Instructions"}},
     });
 
     schemas["provider"] = json::array({

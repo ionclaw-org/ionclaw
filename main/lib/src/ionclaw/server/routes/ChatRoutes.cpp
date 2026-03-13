@@ -114,7 +114,7 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
         // build inbound message
         ionclaw::bus::InboundMessage inbound;
         inbound.channel = "web";
-        inbound.senderId = "web-user";
+        inbound.senderId = "web_user";
         inbound.chatId = chatId;
         inbound.content = message;
         inbound.media = media;
@@ -126,7 +126,7 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
             inbound.queueMode = ionclaw::bus::normalizeQueueMode(body["queue_mode"].get<std::string>());
         }
 
-        // steer bypass: if session has an active turn and mode is steer-compatible,
+        // steer bypass: if session has an active turn and mode is steer_compatible,
         // inject directly into SessionQueue (bypasses MessageBus which blocks during turns)
         if (inbound.queueMode.has_value() && orchestrator && config && orchestrator->isSessionActive(sessionKey))
         {
@@ -142,7 +142,7 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
                     auto settings = ionclaw::bus::resolveQueueSettings(*config, "web", inbound.queueMode);
                     sq->enqueue(sessionKey, inbound, ionclaw::bus::QueueMode::Steer, settings);
 
-                    // also enqueue followup backup for steer-backlog
+                    // also enqueue followup backup for steer_backlog
                     if (mode == ionclaw::bus::QueueMode::SteerBacklog)
                     {
                         sq->enqueue(sessionKey, inbound, ionclaw::bus::QueueMode::Followup, settings);

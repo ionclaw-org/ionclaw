@@ -178,7 +178,7 @@ transcription:
 # ---------------------------------------------------------------------------
 messages:
   queue:
-    mode: "collect"              # str  -- Default queue mode: steer, followup, collect, steer-backlog, interrupt.
+    mode: "collect"              # str  -- Default queue mode: steer, followup, collect, steer_backlog, interrupt.
     by_channel:                  # dict -- Per-channel mode override.
       # telegram: "followup"     #         Key = channel prefix, value = queue mode.
     debounce_ms: 1000            # int  -- Collect debounce period in milliseconds.
@@ -274,13 +274,13 @@ messages:
     mode: "collect"           # default mode for all channels
     by_channel:
       telegram: "followup"    # telegram uses followup instead
-      web: "steer-backlog"    # web uses steer with fallback
+      web: "steer_backlog"    # web uses steer with fallback
     debounce_ms: 1000         # collect mode debounce window
     cap: 20                   # max queued messages
     drop: "summarize"          # old, new, or summarize
 ```
 
-**Modes:** `steer` (inject mid-turn), `followup` (next turn), `collect` (batch after debounce), `steer-backlog` (try steer, else followup), `interrupt` (abort and process).
+**Modes:** `steer` (inject mid-turn), `followup` (next turn), `collect` (batch after debounce), `steer_backlog` (try steer, else followup), `interrupt` (abort and process).
 
 **Drop policies:** When the queue exceeds `cap`, excess messages are handled per policy: `old` drops oldest, `new` rejects incoming, `summarize` drops oldest but keeps summary lines for context injection.
 

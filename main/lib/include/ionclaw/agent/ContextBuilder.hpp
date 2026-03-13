@@ -71,6 +71,9 @@ public:
     // replace image content blocks with text markers in older messages
     static void pruneHistoryImages(std::vector<ionclaw::provider::Message> &messages, int keepRecent = 4);
 
+    // build annotation text for media paths (e.g. "[image attached: path — use vision tool...]")
+    static std::string buildMediaAnnotation(const std::vector<nlohmann::json> &media);
+
     // repair tool use / result pairing after history trimming
     static void repairToolUseResultPairing(std::vector<ionclaw::provider::Message> &messages);
 

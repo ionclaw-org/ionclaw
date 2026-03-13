@@ -171,7 +171,7 @@ void CronService::tick()
         // publish inbound message to trigger agent processing
         try
         {
-            auto chatId = "cron-" + job.id + "-" + ionclaw::util::UniqueId::shortId();
+            auto chatId = "cron_" + job.id + "_" + ionclaw::util::UniqueId::shortId();
 
             // create task for board tracking
             std::string taskId;

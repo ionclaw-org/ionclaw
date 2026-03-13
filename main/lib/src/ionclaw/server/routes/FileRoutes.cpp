@@ -433,6 +433,122 @@ void Routes::handleFileCreate(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
     sendJson(resp, {{"status", "ok"}, {"path", path}});
 }
 
+void Routes::handleFileRename(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &path)
+{
+    try
+    {
+        // block hidden and protected paths
+        if (isHiddenPath(path))
+        {
+            sendError(resp, "Access denied", 403);
+            return;
+        }
+
+        if (isProtectedFile(path))
+        {
+            sendError(resp, "This file cannot be renamed", 403);
+            return;
+        }
+
+        auto body = nlohmann::json::parse(readBody(req));
+        auto newName = body.value("name", "");
+
+        if (newName.empty())
+        {
+            sendError(resp, "New name is required", 400);
+            return;
+        }
+
+        // reject names with path separators or hidden names
+        if (newName.find('/') != std::string::npos || newName.find('\\') != std::string::npos || newName[0] == '.')
+        {
+            sendError(resp, "Invalid name", 400);
+            return;
+        }
+
+        if (isProtectedFile(newName))
+        {
+            sendError(resp, "Cannot use a protected file name", 403);
+            return;
+        }
+
+        std::string fullPath = projectRoot + "/" + path;
+
+        // canonicalize source path
+        fs::path canonicalPath;
+        fs::path canonicalRoot;
+
+        try
+        {
+            canonicalPath = fs::weakly_canonical(fs::path(fullPath));
+            canonicalRoot = fs::weakly_canonical(fs::path(projectRoot));
+        }
+        catch (...)
+        {
+            sendError(resp, "File not found", 404);
+            return;
+        }
+
+        // verify source is within project root
+        std::string rootStr = canonicalRoot.string();
+
+        if (!rootStr.empty() && rootStr.back() != fs::path::preferred_separator)
+        {
+            rootStr += fs::path::preferred_separator;
+        }
+
+        std::string canonicalStr = canonicalPath.string();
+
+        if (canonicalStr.rfind(rootStr, 0) != 0)
+        {
+            sendError(resp, "Access denied", 403);
+            return;
+        }
+
+        // prevent renaming the project root itself
+        if (canonicalStr == canonicalRoot.string() || canonicalStr == rootStr)
+        {
+            sendError(resp, "Cannot rename root directory", 403);
+            return;
+        }
+
+        if (!fs::exists(canonicalPath))
+        {
+            sendError(resp, "File not found", 404);
+            return;
+        }
+
+        // build destination path (same parent, new name)
+        fs::path destPath = canonicalPath.parent_path() / newName;
+
+        // verify destination is within project root
+        std::string destStr = fs::weakly_canonical(destPath).string();
+
+        if (destStr.rfind(rootStr, 0) != 0)
+        {
+            sendError(resp, "Access denied", 403);
+            return;
+        }
+
+        if (fs::exists(destPath))
+        {
+            sendError(resp, "A file or folder with that name already exists", 400);
+            return;
+        }
+
+        fs::rename(canonicalPath, destPath);
+
+        // compute new relative path
+        auto newRelPath = fs::relative(destPath, canonicalRoot).string();
+
+        sendJson(resp, {{"status", "ok"}, {"path", newRelPath}});
+    }
+    catch (const std::exception &e)
+    {
+        sendError(resp, e.what());
+    }
+}
+
 void Routes::handleFileDownload(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp, const std::string &path)
 {
     // normalize path
