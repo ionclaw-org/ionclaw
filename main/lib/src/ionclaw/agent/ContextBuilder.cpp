@@ -133,7 +133,8 @@ std::string ContextBuilder::buildSystemPrompt(
     const std::string &agentInstructions,
     const std::string &channel,
     const std::vector<std::string> &toolNames,
-    PromptMode mode) const
+    PromptMode mode,
+    const std::string &userLanguage) const
 {
     std::ostringstream prompt;
     bool full = (mode == PromptMode::Full);
@@ -160,8 +161,13 @@ std::string ContextBuilder::buildSystemPrompt(
                << "- Follow applicable laws and respect intellectual property.";
     }
 
-    // 4. current date/time
+    // 4. current date/time and user language
     prompt << "\n\nCurrent date and time: " << ionclaw::util::TimeHelper::nowLocal() << ".";
+
+    if (!userLanguage.empty())
+    {
+        prompt << "\nUser language: " << ionclaw::util::StringHelper::sanitizeForPrompt(userLanguage) << ".";
+    }
 
     // 5. runtime info
     prompt << "\n\n# Runtime\n";

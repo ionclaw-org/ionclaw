@@ -34,6 +34,7 @@ migrate_working_dir/
 .pub/
 /build/
 *.reflectable.dart
+/pubspec.lock
 
 # Symbolication related
 app.*.symbols

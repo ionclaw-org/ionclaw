@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { v4 as uuidv4 } from 'uuid'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import Textarea from 'primevue/textarea'
@@ -48,11 +49,7 @@ function refOptions(type) {
 }
 
 function generateUuid() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = Math.random() * 16 | 0
-    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
-  })
+  return uuidv4()
 }
 
 const pendingGenerateField = ref(null)

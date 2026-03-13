@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import Button from 'primevue/button'
 import Textarea from 'primevue/textarea'
 import { useChatStore } from '../../stores/chat'
@@ -8,6 +8,7 @@ const emit = defineEmits(['send'])
 const chatStore = useChatStore()
 const fileInput = ref(null)
 const recording = ref(false)
+const canRecord = computed(() => !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined')
 let mediaRecorder = null
 let audioChunks = []
 
@@ -64,10 +65,13 @@ async function toggleRecording() {
     return
   }
 
+  if (!canRecord.value) return
+
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     audioChunks = []
-    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+    mediaRecorder = new MediaRecorder(stream, { mimeType })
 
     mediaRecorder.ondataavailable = (e) => {
       if (e.data.size > 0) audioChunks.push(e.data)
@@ -78,10 +82,12 @@ async function toggleRecording() {
       recording.value = false
 
       if (audioChunks.length) {
-        const blob = new Blob(audioChunks, { type: 'audio/webm' })
+        const recMime = mediaRecorder.mimeType || 'audio/webm'
+        const ext = recMime.includes('mp4') ? 'mp4' : 'webm'
+        const blob = new Blob(audioChunks, { type: recMime })
         const now = new Date()
         const ts = now.toTimeString().slice(0, 8).replace(/:/g, '-')
-        const file = new File([blob], `recording-${ts}.webm`, { type: 'audio/webm' })
+        const file = new File([blob], `recording-${ts}.${ext}`, { type: recMime })
         chatStore.draft.attachments.push(file)
       }
     }
@@ -125,6 +131,7 @@ async function toggleRecording() {
         title="Attach file"
       />
       <Button
+        v-if="canRecord"
         :icon="recording ? 'pi pi-stop-circle' : 'pi pi-microphone'"
         rounded
         text
