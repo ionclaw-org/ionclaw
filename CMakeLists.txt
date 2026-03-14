@@ -23,7 +23,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # options
-set(IONCLAW_VERSION "1.0.3" CACHE STRING "IonClaw Version")
+set(IONCLAW_VERSION "1.0.4" CACHE STRING "IonClaw Version")
 option(IONCLAW_BUILD_SHARED "Build Shared Library (FFI)" OFF)
 
 # Apple platform deployment targets
