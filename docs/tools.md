@@ -78,7 +78,7 @@ Execute a shell command in the workspace directory.
 | `command` | string | Yes | The shell command to execute |
 | `working_dir` | string | No | Working directory (relative to workspace). When restriction is enabled, locked to workspace |
 
-Timeout is configured via `tools.exec_timeout` (default 60 seconds). Available on macOS, Linux, and Windows only.
+Timeout is configured via `tools.exec_timeout` (default 60 seconds). Uses native process management (`fork`/`exec`/`waitpid` on POSIX, `CreateProcess` on Windows) with SIGTERM→SIGKILL escalation on timeout. Output is capped at 200KB with UTF-8 safe truncation. Available on macOS, Linux, and Windows only.
 
 ---
 

@@ -418,7 +418,7 @@ main/
 │   │   ├── task/                # TaskManager, Task
 │   │   ├── tool/                # ToolRegistry, Tool, Platform
 │   │   │   └── builtin/         # ReadFileTool, ExecTool, BrowserTool, SpawnTool, etc.
-│   │   └── util/                # HttpClient, JwtHelper, TimeHelper, StringHelper, EmbeddedResources
+│   │   └── util/                # HttpClient, JwtHelper, TimeHelper, StringHelper, ProcessRunner, EmbeddedResources
 │   └── src/                     # Implementation files (mirrors include/ structure)
 ├── app/
 │   └── src/main.cpp             # Desktop entry point (CLI)

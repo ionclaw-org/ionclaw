@@ -11,6 +11,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/StbImage.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/StbImageResize.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/HttpClient.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/ProcessRunner.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/MimeType.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/SsrfGuard.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/StringHelper.cpp
