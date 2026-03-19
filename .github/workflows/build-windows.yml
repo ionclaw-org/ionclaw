@@ -14,7 +14,15 @@ env:
 
 jobs:
   build:
-    name: Windows (x86_64)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows (x86_64)
+            arch: x86_64
+            artifact: ionclaw-windows-x86_64
+
+    name: ${{ matrix.name }}
     runs-on: windows-latest
 
     steps:
@@ -38,8 +46,8 @@ jobs:
             ${{ env.CPM_SOURCE_CACHE }}
             build/release/_deps
             build/shared/_deps
-          key: cpm-${{ runner.os }}-x86_64-${{ hashFiles('cmake/cpm/cpm-dependency.cmake') }}
-          restore-keys: cpm-${{ runner.os }}-x86_64-
+          key: cpm-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('cmake/cpm/cpm-dependency.cmake') }}
+          restore-keys: cpm-${{ runner.os }}-${{ matrix.arch }}-
 
       - name: Configure
         run: cmake -B build/release -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
@@ -59,26 +67,28 @@ jobs:
         if: ${{ inputs.release }}
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path dist/ionclaw-windows-x86_64
-          Copy-Item build/release/bin/ionclaw-server.exe dist/ionclaw-windows-x86_64/
-          Copy-Item LICENSE.md dist/ionclaw-windows-x86_64/
-          Compress-Archive -Path dist/ionclaw-windows-x86_64 -DestinationPath ionclaw-windows-x86_64.zip
+          New-Item -ItemType Directory -Force -Path dist/${{ matrix.artifact }}
+          $exe = Get-ChildItem -Path build/release -Recurse -Filter "ionclaw-server.exe" | Select-Object -First 1
+          Copy-Item $exe.FullName dist/${{ matrix.artifact }}/
+          Copy-Item LICENSE.md dist/${{ matrix.artifact }}/
+          Compress-Archive -Path dist/${{ matrix.artifact }} -DestinationPath ${{ matrix.artifact }}.zip
 
       - name: Package shared library
         if: ${{ inputs.release }}
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path dist/ionclaw-windows-x86_64-shared
-          Copy-Item build/shared/lib/ionclaw.dll dist/ionclaw-windows-x86_64-shared/
-          Copy-Item main/lib/include/ionclaw/ionclaw.h dist/ionclaw-windows-x86_64-shared/
-          Copy-Item LICENSE.md dist/ionclaw-windows-x86_64-shared/
-          Compress-Archive -Path dist/ionclaw-windows-x86_64-shared -DestinationPath ionclaw-windows-x86_64-shared.zip
+          New-Item -ItemType Directory -Force -Path dist/${{ matrix.artifact }}-shared
+          $dll = Get-ChildItem -Path build/shared -Recurse -Filter "ionclaw.dll" | Select-Object -First 1
+          Copy-Item $dll.FullName dist/${{ matrix.artifact }}-shared/
+          Copy-Item main/lib/include/ionclaw/ionclaw.h dist/${{ matrix.artifact }}-shared/
+          Copy-Item LICENSE.md dist/${{ matrix.artifact }}-shared/
+          Compress-Archive -Path dist/${{ matrix.artifact }}-shared -DestinationPath ${{ matrix.artifact }}-shared.zip
 
       - name: Upload artifacts
         if: ${{ inputs.release }}
         uses: actions/upload-artifact@v4
         with:
-          name: ionclaw-windows-x86_64
+          name: ${{ matrix.artifact }}
           path: |
-            ionclaw-windows-x86_64.zip
-            ionclaw-windows-x86_64-shared.zip
+            ${{ matrix.artifact }}.zip
+            ${{ matrix.artifact }}-shared.zip
