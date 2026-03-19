@@ -541,7 +541,7 @@ When the Orchestrator calls `AgentLoop::processMessage()`, the following happens
 1. Update task state to **DOING**
 2. Broadcast user message event (if not pre-saved)
 3. Ensure session exists
-4. Handle special commands (`/new` starts new session, `/reset` resets current session, `/help` lists commands)
+4. Handle chat commands (see below)
 5. Create `ToolContext` (workspace paths, service pointers, hook runner)
 6. Resolve media (images → base64 content blocks, audio → transcription)
 7. Save user message to session (if not pre-saved by REST API)
@@ -551,6 +551,16 @@ When the Orchestrator calls `AgentLoop::processMessage()`, the following happens
 11. Assemble messages: `[system prompt] + [history] + [user message]`
 12. Validate prompt size (compact if > 10MB)
 13. Run the agent loop
+
+### Chat Commands
+
+Built-in commands are intercepted before the LLM processes the message. Responses are delivered to ALL channels (WebSocket, Telegram, etc.):
+
+| Command | Action |
+|---------|--------|
+| `/new` | Clear session history and start fresh |
+| `/reset` | Same as `/new` (alias) |
+| `/help` | List available commands |
 
 ### runAgentLoop()
 
@@ -716,8 +726,9 @@ LLM API errors are classified into actionable categories:
 | `context_overflow` | Context too large | Compact and retry (up to 3 attempts) |
 | `rate_limit` | 429, too many requests | Exponential backoff (FailoverProvider) |
 | `billing` | Quota exceeded | Fail with error |
-| `auth` | 401, invalid key | Fail with error |
-| `model_not_found` | Model does not exist | Fail with error |
+| `auth` | 401, invalid key | Failover to next provider |
+| `model_not_found` | Model does not exist | Failover to next provider |
+| `host_not_found` | DNS resolution failed | Failover to next provider |
 | `timeout` | Request timeout | Downgrade thinking, retry |
 | `transient` | 500, 502, 503, connection errors | Single retry with 2.5s delay |
 | `role_ordering` | Roles must alternate | Clear session, return error |
