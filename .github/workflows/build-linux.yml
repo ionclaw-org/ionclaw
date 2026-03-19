@@ -31,11 +31,6 @@ jobs:
           npm install
           npm run build
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libssl-dev
-
       - name: Cache CPM packages
         uses: actions/cache@v4
         with:

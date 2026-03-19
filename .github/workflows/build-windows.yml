@@ -31,11 +31,6 @@ jobs:
           npm install
           npm run build
 
-      - name: Setup OpenSSL
-        run: |
-          choco install openssl -y --no-progress
-          echo "OPENSSL_ROOT_DIR=C:\Program Files\OpenSSL" >> $env:GITHUB_ENV
-
       - name: Cache CPM packages
         uses: actions/cache@v4
         with:
