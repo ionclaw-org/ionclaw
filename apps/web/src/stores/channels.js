@@ -7,7 +7,11 @@ export const useChannelsStore = defineStore('channels', () => {
   const channels = ref({})
 
   async function loadChannels() {
-    channels.value = await api.get('/channels')
+    try {
+      channels.value = await api.get('/channels')
+    } catch (e) {
+      console.error('[channels] load error:', e)
+    }
   }
 
   async function updateChannel(name, config) {
@@ -26,10 +30,12 @@ export const useChannelsStore = defineStore('channels', () => {
   }
 
   function onChannelStatus(data) {
-    if (channels.value[data.name]) {
-      channels.value[data.name].running = data.running
-    } else {
-      channels.value[data.name] = { running: data.running, type: data.name }
+    const existing = channels.value[data.name]
+    channels.value = {
+      ...channels.value,
+      [data.name]: existing
+        ? { ...existing, running: data.running }
+        : { running: data.running, type: data.name }
     }
   }
 

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onUnmounted } from 'vue'
 import Button from 'primevue/button'
 import { useApi } from '../../composables/useApi'
 
@@ -42,7 +42,7 @@ watch(() => props.path, async (path) => {
   try {
     const { useAuthStore } = await import('../../stores/auth')
     const auth = useAuthStore()
-    const token = auth.token?.value ?? auth.token
+    const token = auth.token
     const url = `${window.location.origin}/api/files/download/${path.startsWith('/') ? path.slice(1) : path}`
     const headers = {}
     if (token) headers['Authorization'] = `Bearer ${token}`
@@ -57,6 +57,10 @@ watch(() => props.path, async (path) => {
     loadingPreview.value = false
   }
 }, { immediate: true })
+
+onUnmounted(() => {
+  if (blobUrl.value) URL.revokeObjectURL(blobUrl.value)
+})
 
 async function onDownload() {
   if (!props.path) return

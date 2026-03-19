@@ -11,7 +11,7 @@ namespace server
 namespace handler
 {
 
-class PublicFileHandler : public Poco::Net::HTTPRequestHandler
+class PublicFileHandler final : public Poco::Net::HTTPRequestHandler
 {
 public:
     explicit PublicFileHandler(const std::string &publicDir);

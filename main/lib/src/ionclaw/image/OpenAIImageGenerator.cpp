@@ -8,15 +8,11 @@
 #include "Poco/StreamCopier.h"
 #include "Poco/URI.h"
 
-#ifdef IONCLAW_HAS_SSL
-#include "Poco/Net/Context.h"
-#include "Poco/Net/HTTPSClientSession.h"
-#endif
-
 #include "ionclaw/config/Config.hpp"
 #include "ionclaw/image/ImageGeneratorHelper.hpp"
 #include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/MimeType.hpp"
+#include "ionclaw/util/StringHelper.hpp"
 #include "nlohmann/json.hpp"
 #include "spdlog/spdlog.h"
 
@@ -174,9 +170,9 @@ std::string OpenAIImageGenerator::generateImage(const std::string &prompt,
 
     if (response.statusCode != 200)
     {
-        spdlog::error("[OpenAIImageGenerator] API error HTTP {}: {}", response.statusCode, response.body.substr(0, 500));
+        spdlog::error("[OpenAIImageGenerator] API error HTTP {}: {}", response.statusCode, ionclaw::util::StringHelper::utf8SafeTruncate(response.body, 500));
         return "Error: image generation API returned HTTP " + std::to_string(response.statusCode) + ": " +
-               response.body.substr(0, 500);
+               ionclaw::util::StringHelper::utf8SafeTruncate(response.body, 500);
     }
 
     auto saved = ImageGeneratorHelper::decodeAndSave(
@@ -203,11 +199,13 @@ std::string OpenAIImageGenerator::editImage(const std::string &prompt,
     // dall-e-3 does not support edits — fall back to generation
     if (!isGptImage && modelId.find("dall-e-3") != std::string::npos)
     {
+        spdlog::warn("[OpenAIImageGenerator] {} does not support edits, falling back to generation", modelId);
         return generateImage(prompt, filename, params, context, apiKey, baseUrl);
     }
 
+    bool restrict = !context.config || context.config->tools.restrictToWorkspace;
     auto resolvedRefs = ImageGeneratorHelper::resolveReferencePaths(
-        params, context.workspacePath, context.publicPath);
+        params, context.workspacePath, context.publicPath, restrict, context.projectPath);
 
     if (resolvedRefs.empty())
     {
@@ -226,29 +224,7 @@ std::string OpenAIImageGenerator::editImage(const std::string &prompt,
         path = "/";
     }
 
-    std::unique_ptr<Poco::Net::HTTPClientSession> session;
-
-#ifdef IONCLAW_HAS_SSL
-    if (uri.getScheme() == "https")
-    {
-#ifdef _WIN32
-        auto ctx = new Poco::Net::Context(
-            Poco::Net::Context::CLIENT_USE, "");
-#else
-        auto ctx = new Poco::Net::Context(
-            Poco::Net::Context::CLIENT_USE, "", "", "",
-            Poco::Net::Context::VERIFY_NONE, 9, true,
-            "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
-#endif
-        session = std::make_unique<Poco::Net::HTTPSClientSession>(host, port, ctx);
-    }
-    else
-#endif
-    {
-        session = std::make_unique<Poco::Net::HTTPClientSession>(host, port);
-    }
-
-    session->setTimeout(Poco::Timespan(120, 0));
+    auto session = util::HttpClient::createSession(uri, 120);
 
     Poco::Net::HTTPRequest request(Poco::Net::HTTPRequest::HTTP_POST, path, Poco::Net::HTTPMessage::HTTP_1_1);
     request.set("Host", host);
@@ -329,9 +305,9 @@ std::string OpenAIImageGenerator::editImage(const std::string &prompt,
 
     if (status != 200)
     {
-        spdlog::error("[OpenAIImageGenerator] Edit API error HTTP {}: {}", status, respBody.substr(0, 500));
+        spdlog::error("[OpenAIImageGenerator] Edit API error HTTP {}: {}", status, ionclaw::util::StringHelper::utf8SafeTruncate(respBody, 500));
         return "Error: image edit API returned HTTP " + std::to_string(status) + ": " +
-               respBody.substr(0, 500);
+               ionclaw::util::StringHelper::utf8SafeTruncate(respBody, 500);
     }
 
     auto saved = ImageGeneratorHelper::decodeAndSave(

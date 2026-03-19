@@ -89,6 +89,12 @@ void Routes::handleSchedulerCreate(Poco::Net::HTTPServerRequest &req, Poco::Net:
 
         if (!cronExpr.empty())
         {
+            if (!ionclaw::cron::CronParser::isValidExpression(cronExpr))
+            {
+                sendError(resp, "Invalid cron expression: " + cronExpr);
+                return;
+            }
+
             schedule.kind = "cron";
             schedule.expr = cronExpr;
 
@@ -148,7 +154,7 @@ void Routes::handleSchedulerCreate(Poco::Net::HTTPServerRequest &req, Poco::Net:
     }
     catch (const std::exception &e)
     {
-        sendError(resp, e.what());
+        sendError(resp, e.what(), 500);
     }
 }
 

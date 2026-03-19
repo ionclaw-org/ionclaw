@@ -38,6 +38,7 @@ extern char **environ;
 #include "spdlog/spdlog.h"
 
 #include "ionclaw/tool/builtin/ToolHelper.hpp"
+#include "ionclaw/util/Base64.hpp"
 #include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 
@@ -52,12 +53,12 @@ namespace
 {
 
 // ── CDP Protocol Registry ─────────────────────────────────────────────────
-// Central registry of all Chrome DevTools Protocol methods and events.
-// When CDP protocol changes, update the string values below.
-// All usages reference these constants, so changes propagate automatically.
-// Ref: https://chromedevtools.github.io/devtools-protocol/
+// central registry of all chrome devtools protocol methods and events.
+// when cdp protocol changes, update the string values below.
+// all usages reference these constants, so changes propagate automatically.
+// ref: https://chromedevtools.github.io/devtools-protocol/
 //
-// Note: Strings use adjacent literal concatenation ("Domain" ".method")
+// note: strings use adjacent literal concatenation ("Domain" ".method")
 // to prevent automated refactoring from modifying these definitions.
 
 namespace cdp
@@ -326,7 +327,7 @@ public:
 
 #ifndef _WIN32
         // check if process is actually alive
-        if (kill(static_cast<pid_t>(pid_), 0) != 0)
+        if (kill(static_cast<pid_t>(pid_.load()), 0) != 0)
         {
             return false;
         }
@@ -343,13 +344,13 @@ public:
         {
             // verify process is still alive
 #ifndef _WIN32
-            if (kill(static_cast<pid_t>(pid_), 0) == 0)
+            if (kill(static_cast<pid_t>(pid_.load()), 0) == 0)
             {
                 return "";
             }
 
             // process died, reset and re-launch
-            spdlog::warn("browser: Chrome process {} is dead, re-launching", pid_);
+            spdlog::warn("browser: Chrome process {} is dead, re-launching", pid_.load());
             pid_ = 0;
 #else
             return "";
@@ -373,7 +374,8 @@ public:
         else
         {
 #ifdef _WIN32
-            userDataDir = std::string(std::getenv("TEMP") ? std::getenv("TEMP") : "C:\\Temp") + "\\ionclaw-chrome-profile";
+            const char *tempDir = std::getenv("TEMP");
+            userDataDir = std::string(tempDir ? tempDir : "C:\\Temp") + "\\ionclaw-chrome-profile";
 #else
             userDataDir = "/tmp/ionclaw-chrome-profile";
 #endif
@@ -381,6 +383,11 @@ public:
 
         std::error_code ec;
         std::filesystem::create_directories(userDataDir, ec);
+
+        if (ec)
+        {
+            spdlog::error("[BrowserTool] Failed to create user data dir: {}", ec.message());
+        }
 
         std::ostringstream cmd;
         cmd << "\"" << chromePath << "\""
@@ -459,7 +466,7 @@ public:
 
                 if (response.statusCode == 200)
                 {
-                    spdlog::info("browser: Chrome launched (pid={})", pid_);
+                    spdlog::info("browser: Chrome launched (pid={})", pid_.load());
                     return "";
                 }
             }
@@ -481,7 +488,7 @@ public:
 #ifdef _WIN32
             std::system("taskkill /F /IM chrome.exe > nul 2>&1");
 #elif !defined(__ANDROID__)
-            kill(static_cast<pid_t>(pid_), SIGTERM);
+            kill(static_cast<pid_t>(pid_.load()), SIGTERM);
 #endif
             pid_ = 0;
             spdlog::info("browser: Chrome shut down");
@@ -557,7 +564,7 @@ private:
 #endif
     }
 
-    int pid_ = 0;
+    std::atomic<int> pid_{0};
     std::mutex mutex_;
 };
 
@@ -751,7 +758,7 @@ public:
                         processEventLocked(msg);
                     }
 
-                    if (msg.contains("method") && msg["method"].get<std::string>() == eventName)
+                    if (msg.contains("method") && msg["method"].is_string() && msg["method"].get<std::string>() == eventName)
                     {
                         ws_->setReceiveTimeout(Poco::Timespan(CDP_TIMEOUT_SECONDS, 0));
                         return true;
@@ -878,6 +885,23 @@ private:
 
         while (true)
         {
+            // check if a recursive call (via processEventLocked) already buffered our response
+            auto buffered = pendingResponses_.find(id);
+
+            if (buffered != pendingResponses_.end())
+            {
+                auto resp = std::move(buffered->second);
+                pendingResponses_.erase(buffered);
+
+                if (resp.contains("error"))
+                {
+                    auto errorMsg = resp["error"].value("message", "unknown CDP error");
+                    throw std::runtime_error("CDP error: " + errorMsg);
+                }
+
+                return resp.value("result", nlohmann::json::object());
+            }
+
             std::string assembled;
 
             do
@@ -908,14 +932,19 @@ private:
             }
 
             // process events while waiting for our response
+            // (processEventLocked may recursively call sendCommandLocked,
+            // which can consume and buffer our response in pendingResponses_)
             if (!response.contains("id"))
             {
                 processEventLocked(response);
                 continue;
             }
 
-            if (response["id"].get<int>() != id)
+            if (!response["id"].is_number() || response["id"].get<int64_t>() != id)
             {
+                // buffer the response so the caller waiting for this id can find it
+                auto respId = response["id"].get<int64_t>();
+                pendingResponses_[respId] = std::move(response);
                 continue;
             }
 
@@ -1157,7 +1186,8 @@ private:
     std::atomic<bool> connected_{false};
     std::atomic<int64_t> nextId_{1};
     std::mutex wsMutex_;
-    std::vector<char> recvBuffer_; // reusable receive buffer (allocated once per tab)
+    std::vector<char> recvBuffer_;                                 // reusable receive buffer (allocated once per tab)
+    std::unordered_map<int64_t, nlohmann::json> pendingResponses_; // buffered responses from recursive calls
 
     std::vector<ConsoleMessage> console_;
     std::vector<PageError> errors_;
@@ -1608,7 +1638,8 @@ ElementPos getElementCenter(CdpTab &tab, const std::string &selector)
 
     auto value = evalResult(result).value("value", nlohmann::json());
 
-    if (value.is_null() || !value.contains("x") || !value["x"].is_number())
+    if (value.is_null() || !value.contains("x") || !value["x"].is_number() ||
+        !value.contains("y") || !value["y"].is_number())
     {
         return {0, 0, false};
     }
@@ -1696,9 +1727,7 @@ void typeCharacters(CdpTab &tab, const std::string &text, bool slowly = false)
 std::string pressKey(CdpTab &tab, const std::string &keyName)
 {
     std::string lower = keyName;
-    std::transform(lower.begin(), lower.end(), lower.begin(),
-                   [](unsigned char c)
-                   { return c < 0x80 ? std::tolower(c) : c; });
+    ionclaw::util::StringHelper::toLowerInPlace(lower);
 
     auto it = KEY_MAP.find(lower);
 
@@ -1766,76 +1795,20 @@ bool matchGlob(const std::string &text, const std::string &pattern)
     return pi == pattern.size();
 }
 
-// ── base64 helpers ─────────────────────────────────────────────────────────
-
-static const std::string B64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-std::vector<unsigned char> decodeBase64(const std::string &encoded)
-{
-    std::vector<unsigned char> result;
-    result.reserve(encoded.size() * 3 / 4);
-
-    std::array<unsigned char, 4> buf4{};
-    int collected = 0;
-
-    for (char c : encoded)
-    {
-        if (c == '=' || c == '\n' || c == '\r')
-            continue;
-        auto pos = B64_CHARS.find(c);
-        if (pos == std::string::npos)
-            continue;
-        buf4[collected++] = static_cast<unsigned char>(pos);
-
-        if (collected == 4)
-        {
-            result.push_back(static_cast<unsigned char>((buf4[0] << 2) | (buf4[1] >> 4)));
-            result.push_back(static_cast<unsigned char>(((buf4[1] & 0x0F) << 4) | (buf4[2] >> 2)));
-            result.push_back(static_cast<unsigned char>(((buf4[2] & 0x03) << 6) | buf4[3]));
-            collected = 0;
-        }
-    }
-
-    if (collected == 3)
-    {
-        result.push_back(static_cast<unsigned char>((buf4[0] << 2) | (buf4[1] >> 4)));
-        result.push_back(static_cast<unsigned char>(((buf4[1] & 0x0F) << 4) | (buf4[2] >> 2)));
-    }
-    else if (collected == 2)
-    {
-        result.push_back(static_cast<unsigned char>((buf4[0] << 2) | (buf4[1] >> 4)));
-    }
-
-    return result;
-}
-
-std::string encodeBase64(const unsigned char *data, size_t len)
-{
-    std::string result;
-    result.reserve((len + 2) / 3 * 4);
-
-    for (size_t i = 0; i < len; i += 3)
-    {
-        unsigned int b = (static_cast<unsigned int>(data[i]) << 16);
-        if (i + 1 < len)
-            b |= (static_cast<unsigned int>(data[i + 1]) << 8);
-        if (i + 2 < len)
-            b |= static_cast<unsigned int>(data[i + 2]);
-
-        result.push_back(B64_CHARS[(b >> 18) & 0x3F]);
-        result.push_back(B64_CHARS[(b >> 12) & 0x3F]);
-        result.push_back((i + 1 < len) ? B64_CHARS[(b >> 6) & 0x3F] : '=');
-        result.push_back((i + 2 < len) ? B64_CHARS[b & 0x3F] : '=');
-    }
-
-    return result;
-}
+// base64 alias for ionclaw::util::Base64
+using Base64 = ionclaw::util::Base64;
 
 std::filesystem::path browserTempDir()
 {
     auto dir = std::filesystem::temp_directory_path() / "ionclaw" / "browser";
     std::error_code ec;
     std::filesystem::create_directories(dir, ec);
+
+    if (ec)
+    {
+        spdlog::error("[BrowserTool] Failed to create temp dir: {}", ec.message());
+    }
+
     return dir;
 }
 
@@ -1846,7 +1819,7 @@ std::string tempFileName(const std::string &prefix, const std::string &ext)
     return prefix + "_" + std::to_string(ms) + ext;
 }
 
-bool saveToFile(const std::filesystem::path &path, const unsigned char *data, size_t size)
+bool saveToFile(const std::filesystem::path &path, const std::string &data)
 {
     std::ofstream out(path, std::ios::binary);
 
@@ -1855,7 +1828,7 @@ bool saveToFile(const std::filesystem::path &path, const unsigned char *data, si
         return false;
     }
 
-    out.write(reinterpret_cast<const char *>(data), static_cast<std::streamsize>(size));
+    out.write(data.data(), static_cast<std::streamsize>(data.size()));
     out.flush();
     return out.good();
 }
@@ -1872,7 +1845,7 @@ void stbWriteToVector(void *context, void *data, int size)
 
 std::string capResult(std::string text, int maxChars = MAX_TOOL_RESULT_CHARS)
 {
-    if (static_cast<int>(text.size()) > maxChars)
+    if (maxChars > 0 && text.size() > static_cast<size_t>(maxChars))
     {
         text = ionclaw::util::StringHelper::utf8SafeTruncate(text, maxChars) + "\n... [truncated at " +
                std::to_string(maxChars / 1024) + "KB]";
@@ -2480,7 +2453,7 @@ std::string actionSnapshot(CdpTab &tab, const nlohmann::json &params)
 
         auto text = out.str();
 
-        if (static_cast<int>(text.size()) > maxChars)
+        if (maxChars > 0 && text.size() > static_cast<size_t>(maxChars))
         {
             text = ionclaw::util::StringHelper::utf8SafeTruncate(text, maxChars) + "\n... [truncated]";
         }
@@ -2501,7 +2474,7 @@ std::string actionSnapshot(CdpTab &tab, const nlohmann::json &params)
         return "(empty page)";
     }
 
-    if (static_cast<int>(text.size()) > maxChars)
+    if (maxChars > 0 && text.size() > static_cast<size_t>(maxChars))
     {
         text = ionclaw::util::StringHelper::utf8SafeTruncate(text, maxChars) + "\n... [truncated]";
     }
@@ -2583,7 +2556,7 @@ ToolResult actionScreenshot(CdpTab &tab, const nlohmann::json &params)
     }
 
     // decode base64 from CDP
-    auto rawBytes = decodeBase64(data);
+    auto rawBytes = Base64::decode(data);
 
     if (rawBytes.empty())
     {
@@ -2600,13 +2573,18 @@ ToolResult actionScreenshot(CdpTab &tab, const nlohmann::json &params)
         filePath = std::filesystem::path(outputPath);
         std::error_code ec;
         std::filesystem::create_directories(filePath.parent_path(), ec);
+
+        if (ec)
+        {
+            return "Error: failed to create output directory: " + ec.message();
+        }
     }
     else
     {
         filePath = browserTempDir() / tempFileName("screenshot", ext);
     }
 
-    if (!saveToFile(filePath, rawBytes.data(), rawBytes.size()))
+    if (!saveToFile(filePath, rawBytes))
     {
         return "Error: failed to write screenshot file: " + filePath.string();
     }
@@ -2619,7 +2597,8 @@ ToolResult actionScreenshot(CdpTab &tab, const nlohmann::json &params)
     constexpr int PREVIEW_JPEG_QUALITY = 50;
 
     int w = 0, h = 0, channels = 0;
-    unsigned char *pixels = stbi_load_from_memory(rawBytes.data(), static_cast<int>(rawBytes.size()), &w, &h, &channels, 3);
+    unsigned char *pixels = stbi_load_from_memory(
+        reinterpret_cast<const unsigned char *>(rawBytes.data()), static_cast<int>(rawBytes.size()), &w, &h, &channels, 3);
 
     if (!pixels)
     {
@@ -2641,7 +2620,7 @@ ToolResult actionScreenshot(CdpTab &tab, const nlohmann::json &params)
         if (previewH < 1)
             previewH = 1;
 
-        resizedPixels.resize(static_cast<size_t>(previewW * previewH * 3));
+        resizedPixels.resize(static_cast<size_t>(previewW) * static_cast<size_t>(previewH) * 3);
         auto *ok = stbir_resize_uint8_linear(pixels, w, h, 0, resizedPixels.data(), previewW, previewH, 0, STBIR_RGB);
 
         if (!ok)
@@ -2669,7 +2648,7 @@ ToolResult actionScreenshot(CdpTab &tab, const nlohmann::json &params)
                                                              "Warning: could not generate preview (JPEG encode failed).";
     }
 
-    auto previewB64 = encodeBase64(jpegBuf.data(), jpegBuf.size());
+    auto previewB64 = Base64::encode(jpegBuf.data(), jpegBuf.size());
     auto previewKB = jpegBuf.size() / 1024;
 
     auto description = "Screenshot captured (" + std::to_string(w) + "x" + std::to_string(h) + ", " +
@@ -3390,7 +3369,7 @@ std::string actionPdf(CdpTab &tab, const nlohmann::json &params)
         return "Error: PDF generation failed";
     }
 
-    auto rawBytes = decodeBase64(data);
+    auto rawBytes = Base64::decode(data);
 
     if (rawBytes.empty())
     {
@@ -3405,13 +3384,18 @@ std::string actionPdf(CdpTab &tab, const nlohmann::json &params)
         filePath = std::filesystem::path(outputPath);
         std::error_code ec;
         std::filesystem::create_directories(filePath.parent_path(), ec);
+
+        if (ec)
+        {
+            return "Error: failed to create output directory: " + ec.message();
+        }
     }
     else
     {
         filePath = browserTempDir() / tempFileName("page", ".pdf");
     }
 
-    if (!saveToFile(filePath, rawBytes.data(), rawBytes.size()))
+    if (!saveToFile(filePath, rawBytes))
     {
         return "Error: failed to write PDF file: " + filePath.string();
     }
@@ -3663,7 +3647,7 @@ std::string actionSetTimezone(CdpTab &tab, const nlohmann::json &params)
 
     if (timezone.empty())
     {
-        // CDP requires a valid timezone ID; use UTC to effectively "clear" the override,
+        // cdp requires a valid timezone id; use utc to effectively "clear" the override,
         // then reload to apply the system timezone via a fresh page load
         tab.sendCommand(cdp::emulation::SetTimezoneOverride, {{"timezoneId", "Etc/UTC"}});
         return "Timezone override set to UTC. To fully restore the system timezone, reload the page after clearing.";
@@ -3710,9 +3694,7 @@ std::string actionSetDevice(CdpTab &tab, const nlohmann::json &params)
     if (!device.empty())
     {
         std::string lower = device;
-        std::transform(lower.begin(), lower.end(), lower.begin(),
-                       [](unsigned char c)
-                       { return c < 0x80 ? std::tolower(c) : c; });
+        ionclaw::util::StringHelper::toLowerInPlace(lower);
 
         auto it = DEVICE_PRESETS.find(lower);
 

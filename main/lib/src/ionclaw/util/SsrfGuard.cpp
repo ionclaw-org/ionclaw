@@ -16,11 +16,11 @@ namespace
 {
 
 // check if address is private/reserved (works for both IPv4 and IPv6)
-bool isPrivateIp(const Poco::Net::IPAddress &addr)
+bool isPrivateIp(const Poco::Net::IPAddress &addr, bool allowLoopback)
 {
     if (addr.isLoopback())
     {
-        return false; // allow loopback for local services
+        return !allowLoopback;
     }
 
     // wildcard addresses (0.0.0.0 or ::)
@@ -47,6 +47,16 @@ bool isPrivateIp(const Poco::Net::IPAddress &addr)
 } // namespace
 
 void SsrfGuard::validateUrl(const std::string &url)
+{
+    validateUrlImpl(url, false);
+}
+
+void SsrfGuard::validateUrlAllowLoopback(const std::string &url)
+{
+    validateUrlImpl(url, true);
+}
+
+void SsrfGuard::validateUrlImpl(const std::string &url, bool allowLoopback)
 {
     Poco::URI uri;
 
@@ -81,7 +91,7 @@ void SsrfGuard::validateUrl(const std::string &url)
 
         for (const auto &addr : addresses)
         {
-            if (isPrivateIp(addr))
+            if (isPrivateIp(addr, allowLoopback))
             {
                 throw std::runtime_error("URL resolves to a private IP address: " + host + " -> " + addr.toString());
             }

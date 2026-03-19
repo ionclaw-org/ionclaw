@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "ionclaw/util/StringHelper.hpp"
+
 namespace ionclaw
 {
 namespace bus
@@ -34,9 +36,7 @@ std::string queueModeToString(QueueMode mode)
 std::optional<QueueMode> normalizeQueueMode(const std::string &raw)
 {
     std::string s = raw;
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](unsigned char c)
-                   { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+    ionclaw::util::StringHelper::toLowerInPlace(s);
 
     // trim whitespace
     while (!s.empty() && s.front() == ' ')
@@ -85,9 +85,7 @@ std::optional<QueueMode> normalizeQueueMode(const std::string &raw)
 std::optional<QueueDropPolicy> normalizeQueueDropPolicy(const std::string &raw)
 {
     std::string s = raw;
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](unsigned char c)
-                   { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+    ionclaw::util::StringHelper::toLowerInPlace(s);
 
     if (s == "old")
     {

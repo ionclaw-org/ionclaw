@@ -7,7 +7,7 @@ namespace ionclaw
 namespace image
 {
 
-class LocalImageGenerator : public ImageGenerator
+class LocalImageGenerator final : public ImageGenerator
 {
 public:
     std::string providerName() const override;

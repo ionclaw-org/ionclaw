@@ -33,6 +33,8 @@ RequestHandlerFactory::RequestHandlerFactory(
 {
 }
 
+// poco framework requires raw pointer ownership transfer from createRequestHandler;
+// the server takes ownership and deletes the handler after use
 Poco::Net::HTTPRequestHandler *RequestHandlerFactory::createRequestHandler(const Poco::Net::HTTPServerRequest &req)
 {
     auto path = Poco::URI(req.getURI()).getPath();
@@ -43,7 +45,7 @@ Poco::Net::HTTPRequestHandler *RequestHandlerFactory::createRequestHandler(const
         return new WebSocketHandler(auth, wsManager, routes);
     }
 
-    // MCP server endpoint
+    // mcp server endpoint
     if (path == "/mcp")
     {
         return new McpHandler(auth, mcpDispatcher);

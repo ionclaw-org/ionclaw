@@ -13,7 +13,7 @@ namespace tool
 namespace builtin
 {
 
-class RssReaderTool : public Tool
+class RssReaderTool final : public Tool
 {
 public:
     ToolResult execute(const nlohmann::json &params, const ToolContext &context) override;

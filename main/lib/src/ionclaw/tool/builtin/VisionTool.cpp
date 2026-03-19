@@ -1,7 +1,10 @@
 #include "ionclaw/tool/builtin/VisionTool.hpp"
 
 #include <filesystem>
+
+#include "ionclaw/config/Config.hpp"
 #include <fstream>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
@@ -15,6 +18,7 @@
 #include "ionclaw/tool/builtin/ToolHelper.hpp"
 #include "ionclaw/util/Base64.hpp"
 #include "ionclaw/util/HttpClient.hpp"
+#include "ionclaw/util/SsrfGuard.hpp"
 
 namespace ionclaw
 {
@@ -209,7 +213,8 @@ ToolResult VisionTool::execute(const nlohmann::json &params, const ToolContext &
         // resolve relative paths against workspace/public root
         try
         {
-            path = ToolHelper::validateAndResolvePath(context.workspacePath, path, context.publicPath);
+            bool restrict = !context.config || context.config->tools.restrictToWorkspace;
+            path = ToolHelper::validateAndResolvePath(context.workspacePath, path, context.publicPath, restrict, context.projectPath);
             spdlog::info("vision: resolved path to: {}", path);
         }
         catch (const std::exception &e)
@@ -298,9 +303,22 @@ ToolResult VisionTool::execute(const nlohmann::json &params, const ToolContext &
         sourceLabel = url;
         spdlog::debug("vision: fetching URL: {}", url);
 
+        // ssrf validation
         try
         {
-            auto response = ionclaw::util::HttpClient::request("GET", url, {}, "", 30, true);
+            ionclaw::util::SsrfGuard::validateUrl(url);
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::warn("vision: SSRF blocked URL: {} ({})", url, e.what());
+            return "Error: " + std::string(e.what());
+        }
+
+        try
+        {
+            auto response = ionclaw::util::HttpClient::request(
+                "GET", url, {}, "", 30, true,
+                ionclaw::util::SsrfGuard::validateUrl);
 
             if (response.statusCode != 200)
             {
@@ -373,7 +391,7 @@ ToolResult VisionTool::execute(const nlohmann::json &params, const ToolContext &
             auto colonPos = header.find(':');
             auto semiPos = header.find(';');
 
-            if (colonPos != std::string::npos && semiPos != std::string::npos)
+            if (colonPos != std::string::npos && semiPos != std::string::npos && semiPos > colonPos)
             {
                 mimeType = header.substr(colonPos + 1, semiPos - colonPos - 1);
             }
@@ -414,19 +432,23 @@ ToolResult VisionTool::execute(const nlohmann::json &params, const ToolContext &
     }
 
     // ── generate LLM-friendly preview ─────────────────────────────────────
-    // Resize large images to prevent context overflow.
-    // Same approach as BrowserTool: max 1024px wide, JPEG quality 50.
+    // resize large images to prevent context overflow.
+    // same approach as BrowserTool: max 1024px wide, jpeg quality 50.
 
     auto originalSizeKB = rawBytes.size() / 1024;
 
     int w = 0, h = 0, channels = 0;
-    unsigned char *pixels = stbi_load_from_memory(
-        reinterpret_cast<const unsigned char *>(rawBytes.data()),
-        static_cast<int>(rawBytes.size()), &w, &h, &channels, 3);
+    auto pixelsDeleter = [](unsigned char *p)
+    { if (p) stbi_image_free(p); };
+    std::unique_ptr<unsigned char, decltype(pixelsDeleter)> pixels(
+        stbi_load_from_memory(
+            reinterpret_cast<const unsigned char *>(rawBytes.data()),
+            static_cast<int>(rawBytes.size()), &w, &h, &channels, 3),
+        pixelsDeleter);
 
     if (!pixels)
     {
-        // SVG, ICO, TIFF etc. can't be rasterized by stb — send raw data for the model to process
+        // svg, ico, tiff etc. can't be rasterized by stb — send raw data for the model to process
         spdlog::warn("vision: stb_image could not decode image ({}), sending raw data", mimeType);
 
         auto b64 = ionclaw::util::Base64::encode(rawBytes);
@@ -453,7 +475,7 @@ ToolResult VisionTool::execute(const nlohmann::json &params, const ToolContext &
     int previewW = w;
     int previewH = h;
     std::vector<unsigned char> resizedPixels;
-    unsigned char *previewData = pixels;
+    unsigned char *previewData = pixels.get();
 
     if (w > MAX_PREVIEW_WIDTH)
     {
@@ -463,14 +485,13 @@ ToolResult VisionTool::execute(const nlohmann::json &params, const ToolContext &
         if (previewH < 1)
             previewH = 1;
 
-        resizedPixels.resize(static_cast<size_t>(previewW * previewH * 3));
+        resizedPixels.resize(static_cast<size_t>(previewW) * static_cast<size_t>(previewH) * 3);
         auto *ok = stbir_resize_uint8_linear(
-            pixels, w, h, 0,
+            pixels.get(), w, h, 0,
             resizedPixels.data(), previewW, previewH, 0, STBIR_RGB);
 
         if (!ok)
         {
-            stbi_image_free(pixels);
             spdlog::error("vision: resize failed for {}x{} -> {}x{}", w, h, previewW, previewH);
             return "Error: image resize failed (" + std::to_string(w) + "x" + std::to_string(h) +
                    " -> " + std::to_string(previewW) + "x" + std::to_string(previewH) + ")";
@@ -485,7 +506,7 @@ ToolResult VisionTool::execute(const nlohmann::json &params, const ToolContext &
     jpegBuf.reserve(static_cast<size_t>(previewW * previewH));
     stbi_write_jpg_to_func(stbWriteToVector, &jpegBuf, previewW, previewH, 3, previewData, PREVIEW_JPEG_QUALITY);
 
-    stbi_image_free(pixels);
+    pixels.reset();
 
     if (jpegBuf.empty())
     {

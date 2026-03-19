@@ -30,9 +30,6 @@ ToolResult MessageTool::execute(const nlohmann::json &params, const ToolContext 
         chatId = params["chat_id"].get<std::string>();
     }
 
-    // TODO: handle media attachments when storage system is implemented
-    // media array is accepted but not yet processed
-
     context.messageSender(channel, chatId, content);
 
     return "Message sent to " + channel + ":" + chatId;
@@ -47,8 +44,7 @@ ToolSchema MessageTool::schema() const
          {"properties",
           {{"content", {{"type", "string"}, {"description", "The message content to send to the user"}}},
            {"channel", {{"type", "string"}, {"description", "Target channel (defaults to current channel)"}}},
-           {"chat_id", {{"type", "string"}, {"description", "Target chat ID (defaults to current session)"}}},
-           {"media", {{"type", "array"}, {"items", {{"type", "string"}}}, {"description", "Array of file paths for media attachments"}}}}},
+           {"chat_id", {{"type", "string"}, {"description", "Target chat ID (defaults to current session)"}}}}},
          {"required", nlohmann::json::array({"content"})}}};
 }
 

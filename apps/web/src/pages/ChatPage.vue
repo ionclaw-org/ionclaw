@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, onUnmounted, ref, computed } from 'vue'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import ChatMessages from '../components/chat/ChatMessages.vue'
@@ -10,8 +10,15 @@ import { useApi } from '../composables/useApi'
 
 const api = useApi()
 const chatStore = useChatStore()
-const isMobile = window.innerWidth <= 768
-const showSessions = ref(!isMobile)
+const isMobile = ref(window.innerWidth <= 768)
+const showSessions = ref(!isMobile.value)
+
+function onResize() {
+  isMobile.value = window.innerWidth <= 768
+}
+
+onMounted(() => window.addEventListener('resize', onResize))
+onUnmounted(() => window.removeEventListener('resize', onResize))
 const showDeleteConfirm = ref(false)
 const deleteTargetKey = ref('')
 
@@ -19,14 +26,14 @@ const currentLabel = computed(() => {
   const match = chatStore.sessions.find(
     (s) => s.key === chatStore.currentSessionId
   )
-  return match ? sessionLabel(match.key) : 'Chat'
+  return match ? sessionLabel(match.key, match.display_name) : 'Chat'
 })
 
 const deleteTargetLabel = computed(() => sessionLabel(deleteTargetKey.value))
 
 onMounted(async () => {
   await chatStore.loadHistory(chatStore.currentSessionId)
-  chatStore.loadSessions()
+  await chatStore.loadSessions()
 })
 
 async function handleSend({ text, files }) {
@@ -52,7 +59,7 @@ async function handleSelectSession(key) {
   } catch (e) {
     console.error('[chat] session switch error:', e)
   }
-  if (isMobile) showSessions.value = false
+  if (isMobile.value) showSessions.value = false
 }
 
 function handleDeleteSession(sessionKey) {

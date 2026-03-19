@@ -110,9 +110,11 @@ struct TranscriptionConfig
 
 struct ToolsConfig
 {
+    bool restrictToWorkspace = true; // restrict file tools to workspace directory
     int execTimeout = 60;
     std::string webSearchProvider;   // provider name (e.g. brave, duckduckgo)
     std::string webSearchCredential; // credential reference (key in credentials.*)
+    int webSearchMaxResults = 5;     // default max results for web search (1-10)
 };
 
 struct StorageConfig

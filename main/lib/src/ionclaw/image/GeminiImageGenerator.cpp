@@ -7,6 +7,7 @@
 #include "ionclaw/util/Base64.hpp"
 #include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/MimeType.hpp"
+#include "ionclaw/util/StringHelper.hpp"
 #include "nlohmann/json.hpp"
 #include "spdlog/spdlog.h"
 
@@ -84,8 +85,9 @@ std::string GeminiImageGenerator::generateContent(const std::string &prompt,
     // build request parts: reference images BEFORE text prompt
     nlohmann::json parts = nlohmann::json::array();
 
+    bool restrict = !context.config || context.config->tools.restrictToWorkspace;
     auto resolvedRefs = ImageGeneratorHelper::resolveReferencePaths(
-        params, context.workspacePath, context.publicPath);
+        params, context.workspacePath, context.publicPath, restrict, context.projectPath);
 
     for (const auto &resolved : resolvedRefs)
     {
@@ -155,9 +157,9 @@ std::string GeminiImageGenerator::generateContent(const std::string &prompt,
 
     if (response.statusCode != 200)
     {
-        spdlog::error("[GeminiImageGenerator] API error HTTP {}: {}", response.statusCode, response.body.substr(0, 500));
+        spdlog::error("[GeminiImageGenerator] API error HTTP {}: {}", response.statusCode, ionclaw::util::StringHelper::utf8SafeTruncate(response.body, 500));
         return "Error: image generation API returned HTTP " + std::to_string(response.statusCode) + ": " +
-               response.body.substr(0, 500);
+               ionclaw::util::StringHelper::utf8SafeTruncate(response.body, 500);
     }
 
     // parse response and extract base64 image
@@ -255,9 +257,9 @@ std::string GeminiImageGenerator::predict(const std::string &prompt,
 
     if (response.statusCode != 200)
     {
-        spdlog::error("[GeminiImageGenerator] Imagen API error HTTP {}: {}", response.statusCode, response.body.substr(0, 500));
+        spdlog::error("[GeminiImageGenerator] Imagen API error HTTP {}: {}", response.statusCode, ionclaw::util::StringHelper::utf8SafeTruncate(response.body, 500));
         return "Error: image generation API returned HTTP " + std::to_string(response.statusCode) + ": " +
-               response.body.substr(0, 500);
+               ionclaw::util::StringHelper::utf8SafeTruncate(response.body, 500);
     }
 
     auto json = nlohmann::json::parse(response.body, nullptr, false);

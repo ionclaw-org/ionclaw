@@ -9,7 +9,7 @@ namespace tool
 namespace builtin
 {
 
-class ListDirTool : public Tool
+class ListDirTool final : public Tool
 {
 public:
     ToolResult execute(const nlohmann::json &params, const ToolContext &context) override;

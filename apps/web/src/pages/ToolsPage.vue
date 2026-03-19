@@ -5,6 +5,7 @@ import Tag from 'primevue/tag'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import { useApi } from '../composables/useApi'
+import { humanizeToolName } from '../utils/format'
 
 const api = useApi()
 const tools = ref([])
@@ -17,7 +18,7 @@ const filteredTools = computed(() => {
   const q = search.value.trim().toLowerCase()
   if (!q) return tools.value
   return tools.value.filter(t =>
-    t.name.toLowerCase().includes(q) || t.description.toLowerCase().includes(q)
+    t.name.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q)
   )
 })
 
@@ -28,13 +29,6 @@ onMounted(async () => {
     loading.value = false
   }
 })
-
-function humanizeToolName(name) {
-  if (!name || typeof name !== 'string') return name || ''
-  return name
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-}
 
 function viewTool(tool) {
   selectedTool.value = tool

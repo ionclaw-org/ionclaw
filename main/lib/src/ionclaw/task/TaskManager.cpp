@@ -69,7 +69,8 @@ Task TaskManager::createTask(const std::string &title, const std::string &descri
     return snapshot;
 }
 
-void TaskManager::updateState(const std::string &taskId, TaskState state, const std::string &result)
+template <typename Mutator>
+void TaskManager::mutateTask(const std::string &taskId, const char *caller, Mutator &&mutate)
 {
     Task snapshot;
 
@@ -80,13 +81,24 @@ void TaskManager::updateState(const std::string &taskId, TaskState state, const 
 
         if (it == tasks.end())
         {
-            spdlog::warn("Task not found for updateState: {}", taskId);
+            spdlog::warn("Task not found for {}: {}", caller, taskId);
             return;
         }
 
-        auto &task = it->second;
+        it->second.updatedAt = util::TimeHelper::now();
+        mutate(it->second);
+        snapshot = it->second;
+    }
+
+    appendToFile(snapshot);
+    broadcastUpdate(snapshot);
+}
+
+void TaskManager::updateState(const std::string &taskId, TaskState state, const std::string &result)
+{
+    mutateTask(taskId, "updateState", [&](Task &task)
+               {
         task.state = state;
-        task.updatedAt = util::TimeHelper::now();
 
         if (!result.empty())
         {
@@ -96,159 +108,46 @@ void TaskManager::updateState(const std::string &taskId, TaskState state, const 
         if (state == TaskState::Done || state == TaskState::Error)
         {
             task.completedAt = task.updatedAt;
-        }
-
-        snapshot = task;
-    }
-
-    appendToFile(snapshot);
-    broadcastUpdate(snapshot);
+        } });
 }
 
 void TaskManager::setAgent(const std::string &taskId, const std::string &agentName)
 {
-    Task snapshot;
-
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-
-        auto it = tasks.find(taskId);
-
-        if (it == tasks.end())
-        {
-            spdlog::warn("Task not found for setAgent: {}", taskId);
-            return;
-        }
-
-        it->second.agentName = agentName;
-        it->second.updatedAt = util::TimeHelper::now();
-        snapshot = it->second;
-    }
-
-    appendToFile(snapshot);
-    broadcastUpdate(snapshot);
+    mutateTask(taskId, "setAgent", [&](Task &task)
+               { task.agentName = agentName; });
 }
 
 void TaskManager::incrementIteration(const std::string &taskId)
 {
-    Task snapshot;
-
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-
-        auto it = tasks.find(taskId);
-
-        if (it == tasks.end())
-        {
-            spdlog::warn("Task not found for incrementIteration: {}", taskId);
-            return;
-        }
-
-        it->second.iterationCount++;
-        it->second.updatedAt = util::TimeHelper::now();
-        snapshot = it->second;
-    }
-
-    appendToFile(snapshot);
-    broadcastUpdate(snapshot);
+    mutateTask(taskId, "incrementIteration", [](Task &task)
+               { task.iterationCount++; });
 }
 
 void TaskManager::incrementToolCount(const std::string &taskId)
 {
-    Task snapshot;
-
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-
-        auto it = tasks.find(taskId);
-
-        if (it == tasks.end())
-        {
-            spdlog::warn("Task not found for incrementToolCount: {}", taskId);
-            return;
-        }
-
-        it->second.toolCount++;
-        it->second.updatedAt = util::TimeHelper::now();
-        snapshot = it->second;
-    }
-
-    appendToFile(snapshot);
-    broadcastUpdate(snapshot);
+    mutateTask(taskId, "incrementToolCount", [](Task &task)
+               { task.toolCount++; });
 }
 
 void TaskManager::setUsage(const std::string &taskId, const nlohmann::json &usage)
 {
-    Task snapshot;
-
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-
-        auto it = tasks.find(taskId);
-
-        if (it == tasks.end())
-        {
-            spdlog::warn("Task not found for setUsage: {}", taskId);
-            return;
-        }
-
-        it->second.usage = usage;
-        it->second.updatedAt = util::TimeHelper::now();
-        snapshot = it->second;
-    }
-
-    appendToFile(snapshot);
-    broadcastUpdate(snapshot);
+    mutateTask(taskId, "setUsage", [&](Task &task)
+               { task.usage = usage; });
 }
 
 void TaskManager::setLiveState(const std::string &taskId, const nlohmann::json &liveState)
 {
-    Task snapshot;
-
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-
-        auto it = tasks.find(taskId);
-
-        if (it == tasks.end())
-        {
-            spdlog::warn("Task not found for setLiveState: {}", taskId);
-            return;
-        }
-
-        it->second.liveState = liveState;
-        it->second.updatedAt = util::TimeHelper::now();
-        snapshot = it->second;
-    }
-
-    appendToFile(snapshot);
-    broadcastUpdate(snapshot);
+    mutateTask(taskId, "setLiveState", [&](Task &task)
+               { task.liveState = liveState; });
 }
 
 void TaskManager::setError(const std::string &taskId, const std::string &error)
 {
-    Task snapshot;
-
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-
-        auto it = tasks.find(taskId);
-
-        if (it == tasks.end())
-        {
-            spdlog::warn("Task not found for setError: {}", taskId);
-            return;
-        }
-
-        it->second.errorMessage = error;
-        it->second.state = TaskState::Error;
-        it->second.completedAt = util::TimeHelper::now();
-        it->second.updatedAt = it->second.completedAt;
-        snapshot = it->second;
-    }
-
-    appendToFile(snapshot);
-    broadcastUpdate(snapshot);
+    mutateTask(taskId, "setError", [&](Task &task)
+               {
+        task.errorMessage = error;
+        task.state = TaskState::Error;
+        task.completedAt = task.updatedAt; });
 }
 
 Task TaskManager::getTask(const std::string &taskId) const
@@ -371,7 +270,19 @@ void TaskManager::load()
 
 void TaskManager::save()
 {
-    std::lock_guard<std::mutex> lock(mutex);
+    // snapshot under data lock, write outside to avoid blocking concurrent callers
+    std::vector<nlohmann::json> snapshots;
+
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        snapshots.reserve(tasks.size());
+
+        for (const auto &pair : tasks)
+        {
+            snapshots.push_back(pair.second.toJson());
+        }
+    }
+
     std::lock_guard<std::mutex> flock(fileMutex);
 
     std::ofstream ofs(tasksFilePath, std::ios::trunc);
@@ -382,12 +293,17 @@ void TaskManager::save()
         return;
     }
 
-    for (const auto &pair : tasks)
+    for (const auto &j : snapshots)
     {
-        ofs << pair.second.toJson().dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << "\n";
+        ofs << j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << "\n";
     }
 
     ofs.flush();
+
+    if (!ofs.good())
+    {
+        spdlog::error("[TaskManager] Failed to flush tasks file on save: {}", tasksFilePath);
+    }
 }
 
 void TaskManager::recoverStaleTasks()
@@ -435,6 +351,11 @@ void TaskManager::recoverStaleTasks()
             }
 
             ofs.flush();
+
+            if (!ofs.good())
+            {
+                spdlog::error("[TaskManager] Failed to flush tasks file on recovery: {}", tasksFilePath);
+            }
         }
 
         spdlog::info("[TaskManager] Recovered {} stale DOING tasks to ERROR", recovered);
@@ -455,6 +376,11 @@ void TaskManager::appendToFile(const Task &task)
 
     ofs << task.toJson().dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << "\n";
     ofs.flush();
+
+    if (!ofs.good())
+    {
+        spdlog::error("[TaskManager] Failed to flush tasks file on append: {}", tasksFilePath);
+    }
 }
 
 void TaskManager::broadcastUpdate(const Task &task)

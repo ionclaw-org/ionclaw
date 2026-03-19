@@ -68,7 +68,7 @@ public:
     // ensure session exists without returning a copy
     void ensureSession(const std::string &sessionKey);
 
-    void addMessage(const std::string &sessionKey, const SessionMessage &message);
+    bool addMessage(const std::string &sessionKey, const SessionMessage &message);
     std::vector<SessionMessage> getHistory(const std::string &sessionKey, int maxMessages = 500);
     std::vector<SessionInfo> listSessions();
     void deleteSession(const std::string &sessionKey);
@@ -81,7 +81,6 @@ public:
     // targeted mutations (thread-safe, no dangling reference)
     void updateLiveStateField(const std::string &sessionKey, const std::string &field, const nlohmann::json &value);
     void updateLastMessageContent(const std::string &sessionKey, const std::string &content);
-    void updateDisplayName(const std::string &sessionKey, const std::string &name);
 
     // lru configuration (only call before threads start or use atomic)
     void setMaxCapacity(int capacity) { maxCapacity.store(capacity); }
@@ -91,10 +90,10 @@ public:
 private:
     std::string sessionsDir;
     std::map<std::string, Session> cache;
-    std::map<std::string, std::unique_ptr<std::mutex>> sessionMutexes;
+    std::map<std::string, std::shared_ptr<std::mutex>> sessionMutexes;
     mutable std::mutex globalMutex;
 
-    std::mutex &getSessionMutex(const std::string &key);
+    std::shared_ptr<std::mutex> getSessionMutex(const std::string &key);
     void loadFromDisk(const std::string &sessionKey);
     void writeSessionFile(const Session &session); // write session to disk (no locking)
     std::string sessionFilePath(const std::string &sessionKey) const;
@@ -105,9 +104,8 @@ private:
 
     void touch(Session &session);
     void evictIfNeeded();
-    void reapIdleSessions();
     void reapIdleSessionsLocked(std::vector<Session> &outSnapshots); // assumes globalMutex is already held
-    bool checkRateLimit();
+    bool checkRateLimitLocked();                                     // assumes globalMutex is already held
 
     // active session filenames for sweeper coordination
     std::vector<std::string> getActiveFilenames() const;

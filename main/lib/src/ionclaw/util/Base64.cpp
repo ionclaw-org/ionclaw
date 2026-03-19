@@ -2,6 +2,8 @@
 
 #include <fstream>
 
+#include "spdlog/spdlog.h"
+
 namespace ionclaw
 {
 namespace util
@@ -353,6 +355,7 @@ std::string Base64::encodeFromFile(const std::string &path)
 
     if (!f.is_open())
     {
+        spdlog::error("[Base64] Failed to open file for encoding: {}", path);
         return "";
     }
 

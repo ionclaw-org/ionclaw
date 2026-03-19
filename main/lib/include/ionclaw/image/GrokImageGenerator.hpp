@@ -7,7 +7,7 @@ namespace ionclaw
 namespace image
 {
 
-class GrokImageGenerator : public ImageGenerator
+class GrokImageGenerator final : public ImageGenerator
 {
 public:
     explicit GrokImageGenerator(std::string providerName);

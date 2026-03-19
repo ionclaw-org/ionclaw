@@ -141,7 +141,6 @@ Send a message to the user via the current channel.
 | `content` | string | Yes | The message content |
 | `channel` | string | No | Target channel (e.g. `web`, `telegram`). Defaults to current |
 | `chat_id` | string | No | Target chat/user ID. Defaults to current |
-| `media` | array | No | File paths to attach |
 
 Only available to the main agent (not subagents).
 

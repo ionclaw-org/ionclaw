@@ -87,15 +87,12 @@ function logout() {
 
   <nav class="mobile-nav">
     <button
-      v-for="item in navItems.slice(0, 5)"
+      v-for="item in navItems"
       :key="item.path"
       :class="['mobile-nav-item', { active: $route.path === item.path }]"
       @click="navigate(item.path)"
     >
       <i :class="item.icon"></i>
-    </button>
-    <button class="mobile-nav-item" @click="navigate('/settings')">
-      <i class="pi pi-cog"></i>
     </button>
   </nav>
 </template>

@@ -35,8 +35,8 @@ private:
 
     std::shared_ptr<ionclaw::bus::MessageBus> bus;
     std::string heartbeatFilePath;
-    int interval;
-    bool enabled;
+    std::atomic<int> interval;
+    std::atomic<bool> enabled;
 
     std::atomic<bool> running{false};
     std::thread loopThread;

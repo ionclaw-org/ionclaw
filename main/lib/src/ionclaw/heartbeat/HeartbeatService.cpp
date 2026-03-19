@@ -44,7 +44,7 @@ void HeartbeatService::start()
     }
 
     loopThread = std::thread(&HeartbeatService::runLoop, this);
-    spdlog::info("[Heartbeat] started (every {}s)", interval);
+    spdlog::info("[Heartbeat] started (every {}s)", interval.load());
 }
 
 void HeartbeatService::stop()
@@ -75,7 +75,7 @@ void HeartbeatService::runLoop()
     while (running.load())
     {
         // sleep in small increments to allow fast shutdown
-        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(interval);
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(interval.load());
 
         while (running.load() && std::chrono::steady_clock::now() < deadline)
         {

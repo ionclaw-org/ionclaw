@@ -29,6 +29,9 @@ namespace ionclaw
 namespace agent
 {
 
+namespace
+{
+
 // graduated thinking level downgrade: high→medium→low→(empty = remove)
 std::string pickFallbackThinkingLevel(const std::string &current)
 {
@@ -37,6 +40,93 @@ std::string pickFallbackThinkingLevel(const std::string &current)
     if (current == "medium")
         return "low";
     return "";
+}
+
+// flush synthetic error results for tool calls that were not completed (e.g. abort/stop mid-batch)
+void flushAbandonedToolCalls(
+    std::vector<ionclaw::provider::Message> &messages,
+    const std::vector<ionclaw::provider::ToolCall> &toolCalls)
+{
+    for (size_t ti = 0; ti < toolCalls.size(); ++ti)
+    {
+        bool hasResult = false;
+        for (auto rit = messages.rbegin(); rit != messages.rend() && rit->role == "tool"; ++rit)
+        {
+            if (rit->toolCallId == toolCalls[ti].id)
+            {
+                hasResult = true;
+                break;
+            }
+        }
+        if (!hasResult)
+        {
+            ContextBuilder::addToolResult(messages, toolCalls[ti].id,
+                                          toolCalls[ti].name,
+                                          "[tool call was not completed]");
+        }
+    }
+}
+
+} // anonymous namespace
+
+// send a response for built-in commands (/new, /reset, /help) to all channels
+void AgentLoop::sendCommandResponse(const ionclaw::bus::InboundMessage &message, const std::string &sessionKey, const std::string &taskId, const std::string &agentName, const std::string &responseText, AgentEventCallback &callback)
+{
+    if (!taskId.empty())
+    {
+        try
+        {
+            taskManager->updateState(taskId, ionclaw::task::TaskState::Done);
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
+        }
+    }
+
+    // publish to outbound bus so channels (telegram, etc.) receive the response
+    if (busPtr)
+    {
+        ionclaw::bus::OutboundMessage outbound;
+        outbound.channel = message.channel;
+        outbound.chatId = message.chatId;
+        outbound.content = responseText;
+        outbound.metadata = {{"task_id", taskId}, {"agent_name", agentName}};
+
+        if (message.metadata.contains("reply_to_message_id"))
+        {
+            outbound.metadata["reply_to_message_id"] = message.metadata["reply_to_message_id"];
+        }
+
+        busPtr->publishOutbound(outbound);
+    }
+
+    // broadcast to websocket clients
+    AgentEvent endEvent;
+    endEvent.type = "chat:message";
+    endEvent.data = {
+        {"chat_id", sessionKey},
+        {"content", nlohmann::json::array({{{"type", "text"}, {"text", responseText}}})},
+        {"agent_name", agentName},
+    };
+
+    if (!taskId.empty())
+    {
+        endEvent.data["task_id"] = taskId;
+    }
+
+    callback(endEvent);
+
+    AgentEvent streamEndEvent;
+    streamEndEvent.type = "chat:stream_end";
+    streamEndEvent.data = {{"chat_id", sessionKey}, {"agent_name", agentName}};
+
+    if (!taskId.empty())
+    {
+        streamEndEvent.data["task_id"] = taskId;
+    }
+
+    callback(streamEndEvent);
 }
 
 // truncate text with ellipsis if exceeding max length
@@ -207,9 +297,7 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
     {
         // only process audio files for transcription; images are handled via vision tool
         auto ext = fs::path(path).extension().string();
-        std::transform(ext.begin(), ext.end(), ext.begin(),
-                       [](unsigned char c)
-                       { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+        ionclaw::util::StringHelper::toLowerInPlace(ext);
 
         if (AUDIO_EXTENSIONS.count(ext) == 0)
         {
@@ -304,13 +392,13 @@ void UsageTracker::record(const nlohmann::json &usage)
         return;
     }
 
-    auto pt = std::max(0, usage.value("prompt_tokens", 0));
-    auto ct = std::max(0, usage.value("completion_tokens", 0));
-    auto tt = std::max(0, usage.value("total_tokens", 0));
+    auto pt = std::max(int64_t{0}, usage.value("prompt_tokens", int64_t{0}));
+    auto ct = std::max(int64_t{0}, usage.value("completion_tokens", int64_t{0}));
+    auto tt = std::max(int64_t{0}, usage.value("total_tokens", int64_t{0}));
 
     // cache tokens (anthropic: cache_read_input_tokens / cache_creation_input_tokens)
-    auto crt = std::max(0, usage.value("cache_read_input_tokens", 0));
-    auto cwt = std::max(0, usage.value("cache_creation_input_tokens", 0));
+    auto crt = std::max(int64_t{0}, usage.value("cache_read_input_tokens", int64_t{0}));
+    auto cwt = std::max(int64_t{0}, usage.value("cache_creation_input_tokens", int64_t{0}));
 
     // last call (overwritten each time)
     lastCallPromptTokens = pt;
@@ -370,10 +458,10 @@ void AgentLoop::processMessage(
 {
     auto sessionKey = message.sessionKey();
 
-    // reset per-turn state to prevent cross-session leaks
-    lastSentContent.clear();
-    compactionCount = 0;
-    memoryFlushCompactionCount = 0;
+    // per-turn state lives on the stack, safe for concurrent calls on shared AgentLoop
+    TurnState turnState;
+    turnState.sessionQueuePtr = defaultSessionQueuePtr.load(std::memory_order_acquire);
+    turnState.activeTurnHandle = defaultActiveTurnHandle.load(std::memory_order_acquire);
 
     // get task id from metadata
     std::string taskId;
@@ -405,11 +493,14 @@ void AgentLoop::processMessage(
     // broadcast user message for non-web channels (skip when the channel already broadcast it)
     if (message.channel != "web" && !messageSaved)
     {
-        dispatcher->broadcast("chat:user_message", {
-                                                       {"chat_id", message.chatId},
-                                                       {"content", message.content},
-                                                       {"channel", message.channel},
-                                                   });
+        AgentEvent userMsgEvent;
+        userMsgEvent.type = "chat:user_message";
+        userMsgEvent.data = {
+            {"chat_id", message.chatId},
+            {"content", message.content},
+            {"channel", message.channel},
+        };
+        callback(userMsgEvent);
     }
 
     // ensure session exists
@@ -417,70 +508,21 @@ void AgentLoop::processMessage(
 
     auto content = message.content;
 
-    // handle /new command
-    if (content == "/new")
+    // handle session reset commands
+    if (content == "/new" || content == "/reset")
     {
         sessionManager->clearSession(sessionKey);
         dispatcher->broadcast("sessions:updated", nlohmann::json::object());
-
-        if (!taskId.empty())
-        {
-            try
-            {
-                taskManager->updateState(taskId, ionclaw::task::TaskState::Done);
-            }
-            catch (...)
-            {
-            }
-        }
-
-        AgentEvent endEvent;
-        endEvent.type = "chat:message";
-        endEvent.data = {
-            {"chat_id", sessionKey},
-            {"content", "Conversation cleared. How can I help you?"},
-            {"agent_name", agentName},
-        };
-
-        if (!taskId.empty())
-        {
-            endEvent.data["task_id"] = taskId;
-        }
-
-        callback(endEvent);
+        sendCommandResponse(message, sessionKey, taskId, agentName, "Conversation cleared. How can I help you?", callback);
         return;
     }
 
     // handle /help command
     if (content == "/help")
     {
-        if (!taskId.empty())
-        {
-            try
-            {
-                taskManager->updateState(taskId, ionclaw::task::TaskState::Done);
-            }
-            catch (...)
-            {
-            }
-        }
-
-        auto helpText = "Available commands:\n  /new - Start a new conversation\n  /help - Show this help message\n";
-
-        AgentEvent endEvent;
-        endEvent.type = "chat:message";
-        endEvent.data = {
-            {"chat_id", sessionKey},
-            {"content", helpText},
-            {"agent_name", agentName},
-        };
-
-        if (!taskId.empty())
-        {
-            endEvent.data["task_id"] = taskId;
-        }
-
-        callback(endEvent);
+        sendCommandResponse(message, sessionKey, taskId, agentName,
+                            "Available commands:\n  /new - Start a new session\n  /reset - Reset the current session\n  /help - Show this help message\n",
+                            callback);
         return;
     }
 
@@ -495,6 +537,7 @@ void AgentLoop::processMessage(
     }
 
     toolContext.publicPath = publicPath;
+    toolContext.projectPath = configPtr ? configPtr->projectPath : "";
 
     // wrap messageSender to capture content delivered via message tool
     // (used as response fallback when model returns empty after tool execution)
@@ -508,6 +551,7 @@ void AgentLoop::processMessage(
             messageSender(channel, chatId, content);
         };
     }
+
     toolContext.config = configPtr;
     toolContext.taskManager = taskManager.get();
     toolContext.sessionManager = sessionManager.get();
@@ -517,159 +561,165 @@ void AgentLoop::processMessage(
     toolContext.subagentRegistry = subagentRegistryPtr;
     toolContext.hookRunner = hookRunnerPtr;
 
-    // resolve media paths to base64 content blocks (and transcriptions)
-    // must happen before saving user message so transcription text is persisted
-    std::string projectRoot = configPtr ? configPtr->projectPath : "";
-    auto mediaBlocks = resolveMedia(message.media, projectRoot);
-
-    // extract transcription blocks and prepend text to user content
-    // images are NOT embedded as content blocks — the model uses the vision tool to analyze them
-    std::string effectiveContent = content;
-
-    for (const auto &block : mediaBlocks)
-    {
-        auto type = block.value("type", "");
-
-        if (type == "transcription")
-        {
-            auto text = block.value("text", "");
-
-            if (!text.empty())
-            {
-                // prepend transcription to user message
-                if (effectiveContent.empty())
-                {
-                    effectiveContent = text;
-                }
-                else
-                {
-                    effectiveContent = "[Audio transcription]: " + text + "\n\n" + effectiveContent;
-                }
-
-                // broadcast transcription event to web client
-                dispatcher->broadcast("chat:transcription", {
-                                                                {"content", text},
-                                                                {"chat_id", message.chatId},
-                                                                {"agent_name", agentName},
-                                                            });
-            }
-        }
-        else if (type == "warning")
-        {
-            dispatcher->broadcast("chat:warning", {
-                                                      {"content", block.value("text", "")},
-                                                      {"chat_id", message.chatId},
-                                                      {"agent_name", agentName},
-                                                  });
-        }
-    }
-
-    // save user message to session (skip if already persisted by channel)
-    if (!messageSaved)
-    {
-        ionclaw::session::SessionMessage userSessionMsg;
-        userSessionMsg.role = "user";
-        userSessionMsg.content = effectiveContent;
-        userSessionMsg.timestamp = ionclaw::util::TimeHelper::now();
-        userSessionMsg.agentName = agentName;
-
-        for (const auto &path : message.media)
-        {
-            userSessionMsg.media.push_back(path);
-        }
-
-        sessionManager->addMessage(sessionKey, userSessionMsg);
-        dispatcher->broadcast("sessions:updated", nlohmann::json::object());
-    }
-    else if (effectiveContent != content)
-    {
-        // web channel: message was already saved by ChatRoutes with raw content;
-        // update the last message in session to include transcription text
-        sessionManager->updateLastMessageContent(sessionKey, effectiveContent);
-        sessionManager->save(sessionKey);
-    }
-
-    // build messages from session history + current user message
-    auto history = sessionManager->getHistory(sessionKey, agentConfig.agentParams.maxHistory);
-
-    // handle abort recovery: skip messages that were in flight during last crash
-    {
-        auto session = sessionManager->getOrCreate(sessionKey);
-
-        if (session.abortedLastRun && session.abortCutoffMessageIndex >= 0)
-        {
-            auto cutoff = session.abortCutoffMessageIndex;
-
-            if (cutoff < static_cast<int>(history.size()))
-            {
-                history.erase(history.begin() + cutoff, history.end());
-                spdlog::info("[AgentLoop] Trimmed {} post-abort messages from session {}", static_cast<int>(session.messages.size()) - cutoff, sessionKey);
-            }
-
-            sessionManager->clearAbortFlag(sessionKey);
-        }
-    }
-
-    // exclude the last user message from history (we add it separately)
-    if (!history.empty() && history.back().role == "user")
-    {
-        history.pop_back();
-    }
-
-    // prepend working directory path to user message for context
-    if (!agentConfig.workspace.empty())
-    {
-        effectiveContent = "[cwd: " + agentConfig.workspace + "]\n" + effectiveContent;
-    }
-
-    // strip incomplete trailing directive markers
-    effectiveContent = stripTrailingDirectives(effectiveContent);
-
-    // append media annotations for the current message (e.g. "[image attached: path — use vision tool...]")
-    if (!message.media.empty())
-    {
-        std::vector<nlohmann::json> mediaPaths;
-        mediaPaths.reserve(message.media.size());
-
-        for (const auto &p : message.media)
-        {
-            mediaPaths.push_back(p);
-        }
-
-        auto annotation = ContextBuilder::buildMediaAnnotation(mediaPaths);
-
-        if (!annotation.empty())
-        {
-            effectiveContent += annotation;
-        }
-    }
-
-    // images are not embedded — the model uses the vision tool via file paths in annotations
-    nlohmann::json emptyBlocks = nlohmann::json::array();
-    std::map<int, nlohmann::json> emptyHistoryMedia;
-
-    auto messages = ContextBuilder::buildMessages(systemPrompt, history, effectiveContent, emptyBlocks, emptyHistoryMedia);
-
-    // prompt size validation: defense-in-depth against oversized payloads
-    auto promptBytes = estimatePromptBytes(messages);
-
-    if (promptBytes > MAX_PROMPT_BYTES)
-    {
-        spdlog::warn("[AgentLoop] Prompt size {}B exceeds limit {}B, compacting", promptBytes, MAX_PROMPT_BYTES);
-        compactWithHooks(messages, sessionKey, taskId, agentConfig.modelParams);
-    }
-
-    // run agent loop
     try
     {
-        auto [responseText, responseBlocks] = runAgentLoop(messages, taskId, sessionKey, sessionKey, agentName, toolContext, callback);
+        // resolve media paths to base64 content blocks (and transcriptions)
+        // must happen before saving user message so transcription text is persisted
+        std::string projectRoot = configPtr ? configPtr->projectPath : "";
+        auto mediaBlocks = resolveMedia(message.media, projectRoot);
+
+        // extract transcription blocks and prepend text to user content
+        // images are NOT embedded as content blocks — the model uses the vision tool to analyze them
+        std::string effectiveContent = content;
+
+        for (const auto &block : mediaBlocks)
+        {
+            auto type = block.value("type", "");
+
+            if (type == "transcription")
+            {
+                auto text = block.value("text", "");
+
+                if (!text.empty())
+                {
+                    // prepend transcription to user message
+                    if (effectiveContent.empty())
+                    {
+                        effectiveContent = text;
+                    }
+                    else
+                    {
+                        effectiveContent = "[Audio transcription]: " + text + "\n\n" + effectiveContent;
+                    }
+
+                    // broadcast transcription event to web client
+                    AgentEvent transcriptionEvent;
+                    transcriptionEvent.type = "chat:transcription";
+                    transcriptionEvent.data = {
+                        {"content", text},
+                        {"chat_id", message.chatId},
+                        {"agent_name", agentName},
+                    };
+                    callback(transcriptionEvent);
+                }
+            }
+            else if (type == "warning")
+            {
+                AgentEvent warningEvent;
+                warningEvent.type = "chat:warning";
+                warningEvent.data = {
+                    {"content", block.value("text", "")},
+                    {"chat_id", message.chatId},
+                    {"agent_name", agentName},
+                };
+                callback(warningEvent);
+            }
+        }
+
+        // save user message to session (skip if already persisted by channel)
+        if (!messageSaved)
+        {
+            ionclaw::session::SessionMessage userSessionMsg;
+            userSessionMsg.role = "user";
+            userSessionMsg.content = effectiveContent;
+            userSessionMsg.timestamp = ionclaw::util::TimeHelper::now();
+            userSessionMsg.agentName = agentName;
+
+            for (const auto &path : message.media)
+            {
+                userSessionMsg.media.push_back(path);
+            }
+
+            sessionManager->addMessage(sessionKey, userSessionMsg);
+            dispatcher->broadcast("sessions:updated", nlohmann::json::object());
+        }
+        else if (effectiveContent != content)
+        {
+            // web channel: message was already saved by ChatRoutes with raw content;
+            // update the last message in session to include transcription text
+            sessionManager->updateLastMessageContent(sessionKey, effectiveContent);
+            sessionManager->save(sessionKey);
+        }
+
+        // build messages from session history + current user message
+        auto history = sessionManager->getHistory(sessionKey, agentConfig.agentParams.maxHistory);
+
+        // handle abort recovery: skip messages that were in flight during last crash
+        {
+            auto session = sessionManager->getOrCreate(sessionKey);
+
+            if (session.abortedLastRun && session.abortCutoffMessageIndex >= 0)
+            {
+                auto cutoff = session.abortCutoffMessageIndex;
+
+                if (cutoff < static_cast<int>(history.size()))
+                {
+                    history.erase(history.begin() + cutoff, history.end());
+                    spdlog::info("[AgentLoop] Trimmed {} post-abort messages from session {}", static_cast<int>(session.messages.size()) - cutoff, sessionKey);
+                }
+
+                sessionManager->clearAbortFlag(sessionKey);
+            }
+        }
+
+        // exclude the last user message from history (we add it separately)
+        if (!history.empty() && history.back().role == "user")
+        {
+            history.pop_back();
+        }
+
+        // prepend working directory path to user message for context
+        if (!agentConfig.workspace.empty())
+        {
+            effectiveContent = "[cwd: " + agentConfig.workspace + "]\n" + effectiveContent;
+        }
+
+        // strip incomplete trailing directive markers
+        effectiveContent = stripTrailingDirectives(effectiveContent);
+
+        // append media annotations for the current message (e.g. "[image attached: path — use vision tool...]")
+        if (!message.media.empty())
+        {
+            std::vector<nlohmann::json> mediaPaths;
+            mediaPaths.reserve(message.media.size());
+
+            for (const auto &p : message.media)
+            {
+                mediaPaths.push_back(p);
+            }
+
+            auto annotation = ContextBuilder::buildMediaAnnotation(mediaPaths);
+
+            if (!annotation.empty())
+            {
+                effectiveContent += annotation;
+            }
+        }
+
+        // images are not embedded — the model uses the vision tool via file paths in annotations
+        nlohmann::json emptyBlocks = nlohmann::json::array();
+        std::map<int, nlohmann::json> emptyHistoryMedia;
+
+        auto messages = ContextBuilder::buildMessages(systemPrompt, history, effectiveContent, emptyBlocks, emptyHistoryMedia);
+
+        // prompt size validation: defense-in-depth against oversized payloads
+        auto promptBytes = estimatePromptBytes(messages);
+
+        if (promptBytes > MAX_PROMPT_BYTES)
+        {
+            spdlog::warn("[AgentLoop] Prompt size {}B exceeds limit {}B, compacting", promptBytes, MAX_PROMPT_BYTES);
+            compactWithHooks(messages, sessionKey, taskId, agentConfig.modelParams, turnState);
+        }
+
+        // run agent loop
+        auto [responseText, responseBlocks] = runAgentLoop(messages, taskId, sessionKey, sessionKey, agentName, toolContext, callback, turnState);
 
         // resolve empty/silent responses: prefer message-tool content from this turn,
         // then fall back to last sent content from a previous turn
         if (responseText == "[SILENT]")
         {
             responseText = !messageToolDeliveredContent.empty() ? messageToolDeliveredContent
-                           : !lastSentContent.empty()           ? lastSentContent
+                           : !turnState.lastSentContent.empty() ? turnState.lastSentContent
                                                                 : "";
         }
         else if (responseText.empty() && !messageToolDeliveredContent.empty())
@@ -680,13 +730,8 @@ void AgentLoop::processMessage(
         // track last sent content for future silent-reply fallback
         if (!responseText.empty() && responseText != "[SILENT]")
         {
-            lastSentContent = responseText;
+            turnState.lastSentContent = responseText;
         }
-
-        // store content as typed blocks array
-        nlohmann::json contentBlocks = responseBlocks.empty()
-                                           ? nlohmann::json::array({{{"type", "text"}, {"text", responseText}}})
-                                           : nlohmann::json(responseBlocks);
 
         // save assistant response to session
         ionclaw::session::SessionMessage assistantSessionMsg;
@@ -708,7 +753,6 @@ void AgentLoop::processMessage(
             outbound.metadata = {
                 {"task_id", taskId},
                 {"agent_name", agentName},
-                {"content_blocks", contentBlocks},
             };
 
             if (message.metadata.contains("reply_to_message_id"))
@@ -733,12 +777,12 @@ void AgentLoop::processMessage(
             }
         }
 
-        // emit final message event
+        // emit final message event with content block array
         AgentEvent endEvent;
         endEvent.type = "chat:message";
         endEvent.data = {
             {"chat_id", sessionKey},
-            {"content", responseText},
+            {"content", nlohmann::json::array({{{"type", "text"}, {"text", responseText}}})},
             {"agent_name", agentName},
         };
 
@@ -748,6 +792,21 @@ void AgentLoop::processMessage(
         }
 
         callback(endEvent);
+
+        // signal stream end after final message (matches error path behavior)
+        AgentEvent streamEndEvent;
+        streamEndEvent.type = "chat:stream_end";
+        streamEndEvent.data = {
+            {"chat_id", sessionKey},
+            {"agent_name", agentName},
+        };
+
+        if (!taskId.empty())
+        {
+            streamEndEvent.data["task_id"] = taskId;
+        }
+
+        callback(streamEndEvent);
     }
     catch (const std::exception &e)
     {
@@ -795,19 +854,19 @@ void AgentLoop::processMessage(
             try
             {
                 taskManager->setError(taskId, e.what());
-                taskManager->updateState(taskId, ionclaw::task::TaskState::Error);
             }
-            catch (...)
+            catch (const std::exception &taskErr)
             {
+                spdlog::warn("[AgentLoop] taskManager update failed: {}", taskErr.what());
             }
         }
 
-        // broadcast error to client
+        // broadcast error to client (content block array format)
         AgentEvent errorEvent;
         errorEvent.type = "chat:message";
         errorEvent.data = {
             {"chat_id", sessionKey},
-            {"content", errorText},
+            {"content", nlohmann::json::array({{{"type", "text"}, {"text", errorText}}})},
             {"error", e.what()},
             {"agent_name", agentName},
         };
@@ -842,7 +901,8 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
     const std::string &sessionKey,
     const std::string &effectiveName,
     const ionclaw::tool::ToolContext &toolContext,
-    AgentEventCallback &callback)
+    AgentEventCallback &callback,
+    TurnState &turnState)
 {
     auto maxIterations = agentConfig.agentParams.maxIterations;
 
@@ -864,7 +924,6 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
     ToolLoopDetector loopDetector;
     UsageTracker usageTracker;
     std::vector<nlohmann::json> blocks;
-    recentToolFingerprints.clear();
     int contextOverflowAttempts = 0;
     bool transientRetried = false;
     static constexpr int MAX_OVERFLOW_COMPACTION_ATTEMPTS = 3;
@@ -880,17 +939,20 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
             break;
         }
 
+        // reset per-iteration dedup set so legitimate repeat calls across iterations are allowed
+        turnState.recentToolFingerprints.clear();
+
         // check per-turn abort (from interrupt)
-        if (activeTurnHandle && activeTurnHandle->aborted.load())
+        if (turnState.activeTurnHandle && turnState.activeTurnHandle->aborted.load())
         {
             spdlog::info("[AgentLoop] Turn aborted by interrupt at iteration {}", iteration);
             break;
         }
 
         // poll for steer messages and inject as user messages between iterations
-        if (sessionQueuePtr && iteration > 0)
+        if (turnState.sessionQueuePtr && iteration > 0)
         {
-            auto steerItems = sessionQueuePtr->drainSteer(sessionKey);
+            auto steerItems = turnState.sessionQueuePtr->drainSteer(sessionKey);
 
             for (const auto &item : steerItems)
             {
@@ -910,8 +972,9 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
             {
                 taskManager->incrementIteration(taskId);
             }
-            catch (...)
+            catch (const std::exception &e)
             {
+                spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
             }
         }
 
@@ -928,7 +991,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
         {
             spdlog::warn("[AgentLoop] Context window critically low ({:.0f}% used, ~{} tokens remaining), forcing compaction",
                          contextGuard.usageRatio * 100, contextGuard.modelLimit - contextGuard.estimatedTokens);
-            compactWithHooks(messages, sessionKey, taskId, turnModelParams, &toolContext);
+            compactWithHooks(messages, sessionKey, taskId, turnModelParams, turnState, &toolContext);
         }
         else if (contextGuard.level == ContextGuardLevel::Warning)
         {
@@ -943,7 +1006,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
             // prune history to fit within 50% of context before summarizing
             messages = Compaction::pruneHistoryForContextShare(messages, agentConfig.model, turnModelParams);
 
-            compactWithHooks(messages, sessionKey, taskId, turnModelParams, &toolContext);
+            compactWithHooks(messages, sessionKey, taskId, turnModelParams, turnState, &toolContext);
         }
 
         // strip thinking from older messages to save context
@@ -957,12 +1020,19 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
         auto toolResultBudget = static_cast<int>(modelLimit * 0.6 * 4);
         ContextBuilder::enforceToolResultBudget(messages, toolResultBudget);
 
-        // signal typing to the frontend
-        dispatcher->broadcast("chat:typing", {
-                                                 {"chat_id", chatId},
-                                                 {"agent_name", effectiveName},
-                                                 {"task_id", taskId},
-                                             });
+        // signal typing to the frontend (via callback for subagent forwarding)
+        AgentEvent typingEvent;
+        typingEvent.type = "chat:typing";
+        typingEvent.data = {
+            {"chat_id", chatId},
+            {"agent_name", effectiveName},
+            {"task_id", taskId},
+        };
+        callback(typingEvent);
+
+        // repair tool use/result pairing before each LLM call
+        // (compaction, pruning, or budget enforcement may break pairing)
+        ContextBuilder::repairToolUseResultPairing(messages);
 
         // consume stream with context overflow recovery
         StreamResult response;
@@ -990,8 +1060,8 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
                         {
                             auto head = ionclaw::util::StringHelper::utf8SafeTruncate(msg.content, 1000);
 
-                            // UTF-8 safe tail: skip forward past continuation bytes
-                            size_t tailStart = msg.content.size() - 500;
+                            // utf-8 safe tail: skip forward past continuation bytes
+                            size_t tailStart = msg.content.size() > 500 ? msg.content.size() - 500 : 0;
                             while (tailStart < msg.content.size() &&
                                    (static_cast<unsigned char>(msg.content[tailStart]) & 0xC0) == 0x80)
                             {
@@ -1004,7 +1074,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
                     }
                 }
 
-                compactWithHooks(messages, sessionKey, taskId, turnModelParams, &toolContext);
+                compactWithHooks(messages, sessionKey, taskId, turnModelParams, turnState, &toolContext);
                 --iteration;
                 continue;
             }
@@ -1084,8 +1154,9 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
                 {
                     taskManager->setUsage(taskId, usageTracker.toJson());
                 }
-                catch (...)
+                catch (const std::exception &e)
                 {
+                    spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
                 }
             }
 
@@ -1116,8 +1187,9 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
                     {
                         taskManager->setUsage(taskId, usageTracker.toJson());
                     }
-                    catch (...)
+                    catch (const std::exception &e)
                     {
+                        spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
                     }
                 }
 
@@ -1149,18 +1221,17 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
                     break;
                 }
 
-                // tool call deduplication: skip if identical call was already executed this turn
+                // tool call deduplication: skip if identical call was already executed in this iteration
                 auto fingerprint = tc.name + ":" + tc.arguments.dump();
-                auto fpHash = ToolLoopDetector::hashString(fingerprint);
 
-                if (recentToolFingerprints.count(fpHash) > 0)
+                if (turnState.recentToolFingerprints.count(fingerprint) > 0)
                 {
                     spdlog::debug("[AgentLoop] Skipping duplicate tool call: {}", tc.name);
                     ContextBuilder::addToolResult(messages, tc.id, tc.name, "[duplicate call skipped]");
                     continue;
                 }
 
-                recentToolFingerprints.insert(fpHash);
+                turnState.recentToolFingerprints.insert(fingerprint);
 
                 // parse arguments if they are still a string
                 nlohmann::json args = tc.arguments;
@@ -1171,7 +1242,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
                     {
                         args = nlohmann::json::parse(args.get<std::string>());
                     }
-                    catch (...)
+                    catch (const nlohmann::json::parse_error &)
                     {
                     }
                 }
@@ -1229,21 +1300,25 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
                     {
                         taskManager->incrementToolCount(taskId);
                     }
-                    catch (...)
+                    catch (const std::exception &e)
                     {
+                        spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
                     }
                 }
 
                 std::string toolSummary = formatToolSummary(tc.name, tc.arguments);
 
-                // broadcast tool use event
-                dispatcher->broadcast("chat:tool_use", {
-                                                           {"task_id", taskId},
-                                                           {"chat_id", chatId},
-                                                           {"tool", tc.name},
-                                                           {"description", toolSummary},
-                                                           {"agent_name", effectiveName},
-                                                       });
+                // emit tool use event via callback for forwarding support
+                AgentEvent toolEvent;
+                toolEvent.type = "chat:tool_use";
+                toolEvent.data = {
+                    {"task_id", taskId},
+                    {"chat_id", chatId},
+                    {"tool", tc.name},
+                    {"description", toolSummary},
+                    {"agent_name", effectiveName},
+                };
+                callback(toolEvent);
 
                 blocks.push_back({
                     {"type", "tool_use"},
@@ -1258,50 +1333,13 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
             // flush synthetic error results for any tool calls that didn't get executed (abort mid-batch)
             if (stopped.load())
             {
-                for (size_t ti = 0; ti < response.toolCalls.size(); ++ti)
-                {
-                    // check if this tool call already has a result in messages
-                    bool hasResult = false;
-                    for (auto rit = messages.rbegin(); rit != messages.rend() && rit->role == "tool"; ++rit)
-                    {
-                        if (rit->toolCallId == response.toolCalls[ti].id)
-                        {
-                            hasResult = true;
-                            break;
-                        }
-                    }
-                    if (!hasResult)
-                    {
-                        ContextBuilder::addToolResult(messages, response.toolCalls[ti].id,
-                                                      response.toolCalls[ti].name,
-                                                      "[tool call was not completed]");
-                    }
-                }
+                flushAbandonedToolCalls(messages, response.toolCalls);
             }
 
             // check abort after tool execution
-            if (activeTurnHandle && activeTurnHandle->aborted.load())
+            if (turnState.activeTurnHandle && turnState.activeTurnHandle->aborted.load())
             {
-                // flush synthetic error results for abandoned tool calls
-                for (size_t ti = 0; ti < response.toolCalls.size(); ++ti)
-                {
-                    bool hasResult = false;
-                    for (auto rit = messages.rbegin(); rit != messages.rend() && rit->role == "tool"; ++rit)
-                    {
-                        if (rit->toolCallId == response.toolCalls[ti].id)
-                        {
-                            hasResult = true;
-                            break;
-                        }
-                    }
-                    if (!hasResult)
-                    {
-                        ContextBuilder::addToolResult(messages, response.toolCalls[ti].id,
-                                                      response.toolCalls[ti].name,
-                                                      "[tool call was not completed]");
-                    }
-                }
-
+                flushAbandonedToolCalls(messages, response.toolCalls);
                 spdlog::info("[AgentLoop] Turn aborted by interrupt after tool execution");
                 break;
             }
@@ -1315,17 +1353,48 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
                 {
                     taskManager->setUsage(taskId, usageTracker.toJson());
                 }
-                catch (...)
+                catch (const std::exception &e)
                 {
+                    spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
                 }
             }
 
-            if (response.content.empty() && iteration > 0)
+            // assemble final text: use last iteration's content if non-empty,
+            // otherwise fall back to accumulated text from all iterations
+            std::string finalText = response.content;
+
+            if (finalText.empty() && iteration > 0)
             {
-                spdlog::warn("[AgentLoop] Empty response after tool execution at iteration {} (task {})", iteration, taskId);
+                // merge all text blocks accumulated across iterations
+                std::string accumulated;
+
+                for (const auto &block : blocks)
+                {
+                    if (block.value("type", "") == "text")
+                    {
+                        auto text = block.value("text", "");
+
+                        if (!text.empty())
+                        {
+                            if (!accumulated.empty())
+                            {
+                                accumulated += "\n\n";
+                            }
+
+                            accumulated += text;
+                        }
+                    }
+                }
+
+                finalText = accumulated;
+
+                if (finalText.empty())
+                {
+                    spdlog::warn("[AgentLoop] Empty response after tool execution at iteration {} (task {})", iteration, taskId);
+                }
             }
 
-            return {response.content, blocks};
+            return {finalText, blocks};
         }
     }
 
@@ -1336,8 +1405,9 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
         {
             taskManager->setUsage(taskId, usageTracker.toJson());
         }
-        catch (...)
+        catch (const std::exception &e)
         {
+            spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
         }
     }
 
@@ -1445,25 +1515,31 @@ StreamResult AgentLoop::consumeStream(
 
     result.reasoningContent = reasoningStream.str();
 
-    // broadcast thinking if accumulated
+    // emit thinking event via callback for forwarding support
     if (!result.reasoningContent.empty())
     {
-        dispatcher->broadcast("chat:thinking", {
-                                                   {"task_id", taskId},
-                                                   {"chat_id", chatId},
-                                                   {"content", result.reasoningContent},
-                                                   {"agent_name", effectiveName},
-                                               });
+        AgentEvent thinkEvent;
+        thinkEvent.type = "chat:thinking";
+        thinkEvent.data = {
+            {"task_id", taskId},
+            {"chat_id", chatId},
+            {"content", result.reasoningContent},
+            {"agent_name", effectiveName},
+        };
+        callback(thinkEvent);
     }
 
     // signal end of stream (only if there was content and no tool calls)
     if (!contentParts.empty() && result.toolCalls.empty())
     {
-        dispatcher->broadcast("chat:stream_end", {
-                                                     {"task_id", taskId},
-                                                     {"chat_id", chatId},
-                                                     {"agent_name", effectiveName},
-                                                 });
+        AgentEvent endStreamEvent;
+        endStreamEvent.type = "chat:stream_end";
+        endStreamEvent.data = {
+            {"task_id", taskId},
+            {"chat_id", chatId},
+            {"agent_name", effectiveName},
+        };
+        callback(endStreamEvent);
     }
 
     // determine finish reason if not "length"
@@ -1478,7 +1554,8 @@ StreamResult AgentLoop::consumeStream(
 bool AgentLoop::tryMemoryFlush(
     std::vector<ionclaw::provider::Message> &messages,
     const ionclaw::tool::ToolContext &toolContext,
-    const nlohmann::json &modelParams)
+    const nlohmann::json &modelParams,
+    TurnState & /* turnState */)
 {
     if (agentConfig.workspace.empty())
     {
@@ -1530,7 +1607,7 @@ bool AgentLoop::tryMemoryFlush(
                         {
                             args = nlohmann::json::parse(args.get<std::string>());
                         }
-                        catch (...)
+                        catch (const nlohmann::json::parse_error &)
                         {
                         }
                     }
@@ -1556,6 +1633,7 @@ void AgentLoop::compactWithHooks(
     const std::string &sessionKey,
     const std::string &taskId,
     const nlohmann::json &modelParams,
+    TurnState &turnState,
     const ionclaw::tool::ToolContext *toolContext)
 {
     if (hookRunnerPtr)
@@ -1568,13 +1646,13 @@ void AgentLoop::compactWithHooks(
     }
 
     // pre-compaction memory flush: save durable facts before summarizing (once per compaction)
-    compactionCount++;
+    turnState.compactionCount++;
 
-    if (toolContext && memoryFlushCompactionCount < compactionCount)
+    if (toolContext && turnState.memoryFlushCompactionCount < turnState.compactionCount)
     {
-        if (tryMemoryFlush(messages, *toolContext, modelParams))
+        if (tryMemoryFlush(messages, *toolContext, modelParams, turnState))
         {
-            memoryFlushCompactionCount = compactionCount;
+            turnState.memoryFlushCompactionCount = turnState.compactionCount;
         }
     }
 

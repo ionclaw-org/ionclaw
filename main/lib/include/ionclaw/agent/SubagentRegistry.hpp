@@ -77,7 +77,8 @@ public:
     void load();
     void save();
     int recoverStaleRuns();
-    int checkTimeouts();
+    // returns run IDs of timed-out subagents (caller must handle completion)
+    std::vector<std::string> checkTimeouts();
 
 private:
     std::string filePath;

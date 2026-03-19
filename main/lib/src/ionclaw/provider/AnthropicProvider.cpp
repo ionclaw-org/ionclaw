@@ -5,6 +5,7 @@
 
 #include "ionclaw/provider/ProviderHelper.hpp"
 #include "ionclaw/util/HttpClient.hpp"
+#include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/UniqueId.hpp"
 #include "spdlog/spdlog.h"
 
@@ -26,41 +27,6 @@ void AnthropicProvider::sanitizeMessages(nlohmann::json &messages)
             if (msg["content"].is_string() && msg["content"].get<std::string>().empty())
             {
                 msg["content"] = "(empty)";
-            }
-        }
-
-        // assistant messages with tool_use blocks must not have null content
-        if (role == "assistant" && msg.contains("content") && msg["content"].is_array())
-        {
-            bool hasToolUse = false;
-
-            for (const auto &block : msg["content"])
-            {
-                if (block.value("type", "") == "tool_use")
-                {
-                    hasToolUse = true;
-                    break;
-                }
-            }
-
-            if (hasToolUse)
-            {
-                // ensure there's at least one content block
-                bool hasText = false;
-
-                for (const auto &block : msg["content"])
-                {
-                    if (block.value("type", "") == "text")
-                    {
-                        hasText = true;
-                        break;
-                    }
-                }
-
-                if (!hasText)
-                {
-                    // no text block needed, tool_use blocks are sufficient
-                }
             }
         }
     }
@@ -91,9 +57,24 @@ nlohmann::json AnthropicProvider::validateTranscript(const nlohmann::json &messa
                     prev["content"] = prev["content"].get<std::string>() + "\n\n" +
                                       msg["content"].get<std::string>();
                 }
+                else if (prev.contains("content") && prev["content"].is_array() &&
+                         msg.contains("content") && msg["content"].is_array() &&
+                         !prev["content"].empty() && prev["content"][0].value("type", "") == "tool_result" &&
+                         !msg["content"].empty() && msg["content"][0].value("type", "") == "tool_result")
+                {
+                    // merge consecutive tool_result user messages
+                    for (const auto &block : msg["content"])
+                    {
+                        prev["content"].push_back(block);
+                    }
+                }
                 else
                 {
-                    // for array-based content (tool_result blocks), keep separate
+                    // non-mergeable array content; insert placeholder to maintain alternation
+                    nlohmann::json placeholder;
+                    placeholder["role"] = "assistant";
+                    placeholder["content"] = "(continued)";
+                    validated.push_back(placeholder);
                     validated.push_back(msg);
                 }
             }
@@ -151,6 +132,8 @@ nlohmann::json AnthropicProvider::validateTranscript(const nlohmann::json &messa
                 }
                 else
                 {
+                    // insert placeholder user message to maintain role alternation
+                    validated.push_back({{"role", "user"}, {"content", "[continued]"}});
                     validated.push_back(msg);
                 }
             }
@@ -274,11 +257,9 @@ nlohmann::json AnthropicProvider::buildRequestBody(const ChatCompletionRequest &
         }
 
         // convert tool results to anthropic format
+        // merge consecutive tool results into a single user message
         if (msg.role == "tool")
         {
-            nlohmann::json toolResultMsg;
-            toolResultMsg["role"] = "user";
-
             nlohmann::json contentBlock;
             contentBlock["type"] = "tool_result";
             contentBlock["tool_use_id"] = msg.toolCallId;
@@ -317,6 +298,20 @@ nlohmann::json AnthropicProvider::buildRequestBody(const ChatCompletionRequest &
                 contentBlock["content"] = msg.content;
             }
 
+            // append to previous user message if it already has tool_result blocks
+            if (!messages.empty() && messages.back().value("role", "") == "user")
+            {
+                auto &prevContent = messages.back()["content"];
+                if (prevContent.is_array() && !prevContent.empty() &&
+                    prevContent[0].value("type", "") == "tool_result")
+                {
+                    prevContent.push_back(contentBlock);
+                    continue;
+                }
+            }
+
+            nlohmann::json toolResultMsg;
+            toolResultMsg["role"] = "user";
             toolResultMsg["content"] = nlohmann::json::array({contentBlock});
             messages.push_back(toolResultMsg);
             continue;
@@ -394,7 +389,7 @@ nlohmann::json AnthropicProvider::buildRequestBody(const ChatCompletionRequest &
                     }
                     else if (!url.empty())
                     {
-                        // URL-based image
+                        // url-based image
                         nlohmann::json imageBlock;
                         imageBlock["type"] = "image";
                         imageBlock["source"]["type"] = "url";
@@ -404,7 +399,7 @@ nlohmann::json AnthropicProvider::buildRequestBody(const ChatCompletionRequest &
                 }
                 else if (blockType == "audio")
                 {
-                    // Anthropic audio input: base64-encoded audio data
+                    // anthropic audio input: base64-encoded audio data
                     auto data = block.value("data", "");
                     auto format = block.value("format", "wav");
 
@@ -623,21 +618,7 @@ void AnthropicProvider::parseStreamEvent(const std::string &eventType, const nlo
         // message_delta already emits a "done" chunk with the actual stop_reason;
         // only emit here as fallback when no stop_reason was received
     }
-    // handle stream error
-    else if (eventType == "error")
-    {
-        std::string errorMsg = "Anthropic stream error";
-
-        if (data.contains("error"))
-        {
-            auto errorType = data["error"].value("type", "unknown");
-            auto errorMessage = data["error"].value("message", "");
-            errorMsg = errorType + ": " + errorMessage;
-        }
-
-        spdlog::error("[AnthropicProvider] Stream error: {}", errorMsg);
-        throw std::runtime_error(errorMsg);
-    }
+    // note: "error" events are intercepted in chatStream before reaching this function
 }
 
 ChatCompletionResponse AnthropicProvider::chat(const ChatCompletionRequest &request)
@@ -666,7 +647,13 @@ ChatCompletionResponse AnthropicProvider::chat(const ChatCompletionRequest &requ
     }
 
     // parse and return response
-    auto json = nlohmann::json::parse(httpResponse.body);
+    auto json = nlohmann::json::parse(httpResponse.body, nullptr, false);
+
+    if (json.is_discarded())
+    {
+        throw std::runtime_error("Anthropic API returned invalid JSON (transient)");
+    }
+
     return parseResponse(json);
 }
 
@@ -742,10 +729,11 @@ void AnthropicProvider::chatStream(const ChatCompletionRequest &request, StreamC
                 }
             }
         }
-        catch (const nlohmann::json::exception &e)
+        catch (const nlohmann::json::exception &)
         {
-            // only swallow JSON parse errors, not runtime/API errors
-            spdlog::debug("[AnthropicProvider] Stream parse error: {}", e.what());
+            // non-JSON data received — likely an HTTP error page or plain-text error
+            spdlog::warn("[AnthropicProvider] Non-JSON stream data received: {}", ionclaw::util::StringHelper::utf8SafeTruncate(data, 200));
+            throw std::runtime_error("[AnthropicProvider] Non-JSON error response: " + ionclaw::util::StringHelper::utf8SafeTruncate(data, 500));
         } });
 }
 

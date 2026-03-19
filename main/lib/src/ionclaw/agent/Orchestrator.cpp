@@ -1,6 +1,9 @@
 #include "ionclaw/agent/Orchestrator.hpp"
 
+#include <algorithm>
+
 #include "ionclaw/provider/ProviderFactory.hpp"
+#include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
 #include "ionclaw/util/UniqueId.hpp"
 #include "spdlog/spdlog.h"
@@ -270,6 +273,18 @@ void Orchestrator::run()
                 announceQueue->processExpired();
             }
 
+            // check for timed-out subagent runs and handle completion
+            if (subagentRegistry)
+            {
+                auto timedOutIds = subagentRegistry->checkTimeouts();
+
+                for (const auto &runId : timedOutIds)
+                {
+                    auto record = subagentRegistry->getRecord(runId);
+                    handleSubagentCompletion(runId, record.outcome, true);
+                }
+            }
+
             ionclaw::bus::InboundMessage message;
 
             if (bus->consumeInbound(message, 500))
@@ -285,19 +300,29 @@ void Orchestrator::run()
                     try
                     {
                         auto sessionKey = message.sessionKey();
-                        dispatcher->broadcast("chat:message", {
-                                                                  {"chat_id", sessionKey},
-                                                                  {"content", std::string("I encountered an error: ") + e.what()},
-                                                                  {"error", e.what()},
-                                                              });
+                        std::string taskIdStr;
+                        if (message.metadata.contains("task_id") && message.metadata["task_id"].is_string())
+                        {
+                            taskIdStr = message.metadata["task_id"].get<std::string>();
+                        }
 
-                        dispatcher->broadcast("chat:stream_end", {
-                                                                     {"chat_id", sessionKey},
-                                                                 });
+                        nlohmann::json msgData = {
+                            {"chat_id", sessionKey},
+                            {"content", nlohmann::json::array({{{"type", "text"}, {"text", std::string("I encountered an error: ") + e.what()}}})},
+                            {"error", e.what()},
+                        };
+                        if (!taskIdStr.empty())
+                            msgData["task_id"] = taskIdStr;
+                        dispatcher->broadcast("chat:message", msgData);
+
+                        nlohmann::json endData = {{"chat_id", sessionKey}};
+                        if (!taskIdStr.empty())
+                            endData["task_id"] = taskIdStr;
+                        dispatcher->broadcast("chat:stream_end", endData);
                     }
-                    catch (...)
+                    catch (const std::exception &broadcastErr)
                     {
-                        spdlog::error("[Orchestrator] Failed to broadcast error notification");
+                        spdlog::error("[Orchestrator] Failed to broadcast error notification: {}", broadcastErr.what());
                     }
                 }
             }
@@ -308,7 +333,7 @@ void Orchestrator::run()
         }
         catch (...)
         {
-            spdlog::error("[Orchestrator] Worker loop unknown error");
+            spdlog::error("[Orchestrator] Worker loop non-standard exception");
         }
     }
 
@@ -324,16 +349,23 @@ void Orchestrator::handleMessage(const ionclaw::bus::InboundMessage &message)
     // fire MessageReceived hook
     if (hookRunner)
     {
-        HookContext hookCtx;
-        hookCtx.sessionKey = sessionKey;
-        hookCtx.data = {{"content", message.content}, {"channel", channel}};
-
-        if (message.metadata.contains("task_id"))
+        try
         {
-            hookCtx.taskId = message.metadata["task_id"].get<std::string>();
-        }
+            HookContext hookCtx;
+            hookCtx.sessionKey = sessionKey;
+            hookCtx.data = {{"content", message.content}, {"channel", channel}};
 
-        hookRunner->run(HookPoint::MessageReceived, hookCtx);
+            if (message.metadata.contains("task_id") && message.metadata["task_id"].is_string())
+            {
+                hookCtx.taskId = message.metadata["task_id"].get<std::string>();
+            }
+
+            hookRunner->run(HookPoint::MessageReceived, hookCtx);
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::error("[Orchestrator] MessageReceived hook error: {}", e.what());
+        }
     }
 
     // resolve effective queue mode
@@ -396,6 +428,17 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
         if (subagentRegistry)
         {
             subagentRegistry->updateStatus(subagentRunId, SubagentStatus::Active);
+        }
+
+        // mark this session as a subagent session (hidden from session list)
+        sessionManager->ensureSession(sessionKey);
+        sessionManager->updateLiveStateField(sessionKey, "subagent", true);
+
+        // broadcast typing indicator to parent chat so web client shows loading
+        if (message.metadata.contains("parent_session_key") && message.metadata["parent_session_key"].is_string())
+        {
+            auto parentKey = message.metadata["parent_session_key"].get<std::string>();
+            dispatcher->broadcast("chat:typing", {{"chat_id", parentKey}});
         }
     }
 
@@ -505,7 +548,7 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
     turnHandle->agentName = targetAgent;
     turnHandle->startedAt = std::chrono::steady_clock::now();
 
-    if (message.metadata.contains("task_id"))
+    if (message.metadata.contains("task_id") && message.metadata["task_id"].is_string())
     {
         turnHandle->taskId = message.metadata["task_id"].get<std::string>();
     }
@@ -522,104 +565,139 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
     // fire AgentTurnStart and BeforePromptBuild hooks
     if (hookRunner)
     {
-        HookContext hookCtx;
-        hookCtx.agentName = targetAgent;
-        hookCtx.sessionKey = sessionKey;
-        hookRunner->run(HookPoint::AgentTurnStart, hookCtx);
-        hookRunner->run(HookPoint::BeforePromptBuild, hookCtx);
-    }
-
-    // build system prompt with full context
-    auto builderIt = contextBuilders.find(targetAgent);
-
-    if (builderIt == contextBuilders.end() || !builderIt->second)
-    {
-        spdlog::error("[Orchestrator] No context builder for agent '{}', falling back to default", targetAgent);
-        return;
-    }
-
-    auto &builder = builderIt->second;
-    auto agentIt = config.agents.find(targetAgent);
-
-    auto agentTools = (agentIt != config.agents.end()) ? agentIt->second.tools : std::vector<std::string>{};
-    auto baseTools = agentTools.empty() ? toolRegistry->getToolNames() : agentTools;
-    static const ionclaw::config::ToolPolicy emptyPolicy;
-    auto &agentToolPolicy = (agentIt != config.agents.end()) ? agentIt->second.toolPolicy : emptyPolicy;
-    auto effectiveTools = ionclaw::tool::ToolRegistry::applyToolPolicy(baseTools, agentToolPolicy);
-    auto toolNames = toolRegistry->getToolNames(effectiveTools);
-
-    std::string agentInstructions;
-
-    if (agentIt != config.agents.end())
-    {
-        agentInstructions = agentIt->second.instructions;
-    }
-
-    // resolve user language: prefer current message metadata, fallback to session liveState
-    std::string userLanguage;
-
-    if (message.metadata.contains("language") && message.metadata["language"].is_string())
-    {
-        userLanguage = message.metadata["language"].get<std::string>();
-        sessionManager->updateLiveStateField(sessionKey, "language", userLanguage);
-    }
-    else
-    {
-        auto session = sessionManager->getOrCreate(sessionKey);
-
-        if (session.liveState.contains("language") && session.liveState["language"].is_string())
+        try
         {
-            userLanguage = session.liveState["language"].get<std::string>();
+            HookContext hookCtx;
+            hookCtx.agentName = targetAgent;
+            hookCtx.sessionKey = sessionKey;
+            hookRunner->run(HookPoint::AgentTurnStart, hookCtx);
+            hookRunner->run(HookPoint::BeforePromptBuild, hookCtx);
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::error("[Orchestrator] AgentTurnStart/BeforePromptBuild hook error (session: {}, agent: {}): {}", sessionKey, targetAgent, e.what());
+            // non-fatal: continue with the turn even if hooks fail
         }
     }
 
-    auto promptMode = subagentRunId.empty() ? PromptMode::Full : PromptMode::Minimal;
-    auto systemPrompt = builder->buildSystemPrompt(targetAgent, agentInstructions, channel, toolNames, promptMode, userLanguage);
-
-    // append subagent context if this is a subagent session
-    if (!subagentRunId.empty() && subagentRegistry)
+    // wrap all prompt building + agent execution in try-catch to ensure cleanup
+    // (clearActiveTurn, setActiveTurnHandle) always runs on any failure
+    try
     {
-        int depth = subagentRegistry->getDepth(sessionKey);
-        int maxDepth = SubagentRegistry::MAX_DEPTH;
+        // build system prompt with full context
+        auto builderIt = contextBuilders.find(targetAgent);
+
+        if (builderIt == contextBuilders.end() || !builderIt->second)
+        {
+            spdlog::error("[Orchestrator] No context builder for agent '{}', aborting turn", targetAgent);
+            loop->setActiveTurnHandle(nullptr);
+            clearActiveTurn(sessionKey);
+            return;
+        }
+
+        auto &builder = builderIt->second;
+        auto agentIt = config.agents.find(targetAgent);
+
+        auto agentTools = (agentIt != config.agents.end()) ? agentIt->second.tools : std::vector<std::string>{};
+        auto baseTools = agentTools.empty() ? toolRegistry->getToolNames() : agentTools;
+        static const ionclaw::config::ToolPolicy emptyPolicy;
+        auto &agentToolPolicy = (agentIt != config.agents.end()) ? agentIt->second.toolPolicy : emptyPolicy;
+        auto effectiveTools = ionclaw::tool::ToolRegistry::applyToolPolicy(baseTools, agentToolPolicy);
+
+        auto toolNames = toolRegistry->getToolNames(effectiveTools);
+
+        std::string agentInstructions;
 
         if (agentIt != config.agents.end())
         {
-            maxDepth = agentIt->second.subagentLimits.maxDepth;
+            agentInstructions = agentIt->second.instructions;
         }
 
-        systemPrompt += ContextBuilder::buildSubagentContext(depth, maxDepth);
-    }
+        // resolve user language: prefer current message metadata, fallback to session liveState
+        std::string userLanguage;
 
-    // create a modified message with effective content
-    auto effectiveMessage = message;
-    effectiveMessage.content = effectiveContent;
+        if (message.metadata.contains("language") && message.metadata["language"].is_string())
+        {
+            userLanguage = message.metadata["language"].get<std::string>();
+            sessionManager->updateLiveStateField(sessionKey, "language", userLanguage);
+        }
+        else
+        {
+            auto session = sessionManager->getOrCreate(sessionKey);
 
-    // process message with event broadcasting
-    // wrap in try-catch to ensure cleanup (clearActiveTurn, setActiveTurnHandle)
-    // always runs, even if processMessage throws from pre-loop code
-    try
-    {
-        loop->processMessage(effectiveMessage, systemPrompt, [this, sessionKey, targetAgent, subagentRunId](const AgentEvent &event)
-                             {
-            nlohmann::json eventData = event.data;
-            eventData["agent"] = targetAgent;
-
-            if (!eventData.contains("chat_id"))
+            if (session.liveState.contains("language") && session.liveState["language"].is_string())
             {
-                eventData["chat_id"] = sessionKey;
+                userLanguage = session.liveState["language"].get<std::string>();
+            }
+        }
+
+        auto promptMode = subagentRunId.empty() ? PromptMode::Full : PromptMode::Minimal;
+        auto systemPrompt = builder->buildSystemPrompt(targetAgent, agentInstructions, channel, toolNames, promptMode, userLanguage);
+
+        // append subagent context if this is a subagent session
+        if (!subagentRunId.empty() && subagentRegistry)
+        {
+            int depth = subagentRegistry->getDepth(sessionKey);
+            int maxDepth = SubagentRegistry::MAX_DEPTH;
+
+            if (agentIt != config.agents.end())
+            {
+                maxDepth = agentIt->second.subagentLimits.maxDepth;
             }
 
-            dispatcher->broadcast(event.type, eventData);
+            systemPrompt += ContextBuilder::buildSubagentContext(depth, maxDepth);
+        }
+        else if (std::find(effectiveTools.begin(), effectiveTools.end(), "spawn") != effectiveTools.end())
+        {
+            // parent agent with spawn capability — add orchestration guidance
+            systemPrompt += "\n\n# Subagent Orchestration\n"
+                            "- Subagent results are auto-announced back to you as user messages (push-based).\n"
+                            "- After spawning, wait for completion events. Do NOT poll with subagents list in a loop.\n"
+                            "- Track expected child tasks and only send your final answer after ALL completion events arrive.\n"
+                            "- Once all results arrive, synthesize them into a SINGLE consolidated answer.\n"
+                            "- NEVER echo, repeat, or quote the raw subagent results. Extract the key information and present your own synthesis.\n"
+                            "- Do NOT spawn follow-up subagents to investigate subagent results unless the user explicitly asks.\n"
+                            "- If a child completion event arrives AFTER you already sent your final answer, reply ONLY with [SILENT].\n"
+                            "- If you already have enough information to answer, do so immediately without spawning more.\n";
+        }
 
-            // update subagent progress with streamed content
-            if (!subagentRunId.empty() && subagentRegistry && event.type == "chat:stream"
-                && event.data.contains("content") && event.data["content"].is_string())
+        // create a modified message with effective content
+        auto effectiveMessage = message;
+        effectiveMessage.content = effectiveContent;
+
+        // process message with event broadcasting
+        // clang-format off
+        loop->processMessage(effectiveMessage, systemPrompt, [this, sessionKey, targetAgent, subagentRunId](const AgentEvent &event)
+        {
+            try
             {
-                subagentRegistry->updateProgress(subagentRunId, event.data["content"].get<std::string>());
-            } });
+                nlohmann::json eventData = event.data;
+                eventData["agent"] = targetAgent;
+
+                if (!eventData.contains("chat_id"))
+                {
+                    eventData["chat_id"] = sessionKey;
+                }
+
+                dispatcher->broadcast(event.type, eventData);
+
+                // update subagent progress with streamed content
+                if (!subagentRunId.empty() && subagentRegistry && event.type == "chat:stream"
+                    && event.data.contains("content") && event.data["content"].is_string())
+                {
+                    subagentRegistry->updateProgress(subagentRunId, event.data["content"].get<std::string>());
+                }
+            }
+            catch (const std::exception &e)
+            {
+                spdlog::error("[Orchestrator] Event callback error ({}): {}", event.type, e.what());
+            }
+        });
+        // clang-format on
     }
     catch (const std::exception &ex)
     {
+        spdlog::error("[Orchestrator] Agent execution error (session: {}, agent: {}): {}", sessionKey, targetAgent, ex.what());
         clearActiveTurn(sessionKey);
         loop->setActiveTurnHandle(nullptr);
 
@@ -629,20 +707,62 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
             handleSubagentCompletion(subagentRunId, std::string("Error: ") + ex.what(), true);
         }
 
-        throw;
+        // broadcast error to client with full context (task_id, agent) so the UI can display it
+        try
+        {
+            dispatcher->broadcast("chat:message", {
+                                                      {"chat_id", sessionKey},
+                                                      {"content", nlohmann::json::array({{{"type", "text"}, {"text", std::string("I encountered an error: ") + ex.what()}}})},
+                                                      {"error", ex.what()},
+                                                      {"agent_name", targetAgent},
+                                                      {"task_id", turnHandle->taskId},
+                                                  });
+            dispatcher->broadcast("chat:stream_end", {
+                                                         {"chat_id", sessionKey},
+                                                         {"agent_name", targetAgent},
+                                                         {"task_id", turnHandle->taskId},
+                                                     });
+        }
+        catch (const std::exception &broadcastErr)
+        {
+            spdlog::error("[Orchestrator] Failed to broadcast error: {}", broadcastErr.what());
+        }
+
+        return;
     }
     catch (...)
     {
+        spdlog::error("[Orchestrator] Agent execution non-standard exception (session: {}, agent: {})", sessionKey, targetAgent);
         clearActiveTurn(sessionKey);
         loop->setActiveTurnHandle(nullptr);
 
         // mark subagent as errored if this was a subagent run
         if (!subagentRunId.empty() && subagentRegistry)
         {
-            handleSubagentCompletion(subagentRunId, "Unknown error", true);
+            handleSubagentCompletion(subagentRunId, "Error: non-standard exception", true);
         }
 
-        throw;
+        try
+        {
+            dispatcher->broadcast("chat:message", {
+                                                      {"chat_id", sessionKey},
+                                                      {"content", nlohmann::json::array({{{"type", "text"}, {"text", "I encountered an unexpected internal error."}}})},
+                                                      {"error", "non-standard exception"},
+                                                      {"agent_name", targetAgent},
+                                                      {"task_id", turnHandle->taskId},
+                                                  });
+            dispatcher->broadcast("chat:stream_end", {
+                                                         {"chat_id", sessionKey},
+                                                         {"agent_name", targetAgent},
+                                                         {"task_id", turnHandle->taskId},
+                                                     });
+        }
+        catch (const std::exception &broadcastErr)
+        {
+            spdlog::error("[Orchestrator] Failed to broadcast error: {}", broadcastErr.what());
+        }
+
+        return;
     }
 
     // clear active turn
@@ -654,14 +774,21 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
     // fire MessageSent + AgentTurnEnd hooks
     if (hookRunner)
     {
-        HookContext hookCtx;
-        hookCtx.agentName = targetAgent;
-        hookCtx.sessionKey = sessionKey;
-        hookRunner->run(HookPoint::MessageSent, hookCtx);
-        hookRunner->run(HookPoint::AgentTurnEnd, hookCtx);
+        try
+        {
+            HookContext hookCtx;
+            hookCtx.agentName = targetAgent;
+            hookCtx.sessionKey = sessionKey;
+            hookRunner->run(HookPoint::MessageSent, hookCtx);
+            hookRunner->run(HookPoint::AgentTurnEnd, hookCtx);
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::error("[Orchestrator] MessageSent/AgentTurnEnd hook error (session: {}, agent: {}): {}", sessionKey, targetAgent, e.what());
+        }
     }
 
-    // handle subagent completion
+    // handle subagent completion (this is a child finishing)
     if (!subagentRunId.empty() && subagentRegistry)
     {
         auto lastHistory = sessionManager->getHistory(sessionKey, 1);
@@ -673,6 +800,31 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
         }
 
         handleSubagentCompletion(subagentRunId, outcome, false);
+    }
+
+    // if this parent turn spawned children that are still running,
+    // keep the task in Doing so the UI shows the agent is still working
+    if (subagentRunId.empty() && subagentRegistry && !turnHandle->taskId.empty() &&
+        !subagentRegistry->allChildrenTerminal(sessionKey))
+    {
+        // re-mark task as Doing (processMessage already set it to Done)
+        try
+        {
+            taskManager->updateState(turnHandle->taskId, ionclaw::task::TaskState::Doing);
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::warn("[Orchestrator] Failed to re-mark parent task as Doing: {}", e.what());
+        }
+
+        // store the parent task id so the wake turn can continue it
+        sessionManager->updateLiveStateField(sessionKey, "pendingParentTaskId", turnHandle->taskId);
+
+        // keep typing indicator alive
+        dispatcher->broadcast("chat:typing", {{"chat_id", sessionKey}, {"agent_name", targetAgent}});
+
+        spdlog::info("[Orchestrator] Parent task {} kept in Doing while {} children run (session: {})",
+                     turnHandle->taskId, subagentRegistry->getActiveChildCount(sessionKey), sessionKey);
     }
 
     // drain followup/collect queue after turn completes
@@ -711,6 +863,18 @@ void Orchestrator::handleInterrupt(const std::string &sessionKey, const ionclaw:
 // drain followup/collect queue after a turn completes
 void Orchestrator::drainSessionQueue(const std::string &sessionKey)
 {
+    // move leftover steer items (subagent results not consumed between iterations)
+    // to announce queue so they are delivered on the next turn
+    if (announceQueue)
+    {
+        auto steerLeftovers = sessionQueue_->drainSteer(sessionKey);
+        for (const auto &item : steerLeftovers)
+        {
+            spdlog::info("[Orchestrator] Moving unconsumed steer item to announce queue (session: {})", sessionKey);
+            announceQueue->enqueue("steer", sessionKey, item.message.content);
+        }
+    }
+
     while (sessionQueue_->hasPending(sessionKey))
     {
         // check for interrupt before draining
@@ -819,15 +983,31 @@ void Orchestrator::handleSubagentCompletion(const std::string &runId, const std:
     auto status = errored ? SubagentStatus::Errored : SubagentStatus::Completed;
     subagentRegistry->updateStatus(runId, status, outcome);
 
-    if (announceQueue)
     {
-        auto statusStr = errored ? "errored" : "completed";
-        auto announceMsg = "[Subagent run " + runId + " " + statusStr + "]\n" +
-                           "Task: " + record.task + "\n" +
-                           "Result: " + (outcome.empty() ? "(no output)" : outcome);
+        std::string statusStr = errored ? "FAILED" : "OK";
+        auto announceMsg = "[" + statusStr + "] " + record.task + "\n" +
+                           (outcome.empty() ? std::string("(no output)") : outcome);
 
-        auto announceId = AnnounceQueue::buildAnnounceId(record.childSessionKey, runId);
-        announceQueue->enqueue(runId, record.requesterSessionKey, announceMsg, announceId);
+        // try steer: inject result into parent's active turn (between iterations)
+        // fallback to announce queue if parent is not active (will be prepended to next turn)
+        if (isSessionActive(record.requesterSessionKey) && sessionQueue_)
+        {
+            ionclaw::bus::InboundMessage steerMsg;
+            steerMsg.content = announceMsg;
+            steerMsg.metadata = {{"synthetic", true}, {"message_saved", true}};
+
+            auto settings = ionclaw::bus::QueueSettings{};
+            settings.mode = ionclaw::bus::QueueMode::Steer;
+            sessionQueue_->enqueue(record.requesterSessionKey, steerMsg,
+                                   ionclaw::bus::QueueMode::Steer, settings);
+
+            spdlog::info("[Orchestrator] Steered subagent result into active turn (session: {})", record.requesterSessionKey);
+        }
+        else if (announceQueue)
+        {
+            auto announceId = AnnounceQueue::buildAnnounceId(record.childSessionKey, runId);
+            announceQueue->enqueue(runId, record.requesterSessionKey, announceMsg, announceId);
+        }
     }
 
     if (hookRunner)
@@ -842,8 +1022,21 @@ void Orchestrator::handleSubagentCompletion(const std::string &runId, const std:
         hookRunner->run(HookPoint::SubagentEnded, hookCtx);
     }
 
-    // wake parent if all children are terminal
-    if (subagentRegistry->allChildrenTerminal(record.requesterSessionKey))
+    // keep parent chat loading indicator alive while children are still running
+    if (!subagentRegistry->allChildrenTerminal(record.requesterSessionKey))
+    {
+        // broadcast typing so the UI shows the parent is still waiting
+        auto parentSession = sessionManager->getOrCreate(record.requesterSessionKey);
+
+        if (parentSession.liveState.contains("pendingParentTaskId"))
+        {
+            dispatcher->broadcast("chat:typing", {{"chat_id", record.requesterSessionKey}});
+        }
+
+        return;
+    }
+
+    // all children terminal — wake parent to process all results at once
     {
         spdlog::info("[Orchestrator] All children settled for session {}, waking parent", record.requesterSessionKey);
 
@@ -857,15 +1050,36 @@ void Orchestrator::handleSubagentCompletion(const std::string &runId, const std:
             chatId = record.requesterSessionKey.substr(colonPos + 1);
         }
 
+        // reuse the parent's original task id (stored when spawning children)
+        // so the UI shows one continuous task from user message → final answer
+        std::string parentTaskId;
+        auto parentSession = sessionManager->getOrCreate(record.requesterSessionKey);
+
+        if (parentSession.liveState.contains("pendingParentTaskId") &&
+            parentSession.liveState["pendingParentTaskId"].is_string())
+        {
+            parentTaskId = parentSession.liveState["pendingParentTaskId"].get<std::string>();
+            sessionManager->updateLiveStateField(record.requesterSessionKey, "pendingParentTaskId", nullptr);
+        }
+
         ionclaw::bus::InboundMessage wakeMsg;
         wakeMsg.channel = channel;
         wakeMsg.chatId = chatId;
-        wakeMsg.content = "All spawned subagent tasks have completed. Review the results above and continue.";
+        wakeMsg.content = "All subagent tasks completed. "
+                          "Synthesize the results above into your final answer. "
+                          "Do NOT repeat or echo the raw results — extract key facts and present a clean response.";
+
         wakeMsg.queueMode = std::make_optional(ionclaw::bus::QueueMode::Followup);
         wakeMsg.metadata = {
             {"synthetic", true},
+            {"message_saved", true},
             {"wake_reason", "all_children_settled"},
         };
+
+        if (!parentTaskId.empty())
+        {
+            wakeMsg.metadata["task_id"] = parentTaskId;
+        }
 
         bus->publishInbound(wakeMsg);
     }

@@ -69,9 +69,7 @@ nlohmann::json McpClientTool::sendRpcRequest(
     for (const auto &[key, value] : response.headers)
     {
         auto lower = key;
-        std::transform(lower.begin(), lower.end(), lower.begin(),
-                       [](unsigned char c)
-                       { return static_cast<char>(std::tolower(c)); });
+        ionclaw::util::StringHelper::toLowerInPlace(lower);
 
         if (lower == "content-type")
         {
@@ -118,7 +116,12 @@ nlohmann::json McpClientTool::sendRpcRequest(
         responseBody = lastData;
     }
 
-    auto body = nlohmann::json::parse(responseBody);
+    auto body = nlohmann::json::parse(responseBody, nullptr, false);
+
+    if (body.is_discarded())
+    {
+        throw std::runtime_error("MCP server returned invalid JSON response");
+    }
 
     // propagate JSON-RPC errors
     if (body.contains("error") && body["error"].is_object())
@@ -167,16 +170,26 @@ void McpClientTool::sendDeleteRequest(
 
 ToolResult McpClientTool::execute(const nlohmann::json &params, const ToolContext &)
 {
-    auto action = params.at("action").get<std::string>();
-    auto url = params.at("url").get<std::string>();
+    auto action = params.value("action", std::string(""));
+    auto url = params.value("url", std::string(""));
+
+    if (action.empty())
+    {
+        return "Error: action is required";
+    }
+
+    if (url.empty())
+    {
+        return "Error: url is required";
+    }
     auto sessionId = params.value("session_id", std::string(""));
     auto authToken = params.value("auth_token", std::string(""));
     auto timeout = params.value("timeout", DEFAULT_TIMEOUT_SECONDS);
 
-    // ssrf validation
+    // ssrf validation (allow loopback for local MCP servers)
     try
     {
-        ionclaw::util::SsrfGuard::validateUrl(url);
+        ionclaw::util::SsrfGuard::validateUrlAllowLoopback(url);
     }
     catch (const std::exception &e)
     {

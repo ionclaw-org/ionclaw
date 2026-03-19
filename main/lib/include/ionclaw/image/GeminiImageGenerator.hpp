@@ -7,7 +7,7 @@ namespace ionclaw
 namespace image
 {
 
-class GeminiImageGenerator : public ImageGenerator
+class GeminiImageGenerator final : public ImageGenerator
 {
 public:
     explicit GeminiImageGenerator(std::string providerName);

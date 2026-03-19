@@ -46,7 +46,9 @@ export const useWebSocketStore = defineStore('websocket', () => {
       scheduleReconnect()
     }
 
-    ws.onerror = () => {}
+    ws.onerror = (e) => {
+      console.error('[ws] error:', e)
+    }
 
     ws.onmessage = (event) => {
       try {
@@ -159,8 +161,12 @@ export const useWebSocketStore = defineStore('websocket', () => {
   }
 
   function send(type, data) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type, data }))
+    try {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type, data }))
+      }
+    } catch {
+      // connection closed between readyState check and send
     }
   }
 
@@ -168,6 +174,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
     const tasks = useTasksStore()
     const chat = useChatStore()
     tasks.loadTasks()
+    chat.clearLiveCache()
     chat.loadSessions()
     chat.loadHistory(chat.currentSessionId)
   }

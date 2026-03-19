@@ -32,9 +32,9 @@ private:
 
 std::atomic<bool> Application::shutdownRequested{false};
 
-void Application::signalHandler(int signal)
+void Application::signalHandler(int /* signal */)
 {
-    spdlog::info("Received signal {}, shutting down...", signal);
+    // only async-signal-safe operations here (no spdlog, no malloc)
     shutdownRequested.store(true);
 }
 
@@ -83,7 +83,15 @@ int Application::cmdStart(int argc, char *argv[])
         }
         else if (arg == "--port" && i + 1 < argc)
         {
-            port = std::stoi(argv[++i]);
+            try
+            {
+                port = std::stoi(argv[++i]);
+            }
+            catch (const std::exception &e)
+            {
+                spdlog::error("Invalid port number: {}", e.what());
+                return EXIT_FAILURE;
+            }
         }
         else if (arg == "--debug")
         {
@@ -175,11 +183,12 @@ int Application::cmdInit(int argc, char *argv[])
     if (success)
     {
         // create workspace directories
-        std::filesystem::create_directories(targetDir + "/workspace/sessions");
-        std::filesystem::create_directories(targetDir + "/workspace/skills");
-        std::filesystem::create_directories(targetDir + "/workspace/memory");
-        std::filesystem::create_directories(targetDir + "/public");
-        std::filesystem::create_directories(targetDir + "/skills");
+        std::error_code ec;
+        std::filesystem::create_directories(targetDir + "/workspace/sessions", ec);
+        std::filesystem::create_directories(targetDir + "/workspace/skills", ec);
+        std::filesystem::create_directories(targetDir + "/workspace/memory", ec);
+        std::filesystem::create_directories(targetDir + "/public", ec);
+        std::filesystem::create_directories(targetDir + "/skills", ec);
 
         std::cout << "Project initialized successfully.\n";
         std::cout << "Run 'ionclaw start --project " << targetDir << "' to start.\n";

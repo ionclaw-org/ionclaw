@@ -104,7 +104,7 @@ See [API Reference](api.md#websocket) for full payload shapes.
 
 - **HttpServer** (`server/HttpServer.hpp`) — Poco HTTP server lifecycle (start, stop, port).
 - **Handlers** (`server/handler/`) — HTTP request handlers split by responsibility: `RequestHandlerFactory` (URL dispatch), `ApiHandler` (REST API), `WebSocketHandler`, `WebAppHandler` (SPA at `/app/`), `PublicFileHandler`, `RedirectHandler`, `HttpHelper` (shared CORS/content-type utilities).
-- **Routes** (`server/Routes.hpp`) — Route handler declarations. Implementations split by domain into `server/routes/`: AuthRoutes, ChatRoutes, TaskRoutes, AgentRoutes, ConfigRoutes, SystemRoutes, SkillRoutes, CredentialRoutes, FileRoutes, ChannelRoutes, FormRoutes, SchedulerRoutes.
+- **Routes** (`server/Routes.hpp`) — Route handler declarations. Implementations split by domain into `server/routes/`: AuthRoutes, ChatRoutes, TaskRoutes, AgentRoutes, ConfigRoutes, SystemRoutes, SkillRoutes, FileRoutes, ChannelRoutes, FormRoutes, SchedulerRoutes, MarketplaceRoutes.
 - **Auth** (`server/Auth.hpp`) — JWT-based authentication for API and WebSocket connections.
 - **WebSocketManager** (`server/WebSocketManager.hpp`) — Manages WebSocket connections and broadcasts events to clients.
 - **ServerInstance** (`server/ServerInstance.hpp`) — Singleton that orchestrates startup and shutdown of all components.
@@ -169,11 +169,15 @@ Before compaction runs (once per compaction cycle), the agent loop attempts a me
 
 #### Subagent Lifecycle
 
-1. **Spawn** — Parent calls `spawn` tool → validates depth/children limits → fires `SubagentSpawning` hook (can block) → creates SubagentRunRecord → publishes inbound message → fires `SubagentSpawned` hook.
-2. **Active** — Child session processes the task. Progress is tracked via `updateProgress()` (latest 500-char output snippet).
-3. **Completion** — Child finishes → status updated to Completed/Errored → `SubagentEnded` hook fires → AnnounceQueue notifies parent.
-4. **Timeout** — `checkTimeouts()` marks expired runs as Killed after `timeoutSeconds` (default 300s).
-5. **Recovery** — On startup, `recoverStaleRuns()` marks Active/Pending runs as Errored.
+Subagents run on the same Orchestrator worker thread as the parent (sequential, not parallel). See [flow.md § 15](flow.md#15-subagents) for the complete step-by-step flow with examples.
+
+1. **Spawn** — Parent calls `spawn` tool → validates depth/children limits → fires `SubagentSpawning` hook (can block) → creates SubagentRunRecord (Pending) → publishes InboundMessage to MessageBus → fires `SubagentSpawned` hook. Parent's turn continues normally.
+2. **Active** — Orchestrator picks up child message from bus → updates status to Active → runs AgentLoop with minimal prompt. Progress tracked via `updateProgress()` (last 500-char snippet).
+3. **Completion** — Child finishes → status updated to Completed/Errored → result enqueued in AnnounceQueue (with idempotency key) → `SubagentEnded` hook fires → if all siblings are terminal, a synthetic wake message is published to the parent's session.
+4. **Wake** — Parent session receives the wake message → AnnounceQueue is drained → all child results are prepended to the message → AgentLoop processes and responds using full session history.
+5. **Spawn-wake loop prevention** — Parent agents with the `spawn` tool receive orchestration guidance in the system prompt: push-based model (wait for completion events, do not poll), track expected children before answering, and reply `[SILENT]` if a completion arrives after the final answer was already sent. The `[SILENT]` token is detected by AgentLoop, which suppresses delivery and falls back to previously sent content.
+6. **Timeout** — `checkTimeouts()` marks expired runs as Killed (with kill cascade to descendants) after `timeoutSeconds`.
+7. **Recovery** — On startup, `recoverStaleRuns()` marks Active/Pending runs as Errored (no agent is running to complete them).
 
 ### Hook System
 
@@ -392,6 +396,7 @@ This is separate from the `tools` field (which controls tool registration). Tool
 
 - **Config** (`config/Config.hpp`) — All configuration structs including `AgentConfig`, `ToolPolicy`, `SubagentLimits`, `MessageQueueConfig`, `SessionBudgetConfig`.
 - **ConfigLoader** (`config/ConfigLoader.hpp`) — YAML config file parser with environment variable substitution.
+- **Thread safety** — Config mutations from HTTP handlers (ConfigRoutes, ChannelRoutes) are serialized via `configMutex_` in Routes to prevent concurrent read-modify-write races on `ConfigLoader::save`.
 
 ### Web Client
 
@@ -462,9 +467,10 @@ Project initialization is a separate step (`ionclaw_project_init` or `ionclaw-se
 - **Context overflow recovery** — If the LLM returns a context overflow error, AgentLoop compacts the conversation and retries (up to 3 attempts). On subsequent attempts, tool results larger than 2000 chars are truncated before compaction.
 - **Tool result context guard** — ContextBuilder enforces per-result caps (50% of context budget) and progressive oldest-first compaction to prevent tool results from consuming the entire context window. Results with error/diagnostic content in the tail receive a larger tail allocation (important-tail detection).
 - **Abandoned tool call flush** — When the agent loop is stopped or aborted mid-batch, synthetic error results are injected for any tool calls that didn't execute, preventing orphaned tool call entries in the transcript.
-- **Transcript repair** — After history trimming, `repairToolUseResultPairing()` fixes orphaned tool calls, duplicate results, and missing synthetic responses to maintain a valid message sequence.
+- **Transcript repair** — After history trimming, `repairToolUseResultPairing()` fixes orphaned tool calls, duplicate results, and missing synthetic responses to maintain a valid message sequence. AnthropicProvider additionally merges consecutive tool result messages into a single user message (Anthropic requires all tool_results in one message immediately after the assistant's tool_use).
 - **Error message redaction** — API keys, tokens, and bearer credentials are automatically redacted from error messages before they reach the user or logs.
 - **Tool loop detection** — Four-strategy detector prevents infinite loops: generic repeat, ping-pong, poll-no-progress, and global-no-progress. Circuit breaker stops execution after 30 identical calls.
+- **Spawn-wake loop prevention** — System prompt instructs parent agents with `spawn` tool to use a push-based model (wait for completion events, no polling), track expected children, and reply `[SILENT]` for late arrivals. AgentLoop detects `[SILENT]` and suppresses delivery, falling back to previously sent content.
 - **Hook-based blocking** — BeforeToolCall and SubagentSpawning hooks can block execution, providing a policy enforcement layer for tool access control and subagent governance.
 - **Pre-compaction memory flush** — Important facts are extracted from context via LLM call before compaction summarizes and discards older messages.
 - **Thinking constraint fallback** — When the LLM rejects a thinking level (e.g. model doesn't support `high`), the agent automatically downgrades: high → medium → low → off. Timeout errors also trigger a thinking downgrade before retry.

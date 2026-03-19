@@ -7,7 +7,7 @@ namespace ionclaw
 namespace search
 {
 
-class BraveSearchProvider : public SearchProvider
+class BraveSearchProvider final : public SearchProvider
 {
 public:
     std::string name() const override;

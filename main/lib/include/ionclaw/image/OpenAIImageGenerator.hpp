@@ -7,7 +7,7 @@ namespace ionclaw
 namespace image
 {
 
-class OpenAIImageGenerator : public ImageGenerator
+class OpenAIImageGenerator final : public ImageGenerator
 {
 public:
     explicit OpenAIImageGenerator(std::string providerName);

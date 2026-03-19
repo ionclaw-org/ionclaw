@@ -5,6 +5,7 @@
 #include <sstream>
 #include <vector>
 
+#include "ionclaw/config/Config.hpp"
 #include "ionclaw/tool/builtin/ToolHelper.hpp"
 
 #ifdef IONCLAW_HAS_STB_IMAGE_WRITE
@@ -12,6 +13,8 @@
 #include "stb_image_resize2.h"
 #include "stb_image_write.h"
 #endif
+
+namespace fs = std::filesystem;
 
 namespace ionclaw
 {
@@ -86,9 +89,10 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
     {
         try
         {
-            return ToolHelper::validateAndResolvePath(context.workspacePath, path, context.publicPath);
+            bool restrict = !context.config || context.config->tools.restrictToWorkspace;
+            return ToolHelper::validateAndResolvePath(context.workspacePath, path, context.publicPath, restrict, context.projectPath);
         }
-        catch (...)
+        catch (const std::exception &)
         {
             return "";
         }
@@ -121,7 +125,7 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
         }
 
         // fill pixels based on background mode
-        std::vector<unsigned char> pixels(static_cast<size_t>(width * height * 3));
+        std::vector<unsigned char> pixels(static_cast<size_t>(width) * static_cast<size_t>(height) * 3);
 
         if (background == "solid")
         {
@@ -146,7 +150,7 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
             {
                 for (int x = 0; x < width; ++x)
                 {
-                    size_t i = static_cast<size_t>((y * width + x) * 3);
+                    size_t i = (static_cast<size_t>(y) * width + x) * 3;
                     pixels[i + 0] = static_cast<unsigned char>((x * 255) / (width > 1 ? width : 1));
                     pixels[i + 1] = static_cast<unsigned char>((y * 255) / (height > 1 ? height : 1));
                     pixels[i + 2] = 128;
@@ -161,6 +165,11 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
         {
             std::error_code ec;
             std::filesystem::create_directories(p.parent_path(), ec);
+
+            if (ec)
+            {
+                return "Error: failed to create directory for " + outputPath + ": " + ec.message();
+            }
         }
 
         // write output image
@@ -213,7 +222,7 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
         }
 
         // perform resize
-        std::vector<unsigned char> outPixels(static_cast<size_t>(outW * outH * 3));
+        std::vector<unsigned char> outPixels(static_cast<size_t>(outW) * static_cast<size_t>(outH) * 3);
         auto *ok = stbir_resize_uint8_linear(img, w, h, 0, outPixels.data(), outW, outH, 0, STBIR_RGB);
         stbi_image_free(img);
 
@@ -229,6 +238,11 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
         {
             std::error_code ec;
             std::filesystem::create_directories(p.parent_path(), ec);
+
+            if (ec)
+            {
+                return "Error: failed to create directory for " + outputPath + ": " + ec.message();
+            }
         }
 
         // write output image
@@ -273,6 +287,12 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
             return "Error: input_path or output_path outside workspace or public.";
         }
 
+        // ensure output directory exists
+        {
+            std::error_code ec;
+            fs::create_directories(fs::path(outResolved).parent_path(), ec);
+        }
+
         // load source image
         int w = 0, h = 0, ch = 0;
         unsigned char *img = stbi_load(inResolved.c_str(), &w, &h, &ch, 3);
@@ -292,7 +312,7 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
         {
             for (int px = x1; px < x2; ++px)
             {
-                size_t i = static_cast<size_t>((py * w + px) * 3);
+                size_t i = (static_cast<size_t>(py) * w + px) * 3;
                 img[i + 0] = cr;
                 img[i + 1] = cg;
                 img[i + 2] = cb;
@@ -336,6 +356,12 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
             return "Error: paths must be within workspace or public.";
         }
 
+        // ensure output directory exists
+        {
+            std::error_code ec;
+            fs::create_directories(fs::path(outResolved).parent_path(), ec);
+        }
+
         // load base image
         int w = 0, h = 0, ch = 0;
         unsigned char *base = stbi_load(inResolved.c_str(), &w, &h, &ch, 3);
@@ -370,7 +396,7 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
                 return "Error: overlay dimensions must not exceed 8192x8192.";
             }
 
-            resizedOverlay.resize(static_cast<size_t>(overlayW * overlayH * 3));
+            resizedOverlay.resize(static_cast<size_t>(overlayW) * static_cast<size_t>(overlayH) * 3);
 
             if (stbir_resize_uint8_linear(over, ow, oh, 0, resizedOverlay.data(), overlayW, overlayH, 0, STBIR_RGB) != nullptr)
             {
@@ -380,11 +406,13 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
             }
         }
 
-        // blend overlay onto base
+        // blend overlay onto base (clipping for negative x/y)
+        int srcOffX = std::max(0, -x);
+        int srcOffY = std::max(0, -y);
         int px = std::max(0, x);
         int py = std::max(0, y);
-        int blendW = std::min(pasteW, w - px);
-        int blendH = std::min(pasteH, h - py);
+        int blendW = std::min(pasteW - srcOffX, w - px);
+        int blendH = std::min(pasteH - srcOffY, h - py);
 
         if (blendW > 0 && blendH > 0)
         {
@@ -392,8 +420,8 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
             {
                 for (int dx = 0; dx < blendW; ++dx)
                 {
-                    int dstIdx = ((py + dy) * w + (px + dx)) * 3;
-                    int srcIdx = (dy * pasteW + dx) * 3;
+                    size_t dstIdx = (static_cast<size_t>(py + dy) * w + (px + dx)) * 3;
+                    size_t srcIdx = (static_cast<size_t>(srcOffY + dy) * pasteW + (srcOffX + dx)) * 3;
                     base[dstIdx + 0] = pasteSrc[srcIdx + 0];
                     base[dstIdx + 1] = pasteSrc[srcIdx + 1];
                     base[dstIdx + 2] = pasteSrc[srcIdx + 2];

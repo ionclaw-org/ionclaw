@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <sstream>
 
+#include "ionclaw/config/Config.hpp"
 #include "ionclaw/tool/builtin/ToolHelper.hpp"
 
 namespace ionclaw
@@ -15,7 +16,8 @@ namespace builtin
 ToolResult ListDirTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto rawPath = params.at("path").get<std::string>();
-    auto resolvedPath = ToolHelper::validateAndResolvePath(context.workspacePath, rawPath, context.publicPath);
+    bool restrict = !context.config || context.config->tools.restrictToWorkspace;
+    auto resolvedPath = ToolHelper::validateAndResolvePath(context.workspacePath, rawPath, context.publicPath, restrict, context.projectPath);
 
     if (!std::filesystem::exists(resolvedPath))
     {
@@ -29,20 +31,31 @@ ToolResult ListDirTool::execute(const nlohmann::json &params, const ToolContext 
 
     std::ostringstream result;
 
-    for (const auto &entry : std::filesystem::directory_iterator(resolvedPath))
+    std::error_code ec;
+
+    for (const auto &entry : std::filesystem::directory_iterator(resolvedPath, ec))
     {
         auto name = entry.path().filename().string();
-        auto type = entry.is_directory() ? "dir" : "file";
 
-        if (entry.is_regular_file())
+        ec.clear();
+        auto isDir = entry.is_directory(ec);
+        auto type = (!ec && isDir) ? "dir" : "file";
+
+        ec.clear();
+
+        if (entry.is_regular_file(ec) && !ec)
         {
-            auto size = entry.file_size();
-            result << "[" << type << "] " << name << " (" << size << " bytes)\n";
+            ec.clear();
+            auto size = entry.file_size(ec);
+
+            if (!ec)
+            {
+                result << "[" << type << "] " << name << " (" << size << " bytes)\n";
+                continue;
+            }
         }
-        else
-        {
-            result << "[" << type << "] " << name << "\n";
-        }
+
+        result << "[" << type << "] " << name << "\n";
     }
 
     auto output = result.str();

@@ -19,6 +19,9 @@ public:
     // validates an IANA timezone string (e.g. "America/New_York")
     static bool isValidTimezone(const std::string &tz);
 
+    // validates a 5-field cron expression (minute hour day-of-month month day-of-week)
+    static bool isValidExpression(const std::string &expr);
+
 private:
     static std::vector<int> expandField(const std::string &field, int min, int max);
     static bool matchesField(int value, const std::vector<int> &allowed);

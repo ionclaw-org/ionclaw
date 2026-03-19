@@ -46,66 +46,6 @@ std::string TimeHelper::nowLocal()
     return oss.str();
 }
 
-std::string TimeHelper::formatDuration(int64_t seconds)
-{
-    if (seconds < 0)
-    {
-        seconds = -seconds;
-    }
-
-    auto days = seconds / 86400;
-    seconds %= 86400;
-
-    auto hours = seconds / 3600;
-    seconds %= 3600;
-
-    auto minutes = seconds / 60;
-    auto secs = seconds % 60;
-
-    std::ostringstream oss;
-    bool started = false;
-
-    if (days > 0)
-    {
-        oss << days << "d";
-        started = true;
-    }
-
-    if (hours > 0)
-    {
-        if (started)
-        {
-            oss << " ";
-        }
-
-        oss << hours << "h";
-        started = true;
-    }
-
-    if (minutes > 0)
-    {
-        if (started)
-        {
-            oss << " ";
-        }
-
-        oss << minutes << "m";
-        started = true;
-    }
-
-    if (secs > 0 || !started)
-    {
-        if (started)
-        {
-            oss << " ";
-        }
-
-        oss << secs << "s";
-    }
-
-    return oss.str();
-}
-
 int64_t TimeHelper::epochMs()
 {
     auto tp = std::chrono::system_clock::now();

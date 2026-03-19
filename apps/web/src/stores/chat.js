@@ -136,7 +136,7 @@ export const useChatStore = defineStore('chat', () => {
         message: text,
         session_id: sessionKey,
         media,
-        language: navigator.language || navigator.userLanguage || '',
+        language: navigator.language || '',
       })
       return res
     } catch (e) {
@@ -168,11 +168,11 @@ export const useChatStore = defineStore('chat', () => {
   function onMessage(data) {
     const chatId = _chatId(data)
 
+    // snapshot live state before clearing (used as fallback for empty responses)
+    const liveState = _liveCache.get(chatId)
     _liveCache.delete(chatId)
 
     if (!_isCurrent(chatId)) {
-      // response arrived for a session the user navigated away from;
-      // refresh sessions so the sidebar reflects the update
       loadSessions()
       return
     }
@@ -188,18 +188,37 @@ export const useChatStore = defineStore('chat', () => {
       if (exists) return
     }
 
-    // normalize content to block array
-    const content = Array.isArray(data.content)
-      ? data.content
-      : [{ type: 'text', text: String(data.content || '') }]
+    const content = data.content
 
-    messages.value.push({
-      role: 'assistant',
-      content,
-      task_id: data.task_id,
-      agent_name: data.agent_name,
-      timestamp: Date.now(),
-    })
+    // check if final response has real content
+    const hasContent = content.some(
+      (b) => (b.type === 'text' && b.text) || b.type === 'tool_use'
+    )
+
+    if (hasContent) {
+      messages.value.push({
+        role: 'assistant',
+        content,
+        task_id: data.task_id,
+        agent_name: data.agent_name,
+        timestamp: Date.now(),
+      })
+    } else if (liveState && liveState.content.length > 0) {
+      // empty final response but we have accumulated streaming content (tool uses, text)
+      // persist the live state so the user sees what the agent did
+      const liveHasContent = liveState.content.some(
+        (b) => (b.type === 'text' && b.text) || b.type === 'tool_use'
+      )
+      if (liveHasContent) {
+        messages.value.push({
+          role: 'assistant',
+          content: liveState.content.map((b) => ({ ...b })),
+          task_id: data.task_id,
+          agent_name: data.agent_name || liveState.agent_name,
+          timestamp: Date.now(),
+        })
+      }
+    }
   }
 
   function onThinking(data) {
@@ -315,47 +334,21 @@ export const useChatStore = defineStore('chat', () => {
         timestamp: m.timestamp ? new Date(m.timestamp).getTime() : Date.now(),
       }))
 
+      // restore from client-side cache if the agent is still streaming
+      // and we accumulated events while viewing another session
       const chatId = chatIdFromKey(sessionKey)
-      const backendLive = data.live_state?.tool_uses?.length > 0
-
-      if (backendLive) {
-        // prefer client-side cache (has accumulated stream content)
-        const cached = _liveCache.get(chatId)
-        if (cached) {
-          liveMessage.value = {
-            role: 'assistant',
-            content: cached.content.map(b => ({ ...b })),
-            agent_name: cached.agent_name,
-          }
-          toolRunning.value = cached.toolRunning
-        } else {
-          liveMessage.value = {
-            role: 'assistant',
-            content: data.live_state.tool_uses.map((tu) => ({
-              type: 'tool_use',
-              name: tu.name,
-              description: tu.description,
-            })),
-            agent_name: data.live_state?.agent_name || '',
-          }
-          toolRunning.value = true
+      const cached = _liveCache.get(chatId)
+      if (cached && cached.content.length > 0) {
+        liveMessage.value = {
+          role: 'assistant',
+          content: cached.content.map(b => ({ ...b })),
+          agent_name: cached.agent_name,
         }
+        toolRunning.value = cached.toolRunning
       } else {
-        // restore from client-side cache if the agent is still streaming
-        // and we accumulated events while viewing another session
-        const cached = _liveCache.get(chatId)
-        if (cached && cached.content.length > 0) {
-          liveMessage.value = {
-            role: 'assistant',
-            content: cached.content.map(b => ({ ...b })),
-            agent_name: cached.agent_name,
-          }
-          toolRunning.value = cached.toolRunning
-        } else {
-          _liveCache.delete(chatId)
-          liveMessage.value = null
-          toolRunning.value = false
-        }
+        _liveCache.delete(chatId)
+        liveMessage.value = null
+        toolRunning.value = false
       }
     } catch (e) {
       if (currentSessionId.value !== sessionKey) return
@@ -397,6 +390,12 @@ export const useChatStore = defineStore('chat', () => {
     toolRunning.value = false
   }
 
+  function clearLiveCache() {
+    _liveCache.clear()
+    liveMessage.value = null
+    toolRunning.value = false
+  }
+
   return {
     messages,
     sessions,
@@ -419,6 +418,7 @@ export const useChatStore = defineStore('chat', () => {
     switchSession,
     clearSession,
     newSession,
+    clearLiveCache,
     draft,
   }
 })

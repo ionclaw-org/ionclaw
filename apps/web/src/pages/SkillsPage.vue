@@ -5,8 +5,10 @@ import Tag from 'primevue/tag'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
-import { MdEditor, MdPreview } from 'md-editor-v3'
+import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import { useApi } from '../composables/useApi'
 import { useToast } from 'primevue/usetoast'
 import { useDark } from '../composables/useDark'
@@ -25,13 +27,32 @@ const loading = ref(true)
 const showDeleteConfirm = ref(false)
 const deleteTarget = ref(null)
 
+const renderer = new marked.Renderer()
+const defaultLinkRenderer = renderer.link.bind(renderer)
+renderer.link = function (args) {
+  const html = defaultLinkRenderer(args)
+  return html.replace('<a ', '<a target="_blank" rel="noopener noreferrer" ')
+}
+
+function stripFrontmatter(text) {
+  if (!text.startsWith('---')) return text
+  const end = text.indexOf('---', 3)
+  if (end === -1) return text
+  return text.substring(end + 3).trim()
+}
+
+function renderMarkdown(text) {
+  if (!text) return ''
+  return DOMPurify.sanitize(marked(stripFrontmatter(text), { breaks: true, renderer }))
+}
+
 const search = ref('')
 
 const filteredSkills = computed(() => {
   const q = search.value.trim().toLowerCase()
   if (!q) return skills.value
   return skills.value.filter(s =>
-    s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
+    s.name.toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q)
   )
 })
 
@@ -53,12 +74,16 @@ function skillAgentQuery(skill) {
 }
 
 async function viewSkill(skill) {
-  const q = skillAgentQuery(skill)
-  const data = await api.get(`/skills/${skill.name}${q}`)
-  selectedSkill.value = { ...skill, source: data.source }
-  skillContent.value = data.content
-  editing.value = false
-  dialogVisible.value = true
+  try {
+    const q = skillAgentQuery(skill)
+    const data = await api.get(`/skills/${skill.name}${q}`)
+    selectedSkill.value = { ...skill, ...(data.source ? { source: data.source } : {}) }
+    skillContent.value = data.content
+    editing.value = false
+    dialogVisible.value = true
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
+  }
 }
 
 function startEdit() {
@@ -223,7 +248,7 @@ function deleteLocation(skill) {
           'preview', 'fullscreen']"
         class="skill-md-editor"
       />
-      <MdPreview v-else :modelValue="skillContent || ''" :theme="isDark ? 'dark' : 'light'" codeTheme="github" :codeStyleReverse="false" language="en-US" class="skill-content" />
+      <div v-else class="skill-content" v-html="renderMarkdown(skillContent)"></div>
     </Dialog>
 
     <Dialog v-model:visible="showDeleteConfirm" header="Delete Skill" :modal="true" :style="{ width: '24rem' }" :breakpoints="{ '768px': '90vw' }">
@@ -357,19 +382,120 @@ function deleteLocation(skill) {
 
 .skill-content {
   line-height: 1.7;
+  font-size: 0.88rem;
+  color: var(--p-text-muted-color);
 }
 
-.skill-content :deep(pre) {
-  background: var(--p-surface-100);
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  overflow-x: auto;
-  font-size: 0.85rem;
+.skill-content :deep(h1),
+.skill-content :deep(h2),
+.skill-content :deep(h3),
+.skill-content :deep(h4),
+.skill-content :deep(h5),
+.skill-content :deep(h6) {
+  color: var(--p-text-color);
+  font-weight: 700;
+  margin: 1.5rem 0 0.75rem 0;
+}
+
+.skill-content :deep(h1:first-child),
+.skill-content :deep(h2:first-child),
+.skill-content :deep(h3:first-child) {
+  margin-top: 0;
+}
+
+.skill-content :deep(h1) { font-size: 1.4rem; }
+.skill-content :deep(h2) { font-size: 1.2rem; }
+.skill-content :deep(h3) { font-size: 1.05rem; }
+
+.skill-content :deep(p) {
+  margin-bottom: 0.85rem;
+}
+
+.skill-content :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.skill-content :deep(a) {
+  color: var(--p-primary-color);
+  text-decoration: none;
+}
+
+.skill-content :deep(a:hover) {
+  text-decoration: underline;
 }
 
 .skill-content :deep(code) {
-  font-family: ui-monospace, monospace;
-  font-size: 0.85em;
+  font-family: 'SF Mono', ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+  background: var(--p-surface-950, #09090b);
+  color: var(--p-primary-color);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.84em;
+}
+
+.skill-content :deep(pre) {
+  background: var(--p-surface-950, #09090b);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  margin-bottom: 0.85rem;
+  line-height: 1.55;
+}
+
+.skill-content :deep(pre code) {
+  background: none;
+  padding: 0;
+  color: var(--p-text-muted-color);
+  font-size: 0.82rem;
+}
+
+.skill-content :deep(ul),
+.skill-content :deep(ol) {
+  padding-left: 1.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.skill-content :deep(li) {
+  margin-bottom: 0.3rem;
+}
+
+.skill-content :deep(blockquote) {
+  border-left: 3px solid var(--p-primary-color);
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-bottom: 0.85rem;
+  color: var(--p-text-muted-color);
+}
+
+.skill-content :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.85rem;
+}
+
+.skill-content :deep(th),
+.skill-content :deep(td) {
+  border: 1px solid var(--p-content-border-color);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.84rem;
+}
+
+.skill-content :deep(th) {
+  background: var(--p-surface-950, #09090b);
+  color: var(--p-text-color);
+  font-weight: 600;
+}
+
+.skill-content :deep(img) {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.skill-content :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--p-content-border-color);
+  margin: 1.25rem 0;
 }
 
 .page-loading {

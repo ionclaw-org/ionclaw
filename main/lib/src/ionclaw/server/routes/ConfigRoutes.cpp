@@ -1,10 +1,8 @@
 #include "ionclaw/server/Routes.hpp"
 
 #include <filesystem>
-#include <fstream>
 
 #include "spdlog/spdlog.h"
-#include "yaml-cpp/yaml.h"
 
 #include "ionclaw/config/ConfigLoader.hpp"
 
@@ -17,6 +15,7 @@ namespace fs = std::filesystem;
 
 void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp)
 {
+    std::lock_guard<std::mutex> lock(configMutex_);
     nlohmann::json result;
 
     // basic sections
@@ -85,6 +84,31 @@ void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
             item["token"] = "****";
         }
 
+        // include additional fields from raw, masking secret values
+        static const std::set<std::string> knownFields = {"type", "key", "username", "password", "token"};
+        static const std::set<std::string> secretFields = {
+            "consumer_key", "consumer_secret", "access_token", "access_token_secret", "value"};
+
+        if (cred.raw.is_object())
+        {
+            for (auto &[fieldName, fieldValue] : cred.raw.items())
+            {
+                if (knownFields.count(fieldName) > 0)
+                {
+                    continue;
+                }
+
+                if (secretFields.count(fieldName) > 0 && fieldValue.is_string() && !fieldValue.get<std::string>().empty())
+                {
+                    item[fieldName] = "****";
+                }
+                else
+                {
+                    item[fieldName] = fieldValue;
+                }
+            }
+        }
+
         credentials[name] = item;
     }
 
@@ -97,9 +121,9 @@ void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
 
     // tools section with sub-sections
     result["tools"] = {
-        {"general", {{"restrict_to_workspace", true}}},
+        {"restrict_to_workspace", config->tools.restrictToWorkspace},
         {"exec", {{"timeout", config->tools.execTimeout}}},
-        {"web_search", {{"credential", config->tools.webSearchCredential}, {"provider", config->tools.webSearchProvider}}},
+        {"web_search", {{"credential", config->tools.webSearchCredential}, {"provider", config->tools.webSearchProvider}, {"max_results", config->tools.webSearchMaxResults}}},
     };
 
     result["storage"] = {
@@ -111,11 +135,27 @@ void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
 
     for (const auto &[name, ch] : config->channels)
     {
-        channels[name] = {
+        nlohmann::json chJson = {
             {"enabled", ch.enabled},
             {"credential", ch.credential},
-            {"running", ch.enabled},
+            {"running", ch.running},
         };
+
+        if (!ch.allowedUsers.empty())
+        {
+            chJson["allowed_users"] = ch.allowedUsers;
+        }
+
+        // include channel-specific fields from raw config
+        for (const auto &key : {"require_auth", "proxy", "reply_to_message"})
+        {
+            if (ch.raw.contains(key))
+            {
+                chJson[key] = ch.raw[key];
+            }
+        }
+
+        channels[name] = chJson;
     }
 
     result["channels"] = channels;
@@ -125,6 +165,7 @@ void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
 
 void Routes::handleConfigYaml(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp)
 {
+    std::lock_guard<std::mutex> lock(configMutex_);
     // mask sensitive values before serializing to yaml
     auto maskedConfig = *config;
 
@@ -144,39 +185,32 @@ void Routes::handleConfigYaml(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
         {
             cred.token = "****";
         }
+
+        // mask additional secret fields in raw
+        static const std::set<std::string> secretRawFields = {
+            "consumer_key", "consumer_secret", "access_token", "access_token_secret", "value"};
+
+        if (cred.raw.is_object())
+        {
+            for (const auto &field : secretRawFields)
+            {
+                if (cred.raw.contains(field) && cred.raw[field].is_string() && !cred.raw[field].get<std::string>().empty())
+                {
+                    cred.raw[field] = "****";
+                }
+            }
+        }
     }
 
     auto yaml = ionclaw::config::ConfigLoader::toYaml(maskedConfig);
     sendJson(resp, {{"yaml", yaml}});
 }
 
-void Routes::handleConfigValidate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp)
-{
-    try
-    {
-        auto body = nlohmann::json::parse(readBody(req));
-        auto yamlStr = body.value("yaml", "");
-
-        try
-        {
-            YAML::Load(yamlStr);
-            sendJson(resp, {{"valid", true}});
-        }
-        catch (const YAML::Exception &e)
-        {
-            sendJson(resp, {{"valid", false}, {"error", std::string(e.what())}});
-        }
-    }
-    catch (const std::exception &e)
-    {
-        sendError(resp, e.what());
-    }
-}
-
 void Routes::handleConfigUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp)
 {
     try
     {
+        std::lock_guard<std::mutex> lock(configMutex_);
         auto body = nlohmann::json::parse(readBody(req));
 
         if (body.contains("sections"))
@@ -206,7 +240,7 @@ void Routes::handleConfigUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HT
     }
     catch (const std::exception &e)
     {
-        sendError(resp, e.what());
+        sendError(resp, e.what(), 500);
     }
 }
 
@@ -214,6 +248,7 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
 {
     try
     {
+        std::lock_guard<std::mutex> lock(configMutex_);
         auto body = nlohmann::json::parse(readBody(req));
         auto data = body.value("data", nlohmann::json::object());
 
@@ -238,7 +273,15 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
 
             if (data.contains("port"))
             {
-                config->server.port = data["port"].get<int>();
+                int port = data["port"].get<int>();
+
+                if (port < 1 || port > 65535)
+                {
+                    sendError(resp, "Port must be between 1 and 65535");
+                    return;
+                }
+
+                config->server.port = port;
             }
 
             if (data.contains("public_url"))
@@ -277,7 +320,11 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
         }
         else if (section == "tools")
         {
-            // handle sub-sections: general, exec, web_search
+            if (data.contains("restrict_to_workspace"))
+            {
+                config->tools.restrictToWorkspace = data["restrict_to_workspace"].get<bool>();
+            }
+
             if (data.contains("exec") && data["exec"].is_object())
             {
                 auto &exec = data["exec"];
@@ -301,22 +348,11 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
                 {
                     config->tools.webSearchCredential = ws["credential"].get<std::string>();
                 }
-            }
 
-            // backward compatibility: flat keys
-            if (data.contains("exec_timeout"))
-            {
-                config->tools.execTimeout = data["exec_timeout"].get<int>();
-            }
-
-            if (data.contains("web_search_provider"))
-            {
-                config->tools.webSearchProvider = data["web_search_provider"].get<std::string>();
-            }
-
-            if (data.contains("web_search_credential"))
-            {
-                config->tools.webSearchCredential = data["web_search_credential"].get<std::string>();
+                if (ws.contains("max_results"))
+                {
+                    config->tools.webSearchMaxResults = ws["max_results"].get<int>();
+                }
             }
         }
         else if (section == "agents")
@@ -443,6 +479,26 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
                     }
                 }
 
+                // restore masked secret values from current raw before overwriting
+                static const std::set<std::string> secretRawFields = {
+                    "consumer_key", "consumer_secret", "access_token", "access_token_secret", "value"};
+
+                if (cred.raw.is_object())
+                {
+                    for (const auto &field : secretRawFields)
+                    {
+                        if (credData.contains(field) && credData[field].is_string())
+                        {
+                            auto val = credData[field].get<std::string>();
+
+                            if ((val.empty() || val == "****") && cred.raw.contains(field))
+                            {
+                                credData[field] = cred.raw[field];
+                            }
+                        }
+                    }
+                }
+
                 cred.raw = credData;
             }
         }
@@ -511,22 +567,39 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
                 config->storage.type = data["type"].get<std::string>();
             }
         }
+        else if (section == "classifier")
+        {
+            if (data.contains("model"))
+            {
+                config->classifier.model = data["model"].get<std::string>();
+            }
+        }
+        else if (section == "heartbeat")
+        {
+            if (data.contains("enabled"))
+            {
+                config->heartbeat.enabled = data["enabled"].get<bool>();
+            }
+
+            if (data.contains("interval"))
+            {
+                config->heartbeat.interval = data["interval"].get<int>();
+            }
+        }
         else if (section == "advanced")
         {
             if (data.contains("yaml"))
             {
                 auto yamlStr = data["yaml"].get<std::string>();
-                auto configPath = config->projectPath + "/config.yml";
 
-                // write incoming yaml, then load and restore masked values
-                std::ofstream ofs(configPath);
-                ofs << yamlStr;
-                ofs.close();
-
-                auto newConfig = ionclaw::config::ConfigLoader::load(configPath);
+                // validate yaml before writing to disk to prevent file corruption
+                auto newConfig = ionclaw::config::ConfigLoader::loadFromString(yamlStr);
                 newConfig.projectPath = config->projectPath;
 
                 // restore masked credential values from current config
+                static const std::set<std::string> secretRawFields = {
+                    "consumer_key", "consumer_secret", "access_token", "access_token_secret", "value"};
+
                 for (auto &[name, cred] : newConfig.credentials)
                 {
                     auto it = config->credentials.find(name);
@@ -550,9 +623,24 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
                     {
                         cred.token = it->second.token;
                     }
+
+                    // restore masked raw fields (oauth1, header, etc.)
+                    if (cred.raw.is_object() && it->second.raw.is_object())
+                    {
+                        for (const auto &field : secretRawFields)
+                        {
+                            if (cred.raw.contains(field) && cred.raw[field].is_string() &&
+                                cred.raw[field].get<std::string>() == "****" &&
+                                it->second.raw.contains(field))
+                            {
+                                cred.raw[field] = it->second.raw[field];
+                            }
+                        }
+                    }
                 }
 
-                // save again with restored credential values
+                // save with restored credential values (validated config only)
+                auto configPath = config->projectPath + "/config.yml";
                 ionclaw::config::ConfigLoader::save(newConfig, configPath);
                 *config = newConfig;
 
@@ -574,7 +662,38 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
     }
     catch (const std::exception &e)
     {
-        sendError(resp, e.what());
+        sendError(resp, e.what(), 500);
+    }
+}
+
+void Routes::handleConfigValidate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp)
+{
+    try
+    {
+        auto body = nlohmann::json::parse(readBody(req));
+        auto yamlStr = body.value("yaml", "");
+
+        if (yamlStr.empty())
+        {
+            sendError(resp, "Missing 'yaml' field");
+            return;
+        }
+
+        try
+        {
+            ionclaw::config::ConfigLoader::loadFromString(yamlStr);
+        }
+        catch (const std::exception &e)
+        {
+            sendJson(resp, {{"valid", false}, {"error", e.what()}});
+            return;
+        }
+
+        sendJson(resp, {{"valid", true}});
+    }
+    catch (const std::exception &e)
+    {
+        sendError(resp, e.what(), 500);
     }
 }
 
@@ -582,6 +701,7 @@ void Routes::handleConfigRestart(Poco::Net::HTTPServerRequest &, Poco::Net::HTTP
 {
     try
     {
+        std::lock_guard<std::mutex> lock(configMutex_);
         auto configPath = config->projectPath + "/config.yml";
 
         if (!fs::exists(configPath))
@@ -603,27 +723,8 @@ void Routes::handleConfigRestart(Poco::Net::HTTPServerRequest &, Poco::Net::HTTP
         newConfig.server.host = config->server.host;
         newConfig.server.port = config->server.port;
 
-        // resolve agent workspaces (same logic as ServerInstance::start)
-        auto defaultWorkspace = projectPath + "/workspace";
-
-        if (newConfig.agents.empty())
-        {
-            ionclaw::config::AgentConfig defaultAgent;
-            defaultAgent.workspace = defaultWorkspace;
-            newConfig.agents["main"] = defaultAgent;
-        }
-
-        for (auto &[name, agent] : newConfig.agents)
-        {
-            if (agent.workspace.empty())
-            {
-                agent.workspace = defaultWorkspace;
-            }
-            else if (fs::path(agent.workspace).is_relative())
-            {
-                agent.workspace = projectPath + "/" + agent.workspace;
-            }
-        }
+        // resolve agent workspaces
+        ionclaw::config::ConfigLoader::resolveWorkspaces(newConfig, projectPath);
 
         // update shared config
         *config = newConfig;
@@ -640,6 +741,30 @@ void Routes::handleConfigRestart(Poco::Net::HTTPServerRequest &, Poco::Net::HTTP
         // restart cron service (jobs persist to cron_jobs.json, independent of config)
         cronService->stop();
         cronService->start();
+
+        // restart channels with updated config
+        channelManager->stopAll();
+
+        for (auto &[chName, ch] : config->channels)
+        {
+            if (ch.enabled)
+            {
+                try
+                {
+                    channelManager->startChannel(chName);
+                    ch.running = true;
+                }
+                catch (const std::exception &chErr)
+                {
+                    spdlog::warn("[Restart] Failed to restart channel '{}': {}", chName, chErr.what());
+                    ch.running = false;
+                }
+            }
+            else
+            {
+                ch.running = false;
+            }
+        }
 
         spdlog::info("[Restart] All services restarted successfully");
 

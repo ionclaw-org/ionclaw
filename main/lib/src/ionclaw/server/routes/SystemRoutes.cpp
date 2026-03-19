@@ -94,7 +94,7 @@ void Routes::handleSystemInfo(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
         std::string line;
         while (std::getline(cpuinfo, line))
         {
-            // ARM: "Hardware", x86: "model name"
+            // arm: "Hardware", x86: "model name"
             if (line.compare(0, 10, "model name") == 0 || line.compare(0, 8, "Hardware") == 0)
             {
                 auto pos = line.find(':');

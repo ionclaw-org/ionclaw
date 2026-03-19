@@ -18,22 +18,22 @@ std::mutex CronParser::tzMutex;
 namespace
 {
 
-// RAII guard for TZ environment variable restoration
+// raii guard for TZ environment variable restoration
 class TzGuard
 {
 public:
     TzGuard(const std::string &tz, std::mutex &mtx)
-        : mtx(mtx)
+        : lock(mtx)
         , overridden(false)
     {
+        // always lock to prevent concurrent TZ mutation by other threads
+        // even when tz is empty, mktime/localtime_r reads the global TZ
         if (tz.empty())
         {
             return;
         }
 
 #if !defined(_WIN32)
-        mtx.lock();
-
         const char *oldTz = getenv("TZ");
         savedTz = oldTz ? oldTz : "";
         overridden = true;
@@ -61,7 +61,7 @@ public:
         }
 
         tzset();
-        mtx.unlock();
+        // lock is released automatically by unique_lock destructor
 #endif
     }
 
@@ -71,7 +71,7 @@ public:
     bool isOverridden() const { return overridden; }
 
 private:
-    std::mutex &mtx;
+    std::unique_lock<std::mutex> lock;
     std::string savedTz;
     bool overridden;
 };
@@ -209,9 +209,42 @@ bool CronParser::isValidTimezone(const std::string &tz)
 
     return tz.find('/') != std::string::npos;
 #else
-    // Windows: accept common formats
+    // windows: accept common formats
     return tz.find('/') != std::string::npos;
 #endif
+}
+
+bool CronParser::isValidExpression(const std::string &expr)
+{
+    std::istringstream stream(expr);
+    std::string fields[5];
+    int fieldCount = 0;
+
+    while (fieldCount < 5 && stream >> fields[fieldCount])
+    {
+        fieldCount++;
+    }
+
+    if (fieldCount != 5)
+    {
+        return false;
+    }
+
+    // verify each field produces at least one valid value
+    static const int mins[] = {0, 0, 1, 1, 0};
+    static const int maxs[] = {59, 23, 31, 12, 6};
+
+    for (int i = 0; i < 5; ++i)
+    {
+        auto values = expandField(fields[i], mins[i], maxs[i]);
+
+        if (values.empty())
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 int64_t CronParser::nextRun(const std::string &expr, const std::string &tz)
@@ -241,7 +274,7 @@ int64_t CronParser::nextRun(const std::string &expr, const std::string &tz)
     auto months = expandField(fields[3], 1, 12);
     auto daysOfWeek = expandField(fields[4], 0, 6);
 
-    // RAII guard handles TZ set/restore and mutex lock/unlock
+    // raii guard handles TZ set/restore and mutex lock/unlock
     TzGuard guard(tz, tzMutex);
 
     auto now = std::chrono::system_clock::now();

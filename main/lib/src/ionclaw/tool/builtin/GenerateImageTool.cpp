@@ -35,8 +35,18 @@ const std::set<std::string> GenerateImageTool::VALID_SIZES = {"1K", "2K", "4K"};
 // execute image generation
 ToolResult GenerateImageTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
-    std::string prompt = params.at("prompt").get<std::string>();
-    std::string filename = params.at("filename").get<std::string>();
+    if (!params.contains("prompt") || !params["prompt"].is_string() || params["prompt"].get<std::string>().empty())
+    {
+        return "Error: 'prompt' is required and must be a non-empty string";
+    }
+
+    if (!params.contains("filename") || !params["filename"].is_string() || params["filename"].get<std::string>().empty())
+    {
+        return "Error: 'filename' is required and must be a non-empty string";
+    }
+
+    std::string prompt = params["prompt"].get<std::string>();
+    std::string filename = params["filename"].get<std::string>();
 
     if (!context.config)
     {
@@ -155,6 +165,7 @@ ToolResult GenerateImageTool::execute(const nlohmann::json &params, const ToolCo
     image::ImageGeneratorContext imgContext;
     imgContext.workspacePath = context.workspacePath;
     imgContext.publicPath = context.publicPath;
+    imgContext.projectPath = context.projectPath;
     imgContext.model = model;
     imgContext.providerName = providerConfig.name;
     imgContext.config = context.config;

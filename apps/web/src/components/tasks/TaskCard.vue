@@ -2,6 +2,7 @@
 import { computed, ref, onUnmounted, watch } from 'vue'
 import Tag from 'primevue/tag'
 import { useTasksStore } from '../../stores/tasks'
+import { humanizeToolName } from '../../utils/format'
 
 const props = defineProps({
   task: { type: Object, required: true },
@@ -12,13 +13,6 @@ const emit = defineEmits(['go-to-session'])
 const tasksStore = useTasksStore()
 
 const activeTool = computed(() => tasksStore.activeTools[props.task.id])
-
-function humanizeToolName(name) {
-  if (!name || typeof name !== 'string') return name || ''
-  return name
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-}
 
 function handleTitleClick() {
   if (props.task.channel && props.task.chat_id) {
@@ -104,9 +98,9 @@ function formatDuration(ms) {
       </div>
     </div>
 
-    <div v-if="task.error" class="task-error-msg">
+    <div v-if="task.error_message" class="task-error-msg">
       <i class="pi pi-exclamation-triangle"></i>
-      {{ task.error.substring(0, 200) }}
+      {{ task.error_message.substring(0, 200) }}
     </div>
 
     <div v-if="task.result && task.state === 'DONE'" class="task-result">
@@ -118,7 +112,7 @@ function formatDuration(ms) {
         <span v-if="task.agent_name" class="agent-badge">
           <i class="pi pi-user"></i> {{ task.agent_name }}
         </span>
-        <span v-if="task.agent_type === 'subagent'" class="agent-badge">
+        <span v-if="task.parent_task_id" class="agent-badge">
           <i class="pi pi-sitemap"></i> subagent
         </span>
         <span v-if="task.channel && task.channel !== 'web'" class="channel-badge">
@@ -149,7 +143,10 @@ function formatDuration(ms) {
   border: 1px solid var(--p-content-border-color);
   border-radius: 0.5rem;
   padding: 0.75rem;
+  min-width: 0;
+  flex-shrink: 0;
   overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .task-error {
@@ -162,6 +159,7 @@ function formatDuration(ms) {
   justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 0.4rem;
+  min-width: 0;
 }
 
 .task-title {
@@ -170,6 +168,7 @@ function formatDuration(ms) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
   flex: 1;
   cursor: pointer;
 }
@@ -183,6 +182,8 @@ function formatDuration(ms) {
   color: var(--p-text-muted-color);
   margin-bottom: 0.4rem;
   line-height: 1.4;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .task-active-tool {
@@ -191,6 +192,7 @@ function formatDuration(ms) {
   background: color-mix(in srgb, var(--p-primary-color) 8%, transparent);
   border-radius: 0.35rem;
   padding: 0.35rem 0.5rem;
+  min-width: 0;
 }
 
 .task-active-tool .tool-header {
@@ -198,16 +200,20 @@ function formatDuration(ms) {
   align-items: center;
   gap: 0.35rem;
   color: var(--p-primary-color);
+  min-width: 0;
 }
 
 .task-active-tool .tool-name {
   font-weight: 600;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .task-active-tool .tool-desc {
   color: var(--p-text-muted-color);
   margin-top: 0.2rem;
   line-height: 1.35;
+  overflow-wrap: break-word;
   word-break: break-word;
 }
 
@@ -219,6 +225,7 @@ function formatDuration(ms) {
   display: flex;
   align-items: flex-start;
   gap: 0.3rem;
+  min-width: 0;
 }
 
 .task-error-msg i {
@@ -232,55 +239,74 @@ function formatDuration(ms) {
   margin-bottom: 0.4rem;
   line-height: 1.4;
   font-style: italic;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .task-meta {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
   font-size: 0.75rem;
   color: var(--p-text-muted-color);
-  gap: 0.5rem;
+  gap: 0.35rem 0.5rem;
+  min-width: 0;
 }
 
 .task-meta-left {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.35rem;
+  min-width: 0;
 }
 
 .task-meta-right {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+  min-width: 0;
 }
 
 .agent-badge,
 .channel-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.25rem;
   background: color-mix(in srgb, var(--p-text-color) 8%, transparent);
   padding: 0.1rem 0.4rem;
   border-radius: 0.25rem;
   font-size: 0.7rem;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .metric-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.15rem;
   font-size: 0.7rem;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .task-duration {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.2rem;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .task-duration-live {
   color: var(--p-primary-color);
   font-weight: 600;
+}
+
+.task-time {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 </style>

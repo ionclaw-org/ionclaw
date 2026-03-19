@@ -15,7 +15,7 @@ namespace server
 namespace handler
 {
 
-class WebSocketHandler : public Poco::Net::HTTPRequestHandler
+class WebSocketHandler final : public Poco::Net::HTTPRequestHandler
 {
 public:
     WebSocketHandler(

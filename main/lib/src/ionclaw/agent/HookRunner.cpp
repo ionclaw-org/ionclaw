@@ -39,7 +39,7 @@ void HookRunner::run(HookPoint point, HookContext &ctx) const
         }
         catch (const std::exception &e)
         {
-            spdlog::warn("[HookRunner] Hook failed at point {}: {}", static_cast<int>(point), e.what());
+            spdlog::error("[HookRunner] Hook failed at point {}: {}", static_cast<int>(point), e.what());
         }
     }
 }

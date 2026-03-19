@@ -15,7 +15,7 @@ namespace agent
 
 namespace fs = std::filesystem;
 
-// SubagentRunRecord serialization
+// subagent run record serialization
 
 std::string SubagentRunRecord::statusToString(SubagentStatus s)
 {
@@ -94,7 +94,7 @@ SubagentRunRecord SubagentRunRecord::fromJson(const nlohmann::json &j)
     return r;
 }
 
-// SubagentRegistry
+// subagent registry
 
 SubagentRegistry::SubagentRegistry(const std::string &workspacePath)
 {
@@ -187,7 +187,7 @@ void SubagentRegistry::updateProgress(const std::string &runId, const std::strin
 
     if (output.size() > MAX_PROGRESS_CHARS)
     {
-        // UTF-8 safe tail extraction: skip continuation bytes at start of tail
+        // utf-8 safe tail extraction: skip continuation bytes at start of tail
         auto tailStart = output.size() - MAX_PROGRESS_CHARS;
 
         while (tailStart < output.size() &&
@@ -418,6 +418,11 @@ void SubagentRegistry::save()
 
     ofs << arr.dump(2, ' ', false, nlohmann::json::error_handler_t::replace);
     ofs.flush();
+
+    if (!ofs.good())
+    {
+        spdlog::error("[SubagentRegistry] Failed to flush {}", filePath);
+    }
 }
 
 int SubagentRegistry::recoverStaleRuns()
@@ -445,10 +450,10 @@ int SubagentRegistry::recoverStaleRuns()
     return recovered;
 }
 
-int SubagentRegistry::checkTimeouts()
+std::vector<std::string> SubagentRegistry::checkTimeouts()
 {
     std::lock_guard<std::mutex> lock(mutex);
-    int timedOut = 0;
+    std::vector<std::string> timedOutIds;
     auto now = util::TimeHelper::now();
 
     for (auto &[id, record] : records)
@@ -470,17 +475,17 @@ int SubagentRegistry::checkTimeouts()
             record.status = SubagentStatus::Killed;
             record.outcome = "Timed out after " + std::to_string(record.timeoutSeconds) + " seconds";
             record.updatedAt = now;
-            timedOut++;
+            timedOutIds.push_back(id);
             spdlog::warn("[SubagentRegistry] Run {} timed out after {}s", id, elapsed);
         }
     }
 
-    if (timedOut > 0)
+    if (!timedOutIds.empty())
     {
         save();
     }
 
-    return timedOut;
+    return timedOutIds;
 }
 
 } // namespace agent

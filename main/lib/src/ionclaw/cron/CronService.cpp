@@ -36,8 +36,13 @@ void CronService::start()
         return;
     }
 
+    size_t jobCount;
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        jobCount = jobs.size();
+    }
     loopThread = std::thread(&CronService::runLoop, this);
-    spdlog::info("[CronService] started ({} jobs)", jobs.size());
+    spdlog::info("[CronService] started ({} jobs)", jobCount);
 }
 
 void CronService::stop()
@@ -140,7 +145,7 @@ void CronService::runLoop()
         }
         catch (...)
         {
-            spdlog::error("[CronService] unknown error in run loop");
+            spdlog::error("[CronService] non-standard exception in run loop");
         }
     }
 }

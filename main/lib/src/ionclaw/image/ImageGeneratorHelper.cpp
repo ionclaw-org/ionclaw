@@ -24,7 +24,16 @@ std::string ImageGeneratorHelper::saveToPublicMedia(const std::string &imageData
     std::error_code ec;
     fs::create_directories(mediaDir, ec);
 
-    std::string outputPath = mediaDir + "/" + filename;
+    // sanitize filename to prevent path traversal
+    auto safeName = fs::path(filename).filename().string();
+
+    if (safeName.empty() || safeName == "." || safeName == "..")
+    {
+        spdlog::error("[ImageGenerator] Invalid filename: {}", filename);
+        return "";
+    }
+
+    std::string outputPath = mediaDir + "/" + safeName;
     std::ofstream outFile(outputPath, std::ios::binary);
 
     if (!outFile.is_open())
@@ -44,7 +53,7 @@ std::string ImageGeneratorHelper::saveToPublicMedia(const std::string &imageData
 
     outFile.close();
 
-    std::string relativePath = "public/media/" + filename;
+    std::string relativePath = "public/media/" + safeName;
 
     if (!publicUrl.empty())
     {
@@ -105,7 +114,9 @@ std::string ImageGeneratorHelper::extractModelId(const std::string &model)
 
 std::vector<std::string> ImageGeneratorHelper::resolveReferencePaths(const nlohmann::json &params,
                                                                      const std::string &workspacePath,
-                                                                     const std::string &publicPath)
+                                                                     const std::string &publicPath,
+                                                                     bool restrictToWorkspace,
+                                                                     const std::string &projectPath)
 {
     std::vector<std::string> resolved;
 
@@ -130,7 +141,7 @@ std::vector<std::string> ImageGeneratorHelper::resolveReferencePaths(const nlohm
 
         try
         {
-            auto full = tool::builtin::ToolHelper::validateAndResolvePath(workspacePath, refPath, publicPath);
+            auto full = tool::builtin::ToolHelper::validateAndResolvePath(workspacePath, refPath, publicPath, restrictToWorkspace, projectPath);
             resolved.push_back(full);
         }
         catch (const std::exception &e)

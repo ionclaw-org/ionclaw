@@ -541,7 +541,7 @@ When the Orchestrator calls `AgentLoop::processMessage()`, the following happens
 1. Update task state to **DOING**
 2. Broadcast user message event (if not pre-saved)
 3. Ensure session exists
-4. Handle special commands (`/new` clears session, `/help` lists commands)
+4. Handle special commands (`/new` starts new session, `/reset` resets current session, `/help` lists commands)
 5. Create `ToolContext` (workspace paths, service pointers, hook runner)
 6. Resolve media (images → base64 content blocks, audio → transcription)
 7. Save user message to session (if not pre-saved by REST API)
@@ -794,65 +794,248 @@ agents:
 
 ## 15. Subagents
 
-Subagents are independent agents that run in parallel to execute specific tasks. The main agent creates them using the `spawn` tool.
+Subagents allow the main agent to delegate tasks to independent child agents. The parent spawns them using the `spawn` tool and continues its own work immediately — it does not block waiting for results.
 
-### Spawn Flow
+### Execution Model
+
+All agents (parent and children) share a **single Orchestrator worker thread**. They do not run in parallel threads. The Orchestrator consumes messages from the MessageBus one at a time:
 
 ```
-User ──► Agent Loop: "Research topic X and Y"
-              │
-              ├── spawn(task="research topic X")
-              │     └── SubagentRegistry creates run (status=Pending)
-              │     └── Publishes InboundMessage to bus
-              │     └── Returns "Subagent spawned (task: abc123)"
-              │
-              ├── spawn(task="research topic Y")
-              │     └── Same flow (task: def456)
-              │
-              └── "I've started two research tasks."
-                    (Main agent's task is DONE)
-
-         ... Minutes later ...
-
-    Subagent completes ──► AnnounceQueue ──► Parent session
-              │
-              └── "[Subagent abc123 completed]: findings about X..."
-                    (New InboundMessage to parent session)
-                    (Agent reads full history, sees its spawn decision)
-                    (Formulates response using the result)
+MessageBus queue:  [msg1] [msg2] [msg3] ...
+                      │
+                      ▼
+              Orchestrator::run()          ◄── single thread, blocking loop
+                      │
+                      ▼
+              handleMessage(msg)
+                      │
+                      ▼
+              processMessageDirect(msg)    ◄── calls AgentLoop::processMessage() (blocking)
 ```
 
-The agent "remembers" because of the **session history** — not because of any callback or state machine.
+When the parent agent calls `spawn`, a new InboundMessage is published to the MessageBus. That message waits in the queue until the parent's current turn finishes. Then the Orchestrator picks it up and processes the child on the same thread.
+
+This means subagents execute **sequentially**, not in parallel. If the parent spawns two tasks, one runs first, then the other. The "parallelism" is from the parent's perspective — it finishes its turn immediately and gets notified later.
+
+### Complete Flow (Step by Step)
+
+Here is the full lifecycle of a subagent, using a concrete example:
+
+```
+Step 1: User sends "Research topics X and Y"
+════════════════════════════════════════════
+
+  User message arrives ──► MessageBus (InboundMessage)
+                                │
+                                ▼
+                    Orchestrator picks it up
+                    Routes to agent "assistant"
+                                │
+                                ▼
+                    AgentLoop::processMessage()
+                    LLM decides to call spawn() twice
+
+Step 2: SpawnTool executes (for each spawn call)
+════════════════════════════════════════════════
+
+  SpawnTool::execute()
+      │
+      ├── 1. Validate limits (depth < MAX_DEPTH, children < MAX_CHILDREN)
+      ├── 2. Fire SubagentSpawning hook (can block the spawn)
+      ├── 3. Generate child session key: "web:{new-uuid}"
+      ├── 4. Create task in TaskManager (status=DOING)
+      ├── 5. Register run in SubagentRegistry (status=Pending)
+      │       └── resolve timeout: spawn param > config default > 300s
+      ├── 6. Collect parent's recent media files (images, audio)
+      ├── 7. Publish InboundMessage to MessageBus with metadata:
+      │       {task_id, parent_session_key, spawned_by, depth, subagent_run_id}
+      ├── 8. Fire SubagentSpawned hook
+      └── 9. Return "Spawned subagent: run-abc (Research topic X)"
+
+  The parent's AgentLoop continues processing the next tool call.
+  After processing all tool calls, the parent's turn ends.
+  The Orchestrator detects active children and keeps the parent's
+  task in DOING state (not Done) until all children complete.
+
+Step 3: Child agent runs
+════════════════════════
+
+  Orchestrator picks up the child's InboundMessage from the queue
+      │
+      ├── Detects subagent_run_id in metadata
+      ├── Updates SubagentRegistry: Pending → Active
+      ├── Marks session as subagent (liveState["subagent"] = true)
+      │   └── hidden from session list / sidebar
+      ├── Sends chat:typing to parent chat (shows loading indicator)
+      └── Calls processMessageDirect()
+              │
+              ▼
+          AgentLoop::processMessage()
+              │
+              ├── System prompt: Minimal mode (no memory, no history, no skills)
+              ├── Executes the task using available tools
+              ├── Progress tracked: updateProgress() captures last 500 chars
+              ├── Child task visible in task board (status DOING)
+              └── Finishes (success or error)
+
+  Child sessions are hidden from the sidebar. Only their tasks
+  appear in the task board, giving the user visibility without clutter.
+
+Step 4: Child completes → result queued for parent
+═══════════════════════════════════════════════════
+
+  Orchestrator::handleSubagentCompletion(runId, outcome)
+      │
+      ├── 1. Update SubagentRegistry: Active → Completed (or Errored)
+      ├── 2. Enqueue result in AnnounceQueue:
+      │       message = "[Subagent run abc completed]\nTask: ...\nResult: ..."
+      │       key = announceId (for idempotency, prevents duplicate delivery)
+      ├── 3. Fire SubagentEnded hook
+      └── 4. Check: are ALL children of this parent terminal?
+              │
+              YES ──► Go to Step 5 (wake parent)
+              │
+              NO  ──► Re-send chat:typing to parent (keeps loading alive)
+                      Wait for remaining children to finish.
+
+  The parent is NOT woken per-child. Results accumulate in the
+  AnnounceQueue until ALL children have completed or errored.
+
+Step 5: ALL children settled → parent wakes up
+═══════════════════════════════════════════════
+
+  Only when every child reaches a terminal state (Completed, Errored,
+  or Killed), the Orchestrator publishes a wake message:
+
+  Orchestrator
+      │
+      ├── Retrieves parent's original task_id from session liveState
+      ├── Publishes synthetic "wake" message:
+      │     content = "All pending subagent tasks have settled..."
+      │     queueMode = Followup
+      │     task_id = parent's original task (continues the same task)
+      └── Parent's task stays DOING during processing
+
+  Orchestrator picks up the wake message for the parent session
+      │
+      ├── Drains AnnounceQueue: collects ALL pending announces
+      ├── Prepends "[Subagent results]:\n..." to the message content
+      │   (all results delivered at once, not one at a time)
+      └── Processes normally via AgentLoop
+              │
+              ▼
+          The LLM sees its full session history:
+          - Original user request
+          - Its own spawn() calls
+          - "[Subagent results]: ..." with ALL outcomes together
+          - "All pending subagent tasks have settled..."
+
+          It formulates a single consolidated response.
+
+  After the parent delivers its final answer, the task goes to DONE.
+```
+
+The parent "remembers" what it spawned because of the **session history** — not callbacks or shared state. The LLM reads the full conversation and sees its own prior spawn decisions alongside the results.
+
+### Task Lifecycle
+
+From the user's perspective, the parent task tracks the **entire operation**:
+
+```
+User sends message ──► Task A = DOING (parent processing)
+                              │
+                              ▼
+                   Parent spawns children ──► Task B, C = DOING (children)
+                   Parent says "Working on it..."
+                   Task A stays DOING (waiting for children)
+                              │
+                              ▼
+                   Children finish ──► Task B, C = DONE
+                   Parent wakes, processes ALL results
+                   Task A still DOING (synthesizing answer)
+                              │
+                              ▼
+                   Parent delivers final answer ──► Task A = DONE
+```
+
+The user sees one continuous task from question to answer.
+
+### AnnounceQueue
+
+The AnnounceQueue bridges child completion to parent notification:
+
+- **Enqueue**: when a child finishes, its result is enqueued with an `announceId` (idempotency key)
+- **Drain**: when the parent's session processes a message, all pending announces are drained and prepended to the message content
+- **Retry**: if delivery fails (e.g. parent session busy), the entry is retried up to 3 times with exponential backoff
+- **Expiry**: entries expire after 300 seconds if never delivered
+- **Dedup**: duplicate `announceId` values are rejected (prevents double-delivery on retries)
 
 ### Subagent Limits
 
-| Limit | Default | Description |
-|---|---|---|
-| `MAX_DEPTH` | 5 | Maximum nesting depth |
-| `MAX_CHILDREN` | 5 | Maximum concurrent children per session |
-| `DEFAULT_TIMEOUT` | 300s | Per-spawn timeout (configurable) |
+| Limit | Default | Config key | Description |
+|---|---|---|---|
+| `MAX_DEPTH` | 5 | `subagent_limits.max_depth` | Maximum nesting depth (subagents can spawn sub-subagents) |
+| `MAX_CHILDREN` | 5 | `subagent_limits.max_children` | Maximum active children per parent session |
+| `DEFAULT_TIMEOUT` | 300s | `subagent_limits.default_timeout_seconds` | Per-run timeout; can be overridden per-spawn via `runTimeoutSeconds` param |
+
+Timeout resolution order: spawn tool param → agent config default → registry default (300s).
 
 ### Differences from Main Agent
 
 | Feature | Main Agent | Subagent |
 |---|---|---|
-| System prompt | Full (all 15 sections) | Minimal (identity, tools, workspace, runtime) |
-| Session history | Yes | No |
-| Memory | Yes | No |
-| Max iterations | Configurable (default 40) | Configurable per agent |
-| Tools | All configured | Same `tool_policy` pipeline applies |
-| Model | Configurable per agent | Uses target agent's model (can be overridden via `spawn` tool) |
-| Prompt mode | Full | Minimal |
+| System prompt | Full (all sections) | Minimal (identity, tools, workspace, runtime) |
+| Session history | Full conversation | Fresh session (no prior history) |
+| Memory | Loaded into prompt | Not loaded |
+| Skills | Loaded | Not loaded |
+| Bootstrap files | Loaded | Not loaded |
+| Tools | All configured | Same `tool_policy` applies |
+| Model | Agent's configured model | Same (can be overridden via `model` spawn param) |
+| Thinking | Agent's configured level | Same (can be overridden via `thinking` spawn param) |
+
+### Parent Chat Visibility
+
+Subagent sessions are marked with `liveState["subagent"] = true` and hidden from the session list (web client sidebar). Only their tasks appear in the task board, giving the user visibility into what's running without cluttering the chat list.
+
+While children are running, the parent chat shows a typing indicator (`chat:typing`). The parent's task stays in DOING state so the task board reflects that the operation is still in progress.
+
+Child events (`chat:stream`, `chat:tool_use`, etc.) are broadcast to the child's own session only — they are NOT forwarded to the parent chat. The parent receives all results at once when all children settle.
+
+### Timeout Enforcement
+
+The Orchestrator's run loop periodically calls `SubagentRegistry::checkTimeouts()`. When a run exceeds its configured timeout:
+
+1. The run is marked as `Killed` with outcome "Timed out after N seconds"
+2. `handleSubagentCompletion()` is called to notify the parent via AnnounceQueue
+3. If all children are now terminal, the parent is woken to process results
 
 ### Kill Cascade
 
-When a subagent is killed (timeout or manual), the kill cascades through all descendants via BFS through the `childSessionKey → requesterSessionKey` tree.
+When a subagent is killed (timeout or manual via `subagents` tool), the kill cascades through all descendants using BFS:
+
+```
+Parent A
+├── Child B (killed)
+│   ├── Grandchild C (also killed)
+│   └── Grandchild D (also killed)
+└── Child E (unaffected)
+```
+
+The cascade traverses the `childSessionKey → requesterSessionKey` links in SubagentRegistry. Each killed run gets status `Killed` and the associated session is aborted.
+
+### Progress Tracking
+
+While a subagent is running, the Orchestrator updates `SubagentRunRecord.lastOutput` with the latest 500-character snippet from the LLM's streaming output. The parent can query progress using the `subagents` tool with `action: "status"`.
 
 ### Subagent Hooks
 
-- **SubagentSpawning** — fired before spawn, can **block** (with reason)
-- **SubagentSpawned** — fired after successful spawn
-- **SubagentEnded** — fired when a subagent run completes
+| Hook | When | Can Block |
+|---|---|---|
+| **SubagentSpawning** | Before spawn, after validation | Yes (with `blockReason`) |
+| **SubagentSpawned** | After successful spawn | No |
+| **SubagentEnded** | When a run completes/errors | No |
+
+Example use case: a SubagentSpawning hook could enforce custom rules (e.g. block spawns to certain models, limit by time of day, or require approval).
 
 ---
 

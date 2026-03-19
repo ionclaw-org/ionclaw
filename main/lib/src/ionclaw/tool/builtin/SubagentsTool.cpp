@@ -39,7 +39,7 @@ ToolResult SubagentsTool::execute(const nlohmann::json &params, const ToolContex
             {
                 auto taskPreview = ionclaw::util::StringHelper::utf8SafeTruncate(record.task, 80);
 
-                if (record.task.size() > 80)
+                if (taskPreview.size() < record.task.size())
                 {
                     taskPreview += "...";
                 }
@@ -51,7 +51,7 @@ ToolResult SubagentsTool::execute(const nlohmann::json &params, const ToolContex
             {
                 auto outcomePreview = ionclaw::util::StringHelper::utf8SafeTruncate(record.outcome, 200);
 
-                if (record.outcome.size() > 200)
+                if (outcomePreview.size() < record.outcome.size())
                 {
                     outcomePreview += "...";
                 }

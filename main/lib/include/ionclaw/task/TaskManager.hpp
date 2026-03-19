@@ -52,6 +52,10 @@ private:
 
     void broadcastUpdate(const Task &task);
     void appendToFile(const Task &task);
+
+    // shared lock→find→mutate→snapshot→persist→broadcast pattern
+    template <typename Mutator>
+    void mutateTask(const std::string &taskId, const char *caller, Mutator &&mutate);
 };
 
 } // namespace task

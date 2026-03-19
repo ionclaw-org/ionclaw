@@ -105,6 +105,8 @@ private:
     std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher;
     std::shared_ptr<ionclaw::config::Config> config;
 
+    void reapIdleSessionsLocked(); // assumes sessionsMutex is already held
+
     // starts disabled; ChannelManager::startMcp() calls enable()
     std::atomic<bool> enabled{false};
     mutable std::mutex sessionsMutex;

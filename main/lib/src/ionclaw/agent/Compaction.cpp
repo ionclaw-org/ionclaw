@@ -173,8 +173,9 @@ std::string generateSummary(
                         auto response = provider->chat(request);
                         return response.content.empty() ? "[summary unavailable]" : response.content;
                     }
-                    catch (...)
+                    catch (const std::exception &e)
                     {
+                        spdlog::warn("[Compaction] Compaction attempt failed: {}", e.what());
                     }
                 }
 
@@ -350,8 +351,6 @@ std::string truncationFallback(const std::vector<ionclaw::provider::Message> &me
     return text.str();
 }
 
-} // namespace
-
 // check if conversation has real content worth compacting
 bool hasRealConversationContent(const std::vector<ionclaw::provider::Message> &conversation)
 {
@@ -366,6 +365,8 @@ bool hasRealConversationContent(const std::vector<ionclaw::provider::Message> &c
     return false;
 }
 
+} // namespace
+
 // compact conversation by summarizing older messages
 std::vector<ionclaw::provider::Message> Compaction::compact(
     const std::vector<ionclaw::provider::Message> &messages,
@@ -374,133 +375,7 @@ std::vector<ionclaw::provider::Message> Compaction::compact(
     const nlohmann::json &modelParams,
     const CompactionConfig &config)
 {
-    // separate system messages from conversation
-    std::vector<ionclaw::provider::Message> systemMsgs;
-    std::vector<ionclaw::provider::Message> conversation;
-
-    for (const auto &msg : messages)
-    {
-        if (msg.role == "system")
-        {
-            systemMsgs.push_back(msg);
-        }
-        else
-        {
-            conversation.push_back(msg);
-        }
-    }
-
-    // skip compaction if no real conversation content
-    if (!hasRealConversationContent(conversation))
-    {
-        spdlog::debug("[Compaction] No real conversation content, skipping");
-        return messages;
-    }
-
-    // determine split point between old and recent messages
-    auto cutPoint = std::max(2, static_cast<int>(conversation.size() * COMPACT_RATIO));
-
-    if (cutPoint >= static_cast<int>(conversation.size()))
-    {
-        return messages;
-    }
-
-    // split into messages to summarize and messages to keep
-    std::vector<ionclaw::provider::Message> toSummarize(conversation.begin(), conversation.begin() + cutPoint);
-    std::vector<ionclaw::provider::Message> toKeep(conversation.begin() + cutPoint, conversation.end());
-
-    // ensure toKeep starts with a valid message (not a dangling tool result)
-    while (!toKeep.empty() && toKeep.front().role == "tool")
-    {
-        toSummarize.push_back(toKeep.front());
-        toKeep.erase(toKeep.begin());
-    }
-
-    if (toSummarize.empty())
-    {
-        return messages;
-    }
-
-    try
-    {
-        std::string summary;
-
-        if (config.timeoutMs > 0)
-        {
-            // capture by value to prevent dangling references if the async task
-            // outlives this scope (future destructor blocks, but captures must be safe)
-            auto capturedSummarize = toSummarize;
-            auto capturedProvider = provider;
-            auto capturedModel = model;
-            auto capturedParams = modelParams;
-            auto capturedConfig = config;
-
-            auto future = std::async(std::launch::async, [capturedSummarize, capturedProvider, capturedModel, capturedParams, capturedConfig]()
-                                     {
-                if (static_cast<int>(capturedSummarize.size()) > capturedConfig.chunkSize)
-                {
-                    return generateChunkedSummary(capturedSummarize, capturedProvider, capturedModel, capturedParams, capturedConfig);
-                }
-                return generateSummary(capturedSummarize, capturedProvider, capturedModel, capturedParams, capturedConfig); });
-
-            auto status = future.wait_for(std::chrono::milliseconds(config.timeoutMs));
-
-            if (status == std::future_status::ready)
-            {
-                summary = future.get();
-            }
-            else
-            {
-                spdlog::warn("[Compaction] Summarization timed out after {}ms, using truncation fallback", config.timeoutMs);
-                summary = truncationFallback(toSummarize);
-                // note: future destructor will block until the async task completes;
-                // this is by design to avoid resource leaks from the HTTP connection
-            }
-        }
-        else
-        {
-            // no timeout: use chunked if large
-            if (static_cast<int>(toSummarize.size()) > config.chunkSize)
-            {
-                summary = generateChunkedSummary(toSummarize, provider, model, modelParams, config);
-            }
-            else
-            {
-                summary = generateSummary(toSummarize, provider, model, modelParams, config);
-            }
-        }
-
-        spdlog::info("[Compaction] Compacted {} messages into summary ({} chars), keeping {} recent",
-                     toSummarize.size(), summary.size(), toKeep.size());
-
-        // reassemble compacted conversation
-        std::vector<ionclaw::provider::Message> compacted;
-        compacted.reserve(systemMsgs.size() + 2 + toKeep.size());
-
-        // system messages
-        compacted.insert(compacted.end(), systemMsgs.begin(), systemMsgs.end());
-
-        // summary as user + ack
-        ionclaw::provider::Message summaryMsg;
-        summaryMsg.role = "user";
-        summaryMsg.content = "[Previous conversation summary]:\n" + summary;
-        compacted.push_back(summaryMsg);
-
-        ionclaw::provider::Message ackMsg;
-        ackMsg.role = "assistant";
-        ackMsg.content = "Understood. I have the context from our previous conversation. How can I help you next?";
-        compacted.push_back(ackMsg);
-
-        // recent messages
-        compacted.insert(compacted.end(), toKeep.begin(), toKeep.end());
-
-        return compacted;
-    }
-    catch (const std::exception &e)
-    {
-        spdlog::error("[Compaction] Compaction failed, keeping original messages: {}", e.what());
-        return messages;
-    }
+    return compactWithResult(messages, provider, model, modelParams, config).messages;
 }
 
 CompactionResult Compaction::compactWithResult(
@@ -550,10 +425,20 @@ CompactionResult Compaction::compactWithResult(
     std::vector<ionclaw::provider::Message> toSummarize(conversation.begin(), conversation.begin() + cutPoint);
     std::vector<ionclaw::provider::Message> toKeep(conversation.begin() + cutPoint, conversation.end());
 
-    while (!toKeep.empty() && toKeep.front().role == "tool")
     {
-        toSummarize.push_back(toKeep.front());
-        toKeep.erase(toKeep.begin());
+        size_t danglingCount = 0;
+        while (danglingCount < toKeep.size() && toKeep[danglingCount].role == "tool")
+        {
+            ++danglingCount;
+        }
+
+        if (danglingCount > 0)
+        {
+            toSummarize.insert(toSummarize.end(),
+                               std::make_move_iterator(toKeep.begin()),
+                               std::make_move_iterator(toKeep.begin() + static_cast<ptrdiff_t>(danglingCount)));
+            toKeep.erase(toKeep.begin(), toKeep.begin() + static_cast<ptrdiff_t>(danglingCount));
+        }
     }
 
     if (toSummarize.empty())
@@ -571,6 +456,10 @@ CompactionResult Compaction::compactWithResult(
 
         if (config.timeoutMs > 0)
         {
+            // use promise+thread instead of std::async to avoid blocking destructor on timeout
+            auto promise = std::make_shared<std::promise<std::string>>();
+            auto future = promise->get_future();
+
             // capture by value to prevent dangling references
             auto capturedSummarize = toSummarize;
             auto capturedProvider = provider;
@@ -578,13 +467,26 @@ CompactionResult Compaction::compactWithResult(
             auto capturedParams = modelParams;
             auto capturedConfig = config;
 
-            auto future = std::async(std::launch::async, [capturedSummarize, capturedProvider, capturedModel, capturedParams, capturedConfig]()
-                                     {
-                if (static_cast<int>(capturedSummarize.size()) > capturedConfig.chunkSize)
+            std::thread([promise, capturedSummarize, capturedProvider, capturedModel, capturedParams, capturedConfig]()
+                        {
+                try
                 {
-                    return generateChunkedSummary(capturedSummarize, capturedProvider, capturedModel, capturedParams, capturedConfig);
+                    std::string result;
+                    if (static_cast<int>(capturedSummarize.size()) > capturedConfig.chunkSize)
+                    {
+                        result = generateChunkedSummary(capturedSummarize, capturedProvider, capturedModel, capturedParams, capturedConfig);
+                    }
+                    else
+                    {
+                        result = generateSummary(capturedSummarize, capturedProvider, capturedModel, capturedParams, capturedConfig);
+                    }
+                    promise->set_value(std::move(result));
                 }
-                return generateSummary(capturedSummarize, capturedProvider, capturedModel, capturedParams, capturedConfig); });
+                catch (...)
+                {
+                    promise->set_exception(std::current_exception());
+                } })
+                .detach();
 
             auto status = future.wait_for(std::chrono::milliseconds(config.timeoutMs));
 
@@ -636,6 +538,9 @@ CompactionResult Compaction::compactWithResult(
         result.summarizedCount = static_cast<int>(toSummarize.size());
         result.keptCount = static_cast<int>(toKeep.size());
 
+        spdlog::info("[Compaction] Compacted {} messages into summary ({} chars), keeping {} recent",
+                     toSummarize.size(), summary.size(), toKeep.size());
+
         if (timedOut)
         {
             result.failure = CompactionFailure::Timeout;
@@ -685,25 +590,35 @@ std::vector<ionclaw::provider::Message> Compaction::pruneHistoryForContextShare(
         return messages;
     }
 
-    // split conversation into 2 halves; iteratively drop oldest half
+    // drop oldest halves iteratively until conversation fits within budget
     static constexpr int PARTS = 2;
     int droppedChunks = 0;
+    size_t startIdx = 0;
 
-    while (conversationTokens > budget && static_cast<int>(conversation.size()) > PARTS)
+    while (conversationTokens > budget && (conversation.size() - startIdx) > static_cast<size_t>(PARTS))
     {
-        auto chunkSize = std::max(1, static_cast<int>(conversation.size()) / PARTS);
+        auto remaining = conversation.size() - startIdx;
+        auto chunkSize = std::max(size_t{1}, remaining / PARTS);
 
-        // drop the oldest chunk
-        conversation.erase(conversation.begin(), conversation.begin() + chunkSize);
+        // drop the oldest chunk by advancing start index
+        startIdx += chunkSize;
         droppedChunks++;
 
         // skip orphaned tool results at the new start
-        while (!conversation.empty() && conversation.front().role == "tool")
+        while (startIdx < conversation.size() && conversation[startIdx].role == "tool")
         {
-            conversation.erase(conversation.begin());
+            ++startIdx;
         }
 
-        conversationTokens = ContextWindow::estimateTokens(conversation);
+        // re-estimate tokens on the kept portion
+        std::vector<ionclaw::provider::Message> kept(conversation.begin() + static_cast<ptrdiff_t>(startIdx), conversation.end());
+        conversationTokens = ContextWindow::estimateTokens(kept);
+    }
+
+    // apply the accumulated drops in a single erase
+    if (startIdx > 0)
+    {
+        conversation.erase(conversation.begin(), conversation.begin() + static_cast<ptrdiff_t>(startIdx));
     }
 
     if (droppedChunks > 0)

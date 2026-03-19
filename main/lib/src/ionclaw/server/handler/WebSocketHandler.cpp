@@ -29,6 +29,8 @@ WebSocketHandler::WebSocketHandler(
 
 void WebSocketHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp)
 {
+    std::string connectionId;
+
     try
     {
         // extract token from query parameter
@@ -51,10 +53,11 @@ void WebSocketHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Ne
             return;
         }
 
-        // upgrade to websocket and register connection
+        // upgrade to websocket
         Poco::Net::WebSocket ws(req, resp);
+        ws.setReceiveTimeout(Poco::Timespan(0, 0));
 
-        auto connectionId = ionclaw::util::UniqueId::uuid();
+        connectionId = ionclaw::util::UniqueId::uuid();
         auto conn = std::make_shared<WebSocketConnection>(std::move(ws), connectionId);
         wsManager->addConnection(conn);
 
@@ -68,15 +71,15 @@ void WebSocketHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Ne
             {
                 int received = conn->socket.receiveFrame(buffer, sizeof(buffer), flags);
 
-                // detect close or disconnect
                 if (received <= 0 || (flags & Poco::Net::WebSocket::FRAME_OP_BITMASK) == Poco::Net::WebSocket::FRAME_OP_CLOSE)
                 {
+                    spdlog::info("[WebSocket] Connection {} closed (received={}, opcode={})",
+                                 connectionId, received, flags & Poco::Net::WebSocket::FRAME_OP_BITMASK);
                     break;
                 }
 
-                std::string message(buffer, received);
+                std::string message(buffer, static_cast<size_t>(received));
 
-                // parse and handle json messages
                 try
                 {
                     auto json = nlohmann::json::parse(message);
@@ -87,17 +90,13 @@ void WebSocketHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Ne
                         nlohmann::json pong = {{"type", "pong"}};
                         auto pongStr = pong.dump();
                         std::lock_guard<std::mutex> lock(conn->sendMutex);
-                        conn->socket.sendFrame(pongStr.data(), static_cast<int>(pongStr.size()), Poco::Net::WebSocket::FRAME_TEXT);
-                    }
-                    else if (type == "chat.send")
-                    {
-                        auto data = json.value("data", nlohmann::json::object());
-                        spdlog::debug("WebSocket chat.send from {}: {}", connectionId, data.dump());
+                        conn->socket.sendFrame(pongStr.data(), static_cast<int>(pongStr.size()),
+                                               Poco::Net::WebSocket::FRAME_TEXT);
                     }
                 }
                 catch (const nlohmann::json::exception &e)
                 {
-                    spdlog::warn("Invalid WebSocket message JSON: {}", e.what());
+                    spdlog::warn("[WebSocket] Invalid message JSON ({}): {}", connectionId, e.what());
                 }
             }
             catch (const Poco::TimeoutException &)
@@ -106,16 +105,22 @@ void WebSocketHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Ne
             }
             catch (const std::exception &e)
             {
-                spdlog::debug("WebSocket receive error: {}", e.what());
+                spdlog::warn("[WebSocket] Receive error ({}): {}", connectionId, e.what());
                 break;
             }
         }
 
         wsManager->removeConnection(connectionId);
+        connectionId.clear();
     }
     catch (const std::exception &e)
     {
-        spdlog::error("WebSocket handler error: {}", e.what());
+        spdlog::error("[WebSocket] Handler error: {}", e.what());
+
+        if (!connectionId.empty())
+        {
+            wsManager->removeConnection(connectionId);
+        }
     }
 }
 

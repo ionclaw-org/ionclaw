@@ -1,6 +1,7 @@
 #include "ionclaw/bus/SessionQueue.hpp"
 
 #include <algorithm>
+#include <limits>
 
 #include "ionclaw/util/StringHelper.hpp"
 #include "spdlog/spdlog.h"
@@ -82,7 +83,7 @@ SessionQueue::SessionQueueState &SessionQueue::getOrCreate(
 // returns true if the new message should be accepted
 bool SessionQueue::applyDropPolicy(SessionQueueState &state, const std::string &content)
 {
-    if (static_cast<int>(state.items.size()) < state.cap)
+    if (state.items.size() < static_cast<size_t>(state.cap))
     {
         return true;
     }
@@ -246,7 +247,7 @@ int SessionQueue::clear(const std::string &sessionKey)
         return 0;
     }
 
-    int count = static_cast<int>(it->second.items.size());
+    auto count = static_cast<int>(std::min(it->second.items.size(), static_cast<size_t>(std::numeric_limits<int>::max())));
     queues_.erase(it);
 
     spdlog::debug("[SessionQueue] Cleared {} items for {}", count, sessionKey);
@@ -418,11 +419,6 @@ bool SessionQueue::waitDebounce(const std::string &sessionKey, int debounceMs)
 
         cv_.wait_for(lock, remaining);
     }
-}
-
-void SessionQueue::wakeDebounce()
-{
-    cv_.notify_all();
 }
 
 void SessionQueue::remove(const std::string &sessionKey)

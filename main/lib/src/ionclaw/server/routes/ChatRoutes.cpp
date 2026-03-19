@@ -87,16 +87,16 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
         // create task for tracking
         auto taskTitle = message.empty() ? "[media]" : ionclaw::util::StringHelper::utf8SafeTruncate(message, 100);
 
+        // persist the user message immediately so the session exists on disk
+        // before the async agent loop picks it up (page refresh always shows it)
+        auto sessionKey = "web:" + chatId;
+        sessionManager->ensureSession(sessionKey);
+
         auto task = taskManager->createTask(
             taskTitle,
             message,
             "web",
             chatId);
-
-        // persist the user message immediately so the session exists on disk
-        // before the async agent loop picks it up (page refresh always shows it)
-        auto sessionKey = "web:" + chatId;
-        sessionManager->ensureSession(sessionKey);
 
         ionclaw::session::SessionMessage userMsg;
         userMsg.role = "user";
@@ -186,6 +186,12 @@ void Routes::handleChatUpload(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
         std::error_code ec;
         fs::create_directories(mediaDir, ec);
 
+        if (ec)
+        {
+            sendError(resp, "Failed to create media directory: " + ec.message(), 500);
+            return;
+        }
+
         std::string relativePrefix = "public/media/" + datePath + "/";
         nlohmann::json paths = nlohmann::json::array();
 
@@ -242,8 +248,8 @@ void Routes::handleChatUpload(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
             }
 
         private:
-            const std::string &dir;
-            const std::string &relPrefix;
+            std::string dir;
+            std::string relPrefix;
             nlohmann::json &paths;
         };
 
@@ -284,14 +290,38 @@ void Routes::handleChatSession(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSe
         auto sessionKey = resolveSessionKey(sessionId);
         auto messages = sessionManager->getHistory(sessionKey);
 
+        // getHistory loads from disk if the session file exists;
+        // if messages are empty, check whether the session actually exists
+        // before calling getOrCreate (which would create it as a side effect)
+        if (messages.empty())
+        {
+            auto sessions = sessionManager->listSessions();
+            bool found = false;
+
+            for (const auto &info : sessions)
+            {
+                if (info.key == sessionKey)
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                sendError(resp, "Session not found", 404);
+                return;
+            }
+        }
+
+        auto session = sessionManager->getOrCreate(sessionKey);
+
         nlohmann::json msgArray = nlohmann::json::array();
 
         for (const auto &msg : messages)
         {
             msgArray.push_back(msg.toJson());
         }
-
-        auto session = sessionManager->getOrCreate(sessionKey);
 
         sendJson(resp, {
                            {"key", sessionKey},
@@ -303,7 +333,7 @@ void Routes::handleChatSession(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSe
     }
     catch (const std::exception &e)
     {
-        sendError(resp, e.what(), 404);
+        sendError(resp, e.what(), 500);
     }
 }
 

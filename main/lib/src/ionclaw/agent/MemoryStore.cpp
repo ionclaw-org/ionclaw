@@ -9,6 +9,7 @@
 #include <sstream>
 #include <sys/stat.h>
 
+#include "ionclaw/util/StringHelper.hpp"
 #include "spdlog/spdlog.h"
 
 namespace fs = std::filesystem;
@@ -255,7 +256,7 @@ static const std::set<std::string> STOP_WORDS_ES = {
     "ayuda",
 };
 
-// CJK stop words (Chinese)
+// cjk stop words (chinese)
 static const std::set<std::string> STOP_WORDS_ZH = {
     "\xe6\x88\x91",             // 我
     "\xe4\xbd\xa0",             // 你
@@ -286,7 +287,7 @@ static const std::set<std::string> STOP_WORDS_ZH = {
     "\xe8\xaf\xb7",             // 请
 };
 
-// Japanese stop words
+// japanese stop words
 static const std::set<std::string> STOP_WORDS_JA = {
     "\xe3\x81\x93\xe3\x82\x8c",             // これ
     "\xe3\x81\x9d\xe3\x82\x8c",             // それ
@@ -306,7 +307,7 @@ static const std::set<std::string> STOP_WORDS_JA = {
     "\xe4\xbd\x95",                         // 何
 };
 
-// Korean stop words
+// korean stop words
 static const std::set<std::string> STOP_WORDS_KO = {
     "\xec\x9d\x80",             // 은
     "\xeb\x8a\x94",             // 는
@@ -330,7 +331,7 @@ static const std::set<std::string> STOP_WORDS_KO = {
     "\xec\xa7\x80\xea\xb8\x88", // 지금
 };
 
-// Arabic stop words
+// arabic stop words
 static const std::set<std::string> STOP_WORDS_AR = {
     "\xd9\x88",                                 // و
     "\xd9\x81\xd9\x8a",                         // في
@@ -443,22 +444,22 @@ std::string MemoryStore::codepointsToUtf8(const std::vector<uint32_t> &cps)
 
 bool MemoryStore::isCjkCodepoint(uint32_t cp)
 {
-    // CJK Unified Ideographs
+    // cjk unified ideographs
     if (cp >= 0x4E00 && cp <= 0x9FFF)
         return true;
-    // CJK Extension A
+    // cjk extension a
     if (cp >= 0x3400 && cp <= 0x4DBF)
         return true;
-    // Hiragana
+    // hiragana
     if (cp >= 0x3040 && cp <= 0x309F)
         return true;
-    // Katakana
+    // katakana
     if (cp >= 0x30A0 && cp <= 0x30FF)
         return true;
-    // Hangul syllables
+    // hangul syllables
     if (cp >= 0xAC00 && cp <= 0xD7AF)
         return true;
-    // Hangul jamo
+    // hangul jamo
     if (cp >= 0x3131 && cp <= 0x3163)
         return true;
     return false;
@@ -565,7 +566,7 @@ std::vector<std::string> MemoryStore::extractKeywords(const std::string &query)
         }
     };
 
-    // CJK character accumulator for bigram extraction
+    // cjk character accumulator for bigram extraction
     std::vector<uint32_t> cjkRun;
 
     auto flushCjkRun = [&]()
@@ -658,7 +659,7 @@ double MemoryStore::computeTemporalDecay(const std::string &filePath, const std:
             // half-life of 30 days: exp(-ln2 * ageDays / 30)
             return std::exp(-0.693147 * ageDays / 30.0);
         }
-        catch (...)
+        catch (const std::exception &)
         {
             return 1.0;
         }
@@ -667,9 +668,7 @@ double MemoryStore::computeTemporalDecay(const std::string &filePath, const std:
     // evergreen memory files (MEMORY.md, topic files without date) do not decay
     auto basename = fs::path(filePath).filename().string();
     auto lowerBase = basename;
-    std::transform(lowerBase.begin(), lowerBase.end(), lowerBase.begin(),
-                   [](unsigned char c)
-                   { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+    ionclaw::util::StringHelper::toLowerInPlace(lowerBase);
 
     if (lowerBase == "memory.md")
     {
@@ -701,7 +700,7 @@ double MemoryStore::computeTemporalDecay(const std::string &filePath, const std:
 
         return std::exp(-0.693147 * ageDays / 30.0);
     }
-    catch (...)
+    catch (const std::exception &)
     {
         return 1.0;
     }
@@ -732,9 +731,7 @@ std::vector<MemorySearchResult> MemoryStore::searchMemory(const std::string &que
         }
 
         auto ext = entry.path().extension().string();
-        std::transform(ext.begin(), ext.end(), ext.begin(),
-                       [](unsigned char c)
-                       { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+        ionclaw::util::StringHelper::toLowerInPlace(ext);
 
         if (ext != ".md")
         {
@@ -767,9 +764,7 @@ std::vector<MemorySearchResult> MemoryStore::searchMemory(const std::string &que
         for (size_t i = 0; i < lines.size(); ++i)
         {
             auto lineLower = lines[i];
-            std::transform(lineLower.begin(), lineLower.end(), lineLower.begin(),
-                           [](unsigned char c)
-                           { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+            ionclaw::util::StringHelper::toLowerInPlace(lineLower);
 
             int matched = 0;
 

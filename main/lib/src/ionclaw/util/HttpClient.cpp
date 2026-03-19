@@ -2,13 +2,13 @@
 
 #include <istream>
 #include <memory>
-#include <sstream>
 
 #include "Poco/Net/HTTPClientSession.h"
 #include "Poco/Net/HTTPRequest.h"
 #include "Poco/Net/HTTPResponse.h"
 #include "Poco/StreamCopier.h"
 #include "Poco/URI.h"
+#include "spdlog/spdlog.h"
 
 #ifdef IONCLAW_HAS_SSL
 #include "Poco/Net/Context.h"
@@ -38,11 +38,12 @@ std::unique_ptr<Poco::Net::HTTPClientSession> HttpClient::createSession(const Po
     if (uri.getScheme() == "https")
     {
 #ifdef IONCLAW_HAS_SSL
+        // use Poco::Net::Context::Ptr (AutoPtr) for exception-safe ownership
 #ifdef _WIN32
-        auto context = new Poco::Net::Context(
+        Poco::Net::Context::Ptr context = new Poco::Net::Context(
             Poco::Net::Context::CLIENT_USE, "");
 #else
-        auto context = new Poco::Net::Context(
+        Poco::Net::Context::Ptr context = new Poco::Net::Context(
             Poco::Net::Context::CLIENT_USE,
             "",
             "",
@@ -84,7 +85,24 @@ std::unique_ptr<Poco::Net::HTTPClientSession> HttpClient::createSession(const Po
         if (colon != std::string::npos)
         {
             host = target.substr(0, colon);
-            port = static_cast<unsigned short>(std::stoul(target.substr(colon + 1)));
+
+            try
+            {
+                auto parsed = std::stoul(target.substr(colon + 1));
+
+                if (parsed > 65535)
+                {
+                    spdlog::warn("[HttpClient] Proxy port {} exceeds 65535, using default {}", parsed, port);
+                }
+                else
+                {
+                    port = static_cast<unsigned short>(parsed);
+                }
+            }
+            catch (const std::exception &)
+            {
+                spdlog::warn("[HttpClient] Malformed proxy port '{}', using default {}", target.substr(colon + 1), port);
+            }
         }
         session->setProxyHost(host);
         session->setProxyPort(port);
@@ -103,10 +121,30 @@ void HttpClient::applyHeaders(Poco::Net::HTTPRequest &request, const std::map<st
 
 HttpResponse HttpClient::readResponse(Poco::Net::HTTPResponse &response, std::istream &responseStream)
 {
+    static constexpr size_t MAX_RESPONSE_BODY_BYTES = 64 * 1024 * 1024; // 64 MB
+
     HttpResponse result;
     result.statusCode = static_cast<int>(response.getStatus());
 
-    Poco::StreamCopier::copyToString(responseStream, result.body);
+    // read with size limit to prevent OOM from malicious/oversized responses
+    static constexpr size_t CHUNK_SIZE = 8192;
+    char buf[CHUNK_SIZE];
+
+    while (responseStream.good() && result.body.size() < MAX_RESPONSE_BODY_BYTES)
+    {
+        responseStream.read(buf, CHUNK_SIZE);
+        auto bytesRead = responseStream.gcount();
+
+        if (bytesRead > 0)
+        {
+            result.body.append(buf, static_cast<size_t>(bytesRead));
+        }
+    }
+
+    if (result.body.size() >= MAX_RESPONSE_BODY_BYTES)
+    {
+        spdlog::warn("[HttpClient] Response body truncated at {} bytes", MAX_RESPONSE_BODY_BYTES);
+    }
 
     for (const auto &header : response)
     {
@@ -231,6 +269,9 @@ HttpResponse HttpClient::request(
 {
     constexpr int MAX_REDIRECTS = 5;
     std::string currentUrl = url;
+    std::string activeMethod = method;
+    std::string activeBody = body;
+    auto activeHeaders = headers;
 
     for (int redirect = 0; redirect <= MAX_REDIRECTS; ++redirect)
     {
@@ -244,13 +285,13 @@ HttpResponse HttpClient::request(
             requestPath = "/";
         }
 
-        Poco::Net::HTTPRequest request(method, requestPath, Poco::Net::HTTPMessage::HTTP_1_1);
+        Poco::Net::HTTPRequest request(activeMethod, requestPath, Poco::Net::HTTPMessage::HTTP_1_1);
         request.set("Host", uri.getHost());
-        applyHeaders(request, headers);
+        applyHeaders(request, activeHeaders);
 
-        if (!body.empty())
+        if (!activeBody.empty())
         {
-            request.setContentLength(static_cast<std::streamsize>(body.size()));
+            request.setContentLength(static_cast<std::streamsize>(activeBody.size()));
 
             // default to json if no content type was set via headers
             if (request.getContentType().empty())
@@ -259,7 +300,7 @@ HttpResponse HttpClient::request(
             }
 
             auto &os = session->sendRequest(request);
-            os << body;
+            os << activeBody;
         }
         else
         {
@@ -282,10 +323,11 @@ HttpResponse HttpClient::request(
             }
 
             // resolve relative redirects
+            Poco::URI prevUri(currentUrl);
+
             if (location.rfind("http", 0) != 0)
             {
-                Poco::URI base(currentUrl);
-                Poco::URI resolved(base, location);
+                Poco::URI resolved(prevUri, location);
                 currentUrl = resolved.toString();
             }
             else
@@ -297,6 +339,21 @@ HttpResponse HttpClient::request(
             if (redirectValidator)
             {
                 redirectValidator(currentUrl);
+            }
+
+            // strip authorization on cross-domain redirects to prevent credential leak
+            Poco::URI nextUri(currentUrl);
+            if (nextUri.getHost() != prevUri.getHost())
+            {
+                activeHeaders.erase("Authorization");
+                activeHeaders.erase("authorization");
+            }
+
+            // rfc 7231: downgrade method to GET and drop body on 301/302/303
+            if (status == 301 || status == 302 || status == 303)
+            {
+                activeMethod = "GET";
+                activeBody.clear();
             }
 
             continue;

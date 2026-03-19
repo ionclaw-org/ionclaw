@@ -4,6 +4,8 @@
 
 #include "spdlog/spdlog.h"
 
+#include "ionclaw/util/StringHelper.hpp"
+
 #include "ionclaw/tool/builtin/BrowserTool.hpp"
 #include "ionclaw/tool/builtin/CronTool.hpp"
 #include "ionclaw/tool/builtin/EditFileTool.hpp"
@@ -114,16 +116,12 @@ ToolResult ToolRegistry::executeTool(const std::string &name, const nlohmann::js
         if (it == tools.end())
         {
             auto lower = name;
-            std::transform(lower.begin(), lower.end(), lower.begin(),
-                           [](unsigned char c)
-                           { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+            ionclaw::util::StringHelper::toLowerInPlace(lower);
 
             for (auto &[n, t] : tools)
             {
                 auto lowerN = n;
-                std::transform(lowerN.begin(), lowerN.end(), lowerN.begin(),
-                               [](unsigned char c)
-                               { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+                ionclaw::util::StringHelper::toLowerInPlace(lowerN);
 
                 if (lowerN == lower)
                 {
@@ -180,7 +178,7 @@ ToolResult ToolRegistry::executeTool(const std::string &name, const nlohmann::js
             return result;
         }
 
-        result.text = builtin::ToolHelper::truncateOutput(result.text, contextWindowTokens);
+        result.text = builtin::ToolHelper::truncateOutput(result.text, contextWindowTokens.load(std::memory_order_relaxed));
         return result;
     }
     catch (const std::exception &e)
@@ -315,9 +313,7 @@ std::vector<std::string> ToolRegistry::applyToolPolicy(
     for (const auto &name : policy.deny)
     {
         auto lower = name;
-        std::transform(lower.begin(), lower.end(), lower.begin(),
-                       [](unsigned char c)
-                       { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+        ionclaw::util::StringHelper::toLowerInPlace(lower);
         denySet.insert(lower);
     }
 
@@ -326,9 +322,7 @@ std::vector<std::string> ToolRegistry::applyToolPolicy(
     for (const auto &name : policy.allow)
     {
         auto lower = name;
-        std::transform(lower.begin(), lower.end(), lower.begin(),
-                       [](unsigned char c)
-                       { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+        ionclaw::util::StringHelper::toLowerInPlace(lower);
         allowSet.insert(lower);
     }
 
@@ -338,9 +332,7 @@ std::vector<std::string> ToolRegistry::applyToolPolicy(
     for (const auto &name : toolNames)
     {
         auto lower = name;
-        std::transform(lower.begin(), lower.end(), lower.begin(),
-                       [](unsigned char c)
-                       { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+        ionclaw::util::StringHelper::toLowerInPlace(lower);
 
         // deny takes precedence
         if (denySet.count(lower) > 0)

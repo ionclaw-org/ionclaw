@@ -16,7 +16,7 @@ namespace server
 namespace handler
 {
 
-class McpHandler : public Poco::Net::HTTPRequestHandler
+class McpHandler final : public Poco::Net::HTTPRequestHandler
 {
 public:
     McpHandler(

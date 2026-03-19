@@ -42,7 +42,7 @@ void ToolLoopDetector::recordCall(const std::string &toolName, const std::string
     history.push_back(std::move(entry));
 
     // evict oldest entry and decrement its signature count to keep counts in sync with window
-    if (static_cast<int>(history.size()) > loopConfig.historySize)
+    if (history.size() > static_cast<size_t>(loopConfig.historySize))
     {
         auto &evicted = history.front();
         auto it = signatureCounts.find(evicted.signature);
@@ -137,7 +137,7 @@ bool ToolLoopDetector::shouldEmitWarning(const std::string &warningKey, int coun
 {
     int bucket = count / WARNING_BUCKET_SIZE;
     auto it = warningBuckets.find(warningKey);
-    int lastBucket = (it != warningBuckets.end()) ? it->second : 0;
+    int lastBucket = (it != warningBuckets.end()) ? it->second : -1;
 
     if (bucket <= lastBucket)
     {
@@ -147,7 +147,7 @@ bool ToolLoopDetector::shouldEmitWarning(const std::string &warningKey, int coun
     warningBuckets[warningKey] = bucket;
 
     // evict oldest key if map is too large
-    if (static_cast<int>(warningBuckets.size()) > MAX_WARNING_KEYS)
+    if (warningBuckets.size() > static_cast<size_t>(MAX_WARNING_KEYS))
     {
         warningBuckets.erase(warningBuckets.begin());
     }
