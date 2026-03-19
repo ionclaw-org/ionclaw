@@ -133,140 +133,24 @@ std::string Routes::detectFileType(const std::string &ext) const
     return "binary";
 }
 
-// builds a recursive json file tree with paths relative to rootPath
-nlohmann::json Routes::buildFileTree(const std::string &dirPath, const std::string &rootPath) const
-{
-    nlohmann::json result = nlohmann::json::array();
-
-    if (!fs::exists(dirPath) || !fs::is_directory(dirPath))
-    {
-        return result;
-    }
-
-    std::vector<fs::directory_entry> entries;
-
-    for (const auto &entry : fs::directory_iterator(dirPath))
-    {
-        entries.push_back(entry);
-    }
-
-    std::sort(entries.begin(), entries.end(), [](const auto &a, const auto &b)
-              {
-        if (a.is_directory() != b.is_directory())
-        {
-            return a.is_directory() > b.is_directory();
-        }
-
-        return a.path().filename().string() < b.path().filename().string(); });
-
-    for (const auto &entry : entries)
-    {
-        auto name = entry.path().filename().string();
-
-        // skip hidden, system, and protected files
-        if (isSystemFile(name) || isProtectedFile(name))
-        {
-            continue;
-        }
-
-        auto relativePath = fs::relative(entry.path(), rootPath).string();
-
-        if (entry.is_directory())
-        {
-            result.push_back({
-                {"name", name},
-                {"path", relativePath},
-                {"type", "directory"},
-                {"children", buildFileTree(entry.path().string(), rootPath)},
-            });
-        }
-        else if (entry.is_regular_file())
-        {
-            result.push_back({
-                {"name", name},
-                {"path", relativePath},
-                {"type", "file"},
-                {"size", static_cast<int64_t>(entry.file_size())},
-            });
-        }
-    }
-
-    return result;
-}
-
 // directories to skip when building project file tree
 const std::set<std::string> Routes::SKIP_DIR_NAMES = {
     "node_modules", "__pycache__", ".venv", ".idea", ".vscode", "dist", "build", ".next"};
 
+// builds a recursive json file tree with paths relative to rootPath
+nlohmann::json Routes::buildFileTree(const std::string &dirPath, const std::string &rootPath) const
+{
+    return buildFileTreeImpl(dirPath, rootPath, false);
+}
+
 // builds a project file tree, skipping common non-essential directories
 nlohmann::json Routes::buildFileTreeFromProject(const std::string &dirPath, const std::string &rootPath) const
 {
-    nlohmann::json result = nlohmann::json::array();
-
-    if (!fs::exists(dirPath) || !fs::is_directory(dirPath))
-    {
-        return result;
-    }
-
-    std::vector<fs::directory_entry> entries;
-
-    for (const auto &entry : fs::directory_iterator(dirPath))
-    {
-        entries.push_back(entry);
-    }
-
-    std::sort(entries.begin(), entries.end(), [](const auto &a, const auto &b)
-              {
-        if (a.is_directory() != b.is_directory())
-        {
-            return a.is_directory() > b.is_directory();
-        }
-
-        return a.path().filename().string() < b.path().filename().string(); });
-
-    for (const auto &entry : entries)
-    {
-        auto name = entry.path().filename().string();
-
-        // skip hidden, system, protected, and non-essential directories
-        if (isSystemFile(name) || isProtectedFile(name))
-        {
-            continue;
-        }
-
-        if (entry.is_directory() && SKIP_DIR_NAMES.count(name) != 0)
-        {
-            continue;
-        }
-
-        auto relativePath = fs::relative(entry.path(), rootPath).string();
-
-        if (entry.is_directory())
-        {
-            nlohmann::json children = buildFileTreeFromProject(entry.path().string(), rootPath);
-            result.push_back({
-                {"name", name},
-                {"path", relativePath},
-                {"type", "directory"},
-                {"children", children},
-            });
-        }
-        else if (entry.is_regular_file())
-        {
-            result.push_back({
-                {"name", name},
-                {"path", relativePath},
-                {"type", "file"},
-                {"size", static_cast<int64_t>(entry.file_size())},
-            });
-        }
-    }
-
-    return result;
+    return buildFileTreeImpl(dirPath, rootPath, true);
 }
 
-// builds a file tree with a custom path prefix prepended to all paths
-nlohmann::json Routes::buildFileTreeWithPrefix(const std::string &dirPath, const std::string &rootPath, const std::string &pathPrefix) const
+// unified file tree builder
+nlohmann::json Routes::buildFileTreeImpl(const std::string &dirPath, const std::string &rootPath, bool skipNonEssential) const
 {
     nlohmann::json result = nlohmann::json::array();
 
@@ -295,29 +179,32 @@ nlohmann::json Routes::buildFileTreeWithPrefix(const std::string &dirPath, const
     {
         auto name = entry.path().filename().string();
 
-        // skip hidden, system, and protected files
         if (isSystemFile(name) || isProtectedFile(name))
         {
             continue;
         }
 
+        if (skipNonEssential && entry.is_directory() && SKIP_DIR_NAMES.count(name) != 0)
+        {
+            continue;
+        }
+
         auto relativePath = fs::relative(entry.path(), rootPath).string();
-        std::string prefixedPath = pathPrefix + relativePath;
 
         if (entry.is_directory())
         {
             result.push_back({
                 {"name", name},
-                {"path", prefixedPath},
+                {"path", relativePath},
                 {"type", "directory"},
-                {"children", buildFileTreeWithPrefix(entry.path().string(), rootPath, pathPrefix)},
+                {"children", buildFileTreeImpl(entry.path().string(), rootPath, skipNonEssential)},
             });
         }
         else if (entry.is_regular_file())
         {
             result.push_back({
                 {"name", name},
-                {"path", prefixedPath},
+                {"path", relativePath},
                 {"type", "file"},
                 {"size", static_cast<int64_t>(entry.file_size())},
             });

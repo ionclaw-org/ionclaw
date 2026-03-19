@@ -7,7 +7,11 @@ export const useConfigStore = defineStore('config', () => {
   const config = ref(null)
 
   async function loadConfig() {
-    config.value = await api.get('/config')
+    try {
+      config.value = await api.get('/config')
+    } catch (e) {
+      console.error('[config] load error:', e)
+    }
   }
 
   async function saveSection(section, data) {

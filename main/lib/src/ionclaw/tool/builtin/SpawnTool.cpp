@@ -31,7 +31,7 @@ ToolResult SpawnTool::execute(const nlohmann::json &params, const ToolContext &c
     {
         label = ionclaw::util::StringHelper::utf8SafeTruncate(task, 50);
 
-        if (task.size() > 50)
+        if (label.size() < task.size())
         {
             label += "...";
         }

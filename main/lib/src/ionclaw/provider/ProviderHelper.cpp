@@ -65,10 +65,14 @@ std::string ProviderHelper::sanitizeToolCallId(const std::string &id, const std:
 std::string ProviderHelper::sanitizeErrorMessage(const std::string &msg)
 {
     // replace known key patterns with redacted placeholder
+    thread_local static const std::regex reApiKey("sk-[a-zA-Z0-9]{10,}");
+    thread_local static const std::regex reKeyPrefix("key-[a-zA-Z0-9]{10,}");
+    thread_local static const std::regex reBearer("Bearer\\s+[a-zA-Z0-9_\\-\\.]{10,}");
+
     std::string safe = msg;
-    safe = std::regex_replace(safe, std::regex("sk-[a-zA-Z0-9]{10,}"), "[REDACTED]");
-    safe = std::regex_replace(safe, std::regex("key-[a-zA-Z0-9]{10,}"), "[REDACTED]");
-    safe = std::regex_replace(safe, std::regex("Bearer\\s+[a-zA-Z0-9_\\-\\.]{10,}"), "Bearer [REDACTED]");
+    safe = std::regex_replace(safe, reApiKey, "[REDACTED]");
+    safe = std::regex_replace(safe, reKeyPrefix, "[REDACTED]");
+    safe = std::regex_replace(safe, reBearer, "Bearer [REDACTED]");
     return safe;
 }
 
@@ -85,7 +89,7 @@ nlohmann::json ProviderHelper::repairJsonArgs(const std::string &args)
     {
         return nlohmann::json::parse(args);
     }
-    catch (...)
+    catch (const nlohmann::json::parse_error &)
     {
     }
 
@@ -124,7 +128,10 @@ nlohmann::json ProviderHelper::repairJsonArgs(const std::string &args)
             }
             else if (c == '}')
             {
-                braces--;
+                if (braces > 0)
+                {
+                    braces--;
+                }
             }
             else if (c == '[')
             {
@@ -132,7 +139,10 @@ nlohmann::json ProviderHelper::repairJsonArgs(const std::string &args)
             }
             else if (c == ']')
             {
-                brackets--;
+                if (brackets > 0)
+                {
+                    brackets--;
+                }
             }
         }
     }
@@ -162,11 +172,73 @@ nlohmann::json ProviderHelper::repairJsonArgs(const std::string &args)
     {
         return nlohmann::json::parse(repaired);
     }
-    catch (...)
+    catch (const nlohmann::json::parse_error &)
     {
-        spdlog::warn("[ProviderHelper] failed to repair JSON args: {}", ionclaw::util::StringHelper::utf8SafeTruncate(args, 200));
-        return nlohmann::json::object();
     }
+
+    // strip trailing commas before closing delimiters (common llm output pattern)
+    // handles: {"key": "val",} and ["a", "b",]
+    {
+        std::string stripped;
+        stripped.reserve(repaired.size());
+        bool inStr = false;
+        bool esc = false;
+
+        for (size_t i = 0; i < repaired.size(); ++i)
+        {
+            char c = repaired[i];
+
+            if (esc)
+            {
+                esc = false;
+                stripped += c;
+                continue;
+            }
+
+            if (c == '\\' && inStr)
+            {
+                esc = true;
+                stripped += c;
+                continue;
+            }
+
+            if (c == '"')
+            {
+                inStr = !inStr;
+                stripped += c;
+                continue;
+            }
+
+            if (c == ',' && !inStr)
+            {
+                // look ahead past whitespace for closing delimiter
+                size_t j = i + 1;
+                while (j < repaired.size() && (repaired[j] == ' ' || repaired[j] == '\t' ||
+                                               repaired[j] == '\n' || repaired[j] == '\r'))
+                {
+                    ++j;
+                }
+
+                if (j < repaired.size() && (repaired[j] == '}' || repaired[j] == ']'))
+                {
+                    continue; // skip trailing comma
+                }
+            }
+
+            stripped += c;
+        }
+
+        try
+        {
+            return nlohmann::json::parse(stripped);
+        }
+        catch (const nlohmann::json::parse_error &)
+        {
+        }
+    }
+
+    spdlog::warn("[ProviderHelper] failed to repair JSON args: {}", ionclaw::util::StringHelper::utf8SafeTruncate(args, 200));
+    return nlohmann::json::object();
 }
 
 // classify error type from message text
@@ -174,9 +246,28 @@ std::string ProviderHelper::classifyError(const std::string &msg)
 {
     // convert to lowercase for case-insensitive matching
     auto lower = msg;
-    std::transform(lower.begin(), lower.end(), lower.begin(),
-                   [](unsigned char c)
-                   { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+    ionclaw::util::StringHelper::toLowerInPlace(lower);
+
+    // helper: match HTTP status code as a word boundary (not inside numbers/identifiers)
+    auto hasStatusCode = [&lower](const std::string &code) -> bool
+    {
+        size_t pos = 0;
+        while ((pos = lower.find(code, pos)) != std::string::npos)
+        {
+            bool leftBound = (pos == 0 || !std::isdigit(static_cast<unsigned char>(lower[pos - 1])));
+            auto end = pos + code.size();
+            bool rightBound = (end >= lower.size() || !std::isdigit(static_cast<unsigned char>(lower[end])));
+
+            if (leftBound && rightBound)
+            {
+                return true;
+            }
+
+            pos = end;
+        }
+
+        return false;
+    };
 
     // context overflow
     for (const auto &p : {"context_length_exceeded", "maximum context length", "too many tokens",
@@ -189,33 +280,35 @@ std::string ProviderHelper::classifyError(const std::string &msg)
     }
 
     // rate limit
-    for (const auto &p : {"rate_limit", "rate limit", "429", "too many requests",
-                          "quota exceeded", "overloaded"})
+    if (lower.find("rate_limit") != std::string::npos ||
+        lower.find("rate limit") != std::string::npos ||
+        lower.find("too many requests") != std::string::npos ||
+        lower.find("quota exceeded") != std::string::npos ||
+        lower.find("overloaded") != std::string::npos ||
+        hasStatusCode("429"))
     {
-        if (lower.find(p) != std::string::npos)
-        {
-            return "rate_limit";
-        }
+        return "rate_limit";
     }
 
     // billing
-    for (const auto &p : {"billing", "insufficient_quota", "payment", "402",
-                          "exceeded your current quota"})
+    if (lower.find("billing") != std::string::npos ||
+        lower.find("insufficient_quota") != std::string::npos ||
+        lower.find("payment") != std::string::npos ||
+        lower.find("exceeded your current quota") != std::string::npos ||
+        hasStatusCode("402"))
     {
-        if (lower.find(p) != std::string::npos)
-        {
-            return "billing";
-        }
+        return "billing";
     }
 
     // auth
-    for (const auto &p : {"authentication", "unauthorized", "401", "403",
-                          "invalid api key", "invalid_api_key", "permission denied"})
+    if (lower.find("authentication") != std::string::npos ||
+        lower.find("unauthorized") != std::string::npos ||
+        lower.find("invalid api key") != std::string::npos ||
+        lower.find("invalid_api_key") != std::string::npos ||
+        lower.find("permission denied") != std::string::npos ||
+        hasStatusCode("401") || hasStatusCode("403"))
     {
-        if (lower.find(p) != std::string::npos)
-        {
-            return "auth";
-        }
+        return "auth";
     }
 
     // model not found
@@ -231,7 +324,7 @@ std::string ProviderHelper::classifyError(const std::string &msg)
     for (const auto &p : {"timeout", "timed out", "deadline exceeded", "request timeout",
                           "read timeout", "connect timeout", "socket timeout",
                           "operation timed out", "etimedout", "esockettimedout",
-                          "econnaborted", "abort", "aborted"})
+                          "econnaborted"})
     {
         if (lower.find(p) != std::string::npos)
         {
@@ -272,16 +365,22 @@ std::string ProviderHelper::classifyError(const std::string &msg)
         }
     }
 
-    // transient
-    for (const auto &p : {"connection", "503", "502", "500",
-                          "internal server error", "bad gateway", "service unavailable",
-                          "econnreset", "econnrefused", "enetunreach", "ehostunreach",
-                          "epipe", "network error", "fetch failed"})
+    // transient (use word-boundary matching for status codes)
+    if (lower.find("connection refused") != std::string::npos ||
+        lower.find("connection reset") != std::string::npos ||
+        lower.find("internal server error") != std::string::npos ||
+        lower.find("bad gateway") != std::string::npos ||
+        lower.find("service unavailable") != std::string::npos ||
+        lower.find("econnreset") != std::string::npos ||
+        lower.find("econnrefused") != std::string::npos ||
+        lower.find("enetunreach") != std::string::npos ||
+        lower.find("ehostunreach") != std::string::npos ||
+        lower.find("epipe") != std::string::npos ||
+        lower.find("network error") != std::string::npos ||
+        lower.find("fetch failed") != std::string::npos ||
+        hasStatusCode("500") || hasStatusCode("502") || hasStatusCode("503") || hasStatusCode("521"))
     {
-        if (lower.find(p) != std::string::npos)
-        {
-            return "transient";
-        }
+        return "transient";
     }
 
     return "unknown";

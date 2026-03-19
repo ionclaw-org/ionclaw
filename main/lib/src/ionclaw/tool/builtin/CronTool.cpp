@@ -1,6 +1,8 @@
 #include "ionclaw/tool/builtin/CronTool.hpp"
 
+#include <ctime>
 #include <iomanip>
+#include <locale>
 #include <sstream>
 
 #include "ionclaw/cron/CronParser.hpp"
@@ -94,7 +96,9 @@ ToolResult CronTool::execute(const nlohmann::json &params, const ToolContext &co
 
             // parse ISO datetime to epoch ms
             std::tm tm{};
+            tm.tm_isdst = -1; // let mktime auto-detect DST
             std::istringstream ss(atStr);
+            ss.imbue(std::locale::classic());
             ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
 
             if (ss.fail())
@@ -103,6 +107,12 @@ ToolResult CronTool::execute(const nlohmann::json &params, const ToolContext &co
             }
 
             auto epochTime = std::mktime(&tm);
+
+            if (epochTime == static_cast<std::time_t>(-1))
+            {
+                return "Error: invalid datetime value";
+            }
+
             schedule.kind = "at";
             schedule.atMs = static_cast<int64_t>(epochTime) * 1000;
             deleteAfterRun = true;

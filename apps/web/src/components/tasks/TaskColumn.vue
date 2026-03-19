@@ -4,7 +4,6 @@ import TaskCard from './TaskCard.vue'
 defineProps({
   title: { type: String, required: true },
   tasks: { type: Array, default: () => [] },
-  severity: { type: String, default: 'info' },
 })
 
 const emit = defineEmits(['go-to-session'])

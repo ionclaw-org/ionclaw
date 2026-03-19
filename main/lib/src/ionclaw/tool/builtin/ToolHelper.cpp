@@ -37,6 +37,11 @@ bool ToolHelper::isPathWithinWorkspace(const std::string &workspacePath, const s
     auto workspace = fs::weakly_canonical(fs::path(workspacePath)).string();
     auto target = resolvedPath;
 
+    if (workspace.empty())
+    {
+        return false;
+    }
+
     if (workspace.back() != '/')
     {
         workspace += '/';
@@ -46,7 +51,8 @@ bool ToolHelper::isPathWithinWorkspace(const std::string &workspacePath, const s
 }
 
 std::string ToolHelper::validateAndResolvePath(const std::string &workspacePath, const std::string &rawPath,
-                                               const std::string &publicPath)
+                                               const std::string &publicPath, bool restrictToWorkspace,
+                                               const std::string &projectPath)
 {
     if (workspacePath.empty())
     {
@@ -64,12 +70,16 @@ std::string ToolHelper::validateAndResolvePath(const std::string &workspacePath,
         resolved = normalizePath(workspacePath, rawPath);
     }
 
-    bool inWorkspace = isPathWithinWorkspace(workspacePath, resolved);
-    bool inPublic = !publicPath.empty() && isPathWithinWorkspace(publicPath, resolved);
-
-    if (!inWorkspace && !inPublic)
+    if (restrictToWorkspace)
     {
-        throw std::runtime_error("Path is outside the workspace: " + rawPath);
+        bool inWorkspace = isPathWithinWorkspace(workspacePath, resolved);
+        bool inPublic = !publicPath.empty() && isPathWithinWorkspace(publicPath, resolved);
+        bool inProject = !projectPath.empty() && isPathWithinWorkspace(projectPath, resolved);
+
+        if (!inWorkspace && !inPublic && !inProject)
+        {
+            throw std::runtime_error("Path is outside the workspace: " + rawPath);
+        }
     }
 
     return resolved;
@@ -95,7 +105,7 @@ std::string ToolHelper::truncateOutput(const std::string &output, int contextWin
 
         auto head = ionclaw::util::StringHelper::utf8SafeTruncate(output, headSize);
 
-        // UTF-8 safe tail extraction: skip continuation bytes at start of tail
+        // utf-8 safe tail extraction: skip continuation bytes at start of tail
         auto tailStart = output.size() - static_cast<size_t>(tailSize);
 
         while (tailStart < output.size() &&
@@ -114,7 +124,8 @@ std::string ToolHelper::truncateOutput(const std::string &output, int contextWin
             tail = tail.substr(lineStart + 1);
         }
 
-        auto omitted = static_cast<int64_t>(output.size()) - headSize - tailSize;
+        auto omitted = std::max(static_cast<int64_t>(0),
+                                static_cast<int64_t>(output.size()) - headSize - tailSize);
 
         return head +
                "\n\n[... " + std::to_string(omitted) + " chars omitted ...]\n\n" +

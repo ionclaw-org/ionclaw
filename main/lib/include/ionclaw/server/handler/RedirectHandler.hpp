@@ -11,7 +11,7 @@ namespace server
 namespace handler
 {
 
-class RedirectHandler : public Poco::Net::HTTPRequestHandler
+class RedirectHandler final : public Poco::Net::HTTPRequestHandler
 {
 public:
     explicit RedirectHandler(const std::string &location);

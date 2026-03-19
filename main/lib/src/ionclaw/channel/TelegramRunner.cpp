@@ -3,6 +3,7 @@
 #include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
+#include "ionclaw/util/UniqueId.hpp"
 #include "spdlog/spdlog.h"
 #include <chrono>
 #include <ctime>
@@ -71,6 +72,139 @@ TelegramRunner::TelegramRunner(
 {
 }
 
+TelegramRunner::~TelegramRunner()
+{
+    stop();
+}
+
+void TelegramRunner::startTypingTicker(const std::string &chatId)
+{
+    std::lock_guard<std::mutex> lock(typingMutex_);
+
+    // already ticking for this chat
+    if (typingActive_.count(chatId) && typingActive_[chatId])
+    {
+        return;
+    }
+
+    typingActive_[chatId] = true;
+
+    // clean up previous thread if joinable
+    auto it = typingTickers_.find(chatId);
+    if (it != typingTickers_.end() && it->second.joinable())
+    {
+        it->second.join();
+        typingTickers_.erase(it);
+    }
+
+    typingTickers_.emplace(chatId, std::thread([this, chatId]()
+                                               {
+        while (running.load())
+        {
+            sendTypingAction(chatId);
+
+            std::unique_lock<std::mutex> lk(typingMutex_);
+            if (typingCv_.wait_for(lk, std::chrono::seconds(TYPING_INTERVAL_SEC), [this, &chatId]()
+            {
+                // entry removed or set to false means stop
+                auto it = typingActive_.find(chatId);
+                return !running.load() || it == typingActive_.end() || !it->second;
+            }))
+            {
+                break;
+            }
+        } }));
+}
+
+void TelegramRunner::stopTypingTicker(const std::string &chatId)
+{
+    std::thread t;
+    {
+        std::lock_guard<std::mutex> lock(typingMutex_);
+        typingActive_[chatId] = false;
+    }
+    typingCv_.notify_all();
+
+    // join outside the lock to avoid deadlock
+    {
+        std::lock_guard<std::mutex> lock(typingMutex_);
+        auto it = typingTickers_.find(chatId);
+        if (it != typingTickers_.end() && it->second.joinable())
+        {
+            t = std::move(it->second);
+            typingTickers_.erase(it);
+        }
+    }
+    if (t.joinable())
+    {
+        t.join();
+    }
+}
+
+void TelegramRunner::stopAllTypingTickers()
+{
+    {
+        std::lock_guard<std::mutex> lock(typingMutex_);
+        for (auto &[chatId, active] : typingActive_)
+        {
+            active = false;
+        }
+    }
+    typingCv_.notify_all();
+
+    // collect and join all threads
+    std::vector<std::thread> threads;
+    {
+        std::lock_guard<std::mutex> lock(typingMutex_);
+        for (auto &[chatId, t] : typingTickers_)
+        {
+            if (t.joinable())
+            {
+                threads.push_back(std::move(t));
+            }
+        }
+        typingTickers_.clear();
+        typingActive_.clear();
+    }
+    for (auto &t : threads)
+    {
+        t.join();
+    }
+}
+
+void TelegramRunner::registerTypingHandler()
+{
+    dispatcher->addNamedHandler("telegram-typing", [this](const std::string &eventType, const nlohmann::json &data)
+                                {
+        if (!running.load())
+        {
+            return;
+        }
+
+        auto chatId = data.value("chat_id", "");
+        if (chatId.empty() || chatId.find("telegram:") != 0)
+        {
+            return;
+        }
+
+        // extract numeric chat id after "telegram:" prefix
+        auto numericId = chatId.substr(9);
+
+        if (eventType == "chat:typing")
+        {
+            startTypingTicker(numericId);
+        }
+        else if (eventType == "chat:message")
+        {
+            stopTypingTicker(numericId);
+        } });
+}
+
+void TelegramRunner::unregisterTypingHandler()
+{
+    dispatcher->removeHandler("telegram-typing");
+}
+
 void TelegramRunner::start()
 {
     if (running.exchange(true))
@@ -106,6 +240,7 @@ void TelegramRunner::start()
         spdlog::error("[Telegram] Bot token validation failed: {}", e.what());
     }
 
+    registerTypingHandler();
     pollThread = std::thread(&TelegramRunner::pollLoop, this);
     outboundThread = std::thread(&TelegramRunner::outboundLoop, this);
     spdlog::info("[Telegram] Runner started");
@@ -117,6 +252,8 @@ void TelegramRunner::stop()
     {
         return;
     }
+    unregisterTypingHandler();
+    stopAllTypingTickers();
     if (pollThread.joinable())
     {
         pollThread.join();
@@ -165,7 +302,12 @@ std::string TelegramRunner::downloadTelegramFile(const std::string &fileId)
 {
     // step 1: call getFile to get the file_path
     auto body = telegramGet(token, "/getFile?file_id=" + fileId, proxy);
-    auto j = nlohmann::json::parse(body);
+    auto j = nlohmann::json::parse(body, nullptr, false);
+
+    if (j.is_discarded())
+    {
+        throw std::runtime_error("getFile returned invalid JSON for file_id: " + fileId);
+    }
 
     if (!j.value("ok", false) || !j.contains("result") || !j["result"].contains("file_path"))
     {
@@ -197,6 +339,12 @@ std::string TelegramRunner::downloadTelegramFile(const std::string &fileId)
     std::error_code ec;
     fs::create_directories(mediaDir, ec);
 
+    if (ec)
+    {
+        spdlog::error("[Telegram] Failed to create media dir: {}", ec.message());
+        return "";
+    }
+
     // preserve original extension from file_path
     auto ext = fs::path(filePath).extension().string();
     if (ext.empty())
@@ -205,17 +353,7 @@ std::string TelegramRunner::downloadTelegramFile(const std::string &fileId)
     }
 
     // generate unique filename
-    auto id = ionclaw::util::TimeHelper::now();
-    // strip non-alnum for filename safety
-    std::string safeId;
-    for (char c : id)
-    {
-        if (std::isalnum(static_cast<unsigned char>(c)))
-        {
-            safeId += c;
-        }
-    }
-    auto filename = safeId + ext;
+    auto filename = ionclaw::util::UniqueId::shortId() + ext;
     auto fullPath = mediaDir + "/" + filename;
 
     std::ofstream out(fullPath, std::ios::binary);
@@ -250,8 +388,11 @@ void TelegramRunner::sendTypingAction(const std::string &chatId)
     }
 }
 
+namespace
+{
+
 // escape a string for Telegram HTML
-static std::string escapeHtml(const std::string &s)
+std::string escapeHtml(const std::string &s)
 {
     std::string out;
     out.reserve(s.size());
@@ -276,7 +417,7 @@ static std::string escapeHtml(const std::string &s)
 }
 
 // find closing marker starting from pos, returns npos if not found
-static size_t findClosing(const std::string &s, size_t pos, const std::string &marker)
+size_t findClosing(const std::string &s, size_t pos, const std::string &marker)
 {
     auto found = s.find(marker, pos);
     // must not be empty content
@@ -287,6 +428,8 @@ static size_t findClosing(const std::string &s, size_t pos, const std::string &m
     return std::string::npos;
 }
 
+} // namespace
+
 std::string TelegramRunner::markdownToTelegramHtml(const std::string &md)
 {
     std::string out;
@@ -294,12 +437,11 @@ std::string TelegramRunner::markdownToTelegramHtml(const std::string &md)
 
     size_t i = 0;
     size_t len = md.size();
-    bool inCodeBlock = false;
 
     while (i < len)
     {
         // fenced code block: ```
-        if (!inCodeBlock && i + 2 < len && md[i] == '`' && md[i + 1] == '`' && md[i + 2] == '`')
+        if (i + 2 < len && md[i] == '`' && md[i + 1] == '`' && md[i + 2] == '`')
         {
             // skip opening ``` and optional language tag
             size_t start = i + 3;
@@ -659,68 +801,85 @@ void TelegramRunner::processUpdate(const nlohmann::json &update)
     // send typing indicator
     sendTypingAction(chatIdStr);
 
-    // build task title
-    std::string taskTitle;
-    if (!text.empty())
+    try
     {
-        taskTitle = ionclaw::util::StringHelper::utf8SafeTruncate(text, 100);
-    }
-    else if (!mediaFiles.empty())
-    {
-        taskTitle = "[media]";
-    }
-
-    auto task = taskManager->createTask(taskTitle, text, "telegram", chatIdStr);
-    sessionManager->ensureSession(sessionKey);
-
-    ionclaw::session::SessionMessage userMsg;
-    userMsg.role = "user";
-    userMsg.content = text;
-    userMsg.timestamp = ionclaw::util::TimeHelper::now();
-    if (replyToMessage && messageId != 0)
-    {
-        userMsg.raw["reply_to_message_id"] = messageId;
-    }
-    // persist media references in session (same format as web: plain path strings)
-    for (const auto &mediaPath : mediaFiles)
-    {
-        userMsg.media.push_back(mediaPath);
-    }
-    sessionManager->addMessage(sessionKey, userMsg);
-    dispatcher->broadcast("sessions:updated", nlohmann::json::object());
-
-    // notify web client about the new user message (real-time update with media)
-    {
-        nlohmann::json userMsgEvent;
-        userMsgEvent["chat_id"] = sessionKey;
-        userMsgEvent["content"] = text;
-        userMsgEvent["channel"] = "telegram";
-        if (!mediaFiles.empty())
+        // build task title
+        std::string taskTitle;
+        if (!text.empty())
         {
-            userMsgEvent["media"] = nlohmann::json(mediaFiles);
+            taskTitle = ionclaw::util::StringHelper::utf8SafeTruncate(text, 100);
         }
-        dispatcher->broadcast("chat:user_message", userMsgEvent);
-    }
+        else if (!mediaFiles.empty())
+        {
+            taskTitle = "[media]";
+        }
 
-    ionclaw::bus::InboundMessage inbound;
-    inbound.channel = "telegram";
-    inbound.senderId = userIdStr;
-    inbound.chatId = chatIdStr;
-    inbound.content = text;
-    inbound.media = mediaFiles;
-    inbound.metadata = {{"task_id", task.id}, {"message_saved", true}};
-    if (replyToMessage && messageId != 0)
+        // ensure session exists before creating task (prevents orphaned tasks)
+        sessionManager->ensureSession(sessionKey);
+        auto task = taskManager->createTask(taskTitle, text, "telegram", chatIdStr);
+
+        ionclaw::session::SessionMessage userMsg;
+        userMsg.role = "user";
+        userMsg.content = text;
+        userMsg.timestamp = ionclaw::util::TimeHelper::now();
+        if (replyToMessage && messageId != 0)
+        {
+            userMsg.raw["reply_to_message_id"] = messageId;
+        }
+        // persist media references in session (same format as web: plain path strings)
+        for (const auto &mediaPath : mediaFiles)
+        {
+            userMsg.media.push_back(mediaPath);
+        }
+        sessionManager->addMessage(sessionKey, userMsg);
+        dispatcher->broadcast("sessions:updated", nlohmann::json::object());
+
+        // notify web client about the new user message (real-time update with media)
+        {
+            nlohmann::json userMsgEvent;
+            userMsgEvent["chat_id"] = sessionKey;
+            userMsgEvent["content"] = text;
+            userMsgEvent["channel"] = "telegram";
+            if (!mediaFiles.empty())
+            {
+                userMsgEvent["media"] = nlohmann::json(mediaFiles);
+            }
+            dispatcher->broadcast("chat:user_message", userMsgEvent);
+        }
+
+        ionclaw::bus::InboundMessage inbound;
+        inbound.channel = "telegram";
+        inbound.senderId = userIdStr;
+        inbound.chatId = chatIdStr;
+        inbound.content = text;
+        inbound.media = mediaFiles;
+        inbound.metadata = {{"task_id", task.id}, {"message_saved", true}};
+        if (replyToMessage && messageId != 0)
+        {
+            inbound.metadata["reply_to_message_id"] = messageId;
+        }
+
+        // forward telegram user language to agent context
+        if (from.contains("language_code") && from["language_code"].is_string())
+        {
+            inbound.metadata["language"] = from["language_code"].get<std::string>();
+        }
+
+        bus->publishInbound(inbound);
+    }
+    catch (const std::exception &e)
     {
-        inbound.metadata["reply_to_message_id"] = messageId;
+        spdlog::error("[Telegram] Failed to process message from chat {}: {}", chatIdStr, e.what());
+        // try to send error feedback to user via Telegram
+        try
+        {
+            sendTextMessage(chatIdStr, "Sorry, I encountered an internal error processing your message. Please try again.");
+        }
+        catch (...)
+        {
+            spdlog::error("[Telegram] Failed to send error feedback to chat {}", chatIdStr);
+        }
     }
-
-    // forward telegram user language to agent context
-    if (from.contains("language_code") && from["language_code"].is_string())
-    {
-        inbound.metadata["language"] = from["language_code"].get<std::string>();
-    }
-
-    bus->publishInbound(inbound);
 }
 
 void TelegramRunner::pollLoop()
@@ -777,7 +936,8 @@ void TelegramRunner::outboundLoop()
             }
             if (outbound.channel != "telegram")
             {
-                spdlog::debug("[Telegram] Skipping outbound for channel={}", outbound.channel);
+                // drop messages not targeted at this channel to avoid infinite re-publish loop
+                spdlog::debug("[Telegram] Dropping non-telegram outbound (channel={})", outbound.channel);
                 continue;
             }
 
@@ -810,7 +970,7 @@ void TelegramRunner::outboundLoop()
         }
         catch (...)
         {
-            spdlog::error("[Telegram] Outbound unknown error");
+            spdlog::error("[Telegram] Outbound non-standard exception");
         }
     }
 }

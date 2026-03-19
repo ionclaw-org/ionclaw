@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 
+#include "ionclaw/config/Config.hpp"
 #include "ionclaw/tool/builtin/ToolHelper.hpp"
 
 namespace ionclaw
@@ -16,7 +17,8 @@ ToolResult WriteFileTool::execute(const nlohmann::json &params, const ToolContex
 {
     auto rawPath = params.at("path").get<std::string>();
     auto content = params.at("content").get<std::string>();
-    auto resolvedPath = ToolHelper::validateAndResolvePath(context.workspacePath, rawPath, context.publicPath);
+    bool restrict = !context.config || context.config->tools.restrictToWorkspace;
+    auto resolvedPath = ToolHelper::validateAndResolvePath(context.workspacePath, rawPath, context.publicPath, restrict, context.projectPath);
 
     auto parentDir = std::filesystem::path(resolvedPath).parent_path();
 
@@ -24,9 +26,16 @@ ToolResult WriteFileTool::execute(const nlohmann::json &params, const ToolContex
     {
         std::error_code ec;
         std::filesystem::create_directories(parentDir, ec);
+
+        if (ec)
+        {
+            return "Error: cannot create directory (" + ec.message() + "): " + parentDir.string();
+        }
     }
 
-    std::ofstream file(resolvedPath, std::ios::binary | std::ios::trunc);
+    // atomic write: write to temp file then rename to prevent data loss on crash
+    auto tempPath = resolvedPath + ".tmp";
+    std::ofstream file(tempPath, std::ios::binary | std::ios::trunc);
 
     if (!file.is_open())
     {
@@ -38,10 +47,20 @@ ToolResult WriteFileTool::execute(const nlohmann::json &params, const ToolContex
 
     if (file.fail())
     {
+        std::filesystem::remove(tempPath);
         return "Error: write failed (disk full or I/O error): " + rawPath;
     }
 
     file.close();
+
+    std::error_code renameEc;
+    std::filesystem::rename(tempPath, resolvedPath, renameEc);
+
+    if (renameEc)
+    {
+        std::filesystem::remove(tempPath);
+        return "Error: failed to finalize file write: " + renameEc.message();
+    }
 
     return "File written successfully: " + rawPath;
 }

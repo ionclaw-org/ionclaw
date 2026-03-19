@@ -1,6 +1,8 @@
 #include "ionclaw/tool/builtin/ReadFileTool.hpp"
 
 #include <filesystem>
+
+#include "ionclaw/config/Config.hpp"
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -18,7 +20,8 @@ namespace builtin
 ToolResult ReadFileTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto rawPath = params.at("path").get<std::string>();
-    auto resolvedPath = ToolHelper::validateAndResolvePath(context.workspacePath, rawPath, context.publicPath);
+    bool restrict = !context.config || context.config->tools.restrictToWorkspace;
+    auto resolvedPath = ToolHelper::validateAndResolvePath(context.workspacePath, rawPath, context.publicPath, restrict, context.projectPath);
 
     // validate file existence
     if (!std::filesystem::exists(resolvedPath))
@@ -38,9 +41,11 @@ ToolResult ReadFileTool::execute(const nlohmann::json &params, const ToolContext
         return "Error: cannot open file: " + rawPath;
     }
 
-    // read all lines
+    // read lines with a cap to prevent unbounded memory on huge files
+    constexpr size_t MAX_LINES = 100000;
     std::vector<std::string> lines;
     std::string line;
+    bool linesCapped = false;
 
     while (std::getline(file, line))
     {
@@ -50,7 +55,13 @@ ToolResult ReadFileTool::execute(const nlohmann::json &params, const ToolContext
             line.pop_back();
         }
 
-        lines.push_back(line);
+        lines.push_back(std::move(line));
+
+        if (lines.size() >= MAX_LINES)
+        {
+            linesCapped = true;
+            break;
+        }
     }
 
     file.close();
@@ -89,6 +100,10 @@ ToolResult ReadFileTool::execute(const nlohmann::json &params, const ToolContext
         {
             limit = 0;
         }
+        else if (limit > totalLines)
+        {
+            limit = totalLines;
+        }
     }
 
     // calculate range
@@ -97,7 +112,9 @@ ToolResult ReadFileTool::execute(const nlohmann::json &params, const ToolContext
 
     if (limit > 0)
     {
-        endLine = std::min(startLine + limit, totalLines);
+        // clamp limit to remaining lines to prevent integer overflow
+        int remaining = totalLines - startLine;
+        endLine = startLine + std::min(limit, remaining);
     }
 
     // build output with line numbers, respecting size limit
@@ -122,11 +139,12 @@ ToolResult ReadFileTool::execute(const nlohmann::json &params, const ToolContext
     // add continuation hint if there are more lines
     int remaining = totalLines - actualEnd;
 
-    if (remaining > 0)
+    if (remaining > 0 || linesCapped)
     {
         output << "\n[Showing lines " << (startLine + 1) << "-" << actualEnd
-               << " of " << totalLines << ". " << remaining
-               << " more lines remaining. Use offset=" << (actualEnd + 1)
+               << " of " << (linesCapped ? std::to_string(totalLines) + "+" : std::to_string(totalLines))
+               << ". " << (linesCapped ? "File truncated at " + std::to_string(MAX_LINES) + " lines. " : "")
+               << remaining << " more lines available. Use offset=" << (actualEnd + 1)
                << " to continue.]";
     }
 

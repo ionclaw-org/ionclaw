@@ -6,6 +6,7 @@
 
 #include "ionclaw/provider/ProviderHelper.hpp"
 #include "ionclaw/util/HttpClient.hpp"
+#include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/UniqueId.hpp"
 #include "spdlog/spdlog.h"
 
@@ -96,6 +97,8 @@ nlohmann::json OpenAiProvider::validateTranscript(const nlohmann::json &messages
                 }
                 else
                 {
+                    // insert placeholder assistant message to maintain role alternation
+                    validated.push_back({{"role", "assistant"}, {"content", ""}});
                     validated.push_back(msg);
                 }
             }
@@ -116,17 +119,37 @@ nlohmann::json OpenAiProvider::validateTranscript(const nlohmann::json &messages
                 !msg.contains("tool_calls"))
             {
                 auto &prev = validated.back();
-                auto prevContent = prev.value("content", "");
-                auto curContent = msg.value("content", "");
 
-                if (prevContent.empty())
+                // only merge when both have string content (skip array content blocks)
+                bool prevIsString = prev.contains("content") && prev["content"].is_string();
+                bool curIsString = msg.contains("content") && msg["content"].is_string();
+
+                if (prevIsString && curIsString)
                 {
-                    prev["content"] = curContent;
+                    auto prevContent = prev["content"].get<std::string>();
+                    auto curContent = msg["content"].get<std::string>();
+
+                    if (prevContent.empty())
+                    {
+                        prev["content"] = curContent;
+                    }
+                    else if (!curContent.empty())
+                    {
+                        prev["content"] = prevContent + "\n\n" + curContent;
+                    }
                 }
-                else if (!curContent.empty())
+                else
                 {
-                    prev["content"] = prevContent + "\n\n" + curContent;
+                    // incompatible content types, insert separator to maintain alternation
+                    validated.push_back({{"role", "user"}, {"content", "[continued]"}});
+                    validated.push_back(msg);
                 }
+            }
+            else if (!validated.empty() && validated.back().value("role", "") == "assistant")
+            {
+                // insert placeholder user message to maintain role alternation
+                validated.push_back({{"role", "user"}, {"content", "[continued]"}});
+                validated.push_back(msg);
             }
             else
             {
@@ -196,9 +219,7 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
         {
             // skip reasoning injection for openrouter/auto and x-ai/grok models
             auto modelLower = request.model;
-            std::transform(modelLower.begin(), modelLower.end(), modelLower.begin(),
-                           [](unsigned char c)
-                           { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+            ionclaw::util::StringHelper::toLowerInPlace(modelLower);
             bool skipReasoning = modelLower.find("openrouter/auto") != std::string::npos ||
                                  modelLower.find("x-ai/grok") != std::string::npos;
 
@@ -487,7 +508,13 @@ ChatCompletionResponse OpenAiProvider::chat(const ChatCompletionRequest &request
     }
 
     // parse and return response
-    auto json = nlohmann::json::parse(httpResponse.body);
+    auto json = nlohmann::json::parse(httpResponse.body, nullptr, false);
+
+    if (json.is_discarded())
+    {
+        throw std::runtime_error("OpenAI API returned invalid JSON (transient)");
+    }
+
     return parseResponse(json);
 }
 
@@ -560,7 +587,7 @@ void OpenAiProvider::chatStream(const ChatCompletionRequest &request, StreamCall
         {
             auto json = nlohmann::json::parse(data);
 
-            if (!json.contains("choices") || json["choices"].empty())
+            if (!json.contains("choices") || !json["choices"].is_array() || json["choices"].empty())
             {
                 // could be a usage-only message
                 if (json.contains("usage"))
@@ -608,9 +635,17 @@ void OpenAiProvider::chatStream(const ChatCompletionRequest &request, StreamCall
             // handle tool call deltas
             if (delta.contains("tool_calls") && delta["tool_calls"].is_array())
             {
+                static constexpr int MAX_TOOL_CALL_INDEX = 128;
+
                 for (const auto &tc : delta["tool_calls"])
                 {
                     auto index = tc.value("index", 0);
+
+                    if (index < 0 || index >= MAX_TOOL_CALL_INDEX)
+                    {
+                        spdlog::warn("[OpenAiProvider] Ignoring tool call with out-of-range index: {}", index);
+                        continue;
+                    }
 
                     // accumulate tool call id
                     if (tc.contains("id") && tc["id"].is_string() && !tc["id"].get<std::string>().empty())
@@ -646,9 +681,11 @@ void OpenAiProvider::chatStream(const ChatCompletionRequest &request, StreamCall
                 }
             }
         }
-        catch (const std::exception &e)
+        catch (const nlohmann::json::exception &)
         {
-            spdlog::debug("[OpenAiProvider] Stream parse error: {}", e.what());
+            // non-JSON data received — likely an HTTP error page or plain-text error
+            spdlog::warn("[OpenAiProvider] Non-JSON stream data received: {}", ionclaw::util::StringHelper::utf8SafeTruncate(data, 200));
+            throw std::runtime_error("[OpenAiProvider] Non-JSON error response: " + ionclaw::util::StringHelper::utf8SafeTruncate(data, 500));
         } });
 }
 

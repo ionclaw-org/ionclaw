@@ -15,12 +15,12 @@ namespace ionclaw
 namespace util
 {
 
-// RAII wrapper for popen/pclose to prevent file descriptor leaks on exceptions
+// raii wrapper for popen/pclose to prevent file descriptor leaks on exceptions
 class PipeGuard
 {
 public:
     explicit PipeGuard(const char *command, const char *mode = "r")
-        : pipe_(IONCLAW_POPEN(command, mode))
+        : pipe_(command ? IONCLAW_POPEN(command, mode) : nullptr)
     {
     }
 

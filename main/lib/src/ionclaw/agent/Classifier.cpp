@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <sstream>
 
+#include "ionclaw/util/StringHelper.hpp"
 #include "spdlog/spdlog.h"
 
 namespace ionclaw
@@ -156,12 +157,8 @@ std::string Classifier::classify(
                 {
                     std::string lowerResult = agentName;
                     std::string lowerName = name;
-                    std::transform(lowerResult.begin(), lowerResult.end(), lowerResult.begin(),
-                                   [](unsigned char c)
-                                   { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
-                    std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(),
-                                   [](unsigned char c)
-                                   { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+                    ionclaw::util::StringHelper::toLowerInPlace(lowerResult);
+                    ionclaw::util::StringHelper::toLowerInPlace(lowerName);
 
                     if (lowerResult == lowerName)
                     {
@@ -174,8 +171,16 @@ std::string Classifier::classify(
 
         // fallback: check text response
         auto result = response.content;
-        result.erase(0, result.find_first_not_of(" \t\n\r"));
-        result.erase(result.find_last_not_of(" \t\n\r") + 1);
+        auto trimStart = result.find_first_not_of(" \t\n\r");
+        if (trimStart == std::string::npos)
+        {
+            result.clear();
+        }
+        else
+        {
+            auto trimEnd = result.find_last_not_of(" \t\n\r");
+            result = result.substr(trimStart, trimEnd - trimStart + 1);
+        }
 
         if (agents.find(result) != agents.end())
         {

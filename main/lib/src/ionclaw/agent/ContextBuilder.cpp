@@ -250,119 +250,147 @@ std::string ContextBuilder::buildSystemPrompt(
     // 11. bootstrap files (full mode only, with truncation)
     if (full)
     {
-        size_t totalBootstrapChars = 0;
-
-        for (const auto &filename : BOOTSTRAP_FILES)
+        try
         {
-            if (totalBootstrapChars >= BOOTSTRAP_TOTAL_MAX_CHARS)
+            size_t totalBootstrapChars = 0;
+
+            for (const auto &filename : BOOTSTRAP_FILES)
             {
-                break;
-            }
-
-            auto content = readProjectFile(filename);
-
-            if (content.empty())
-            {
-                continue;
-            }
-
-            // trim whitespace
-            auto start = content.find_first_not_of(" \t\n\r");
-            auto end = content.find_last_not_of(" \t\n\r");
-
-            if (start != std::string::npos)
-            {
-                content = content.substr(start, end - start + 1);
-            }
-
-            // truncate oversized files: keep 70% head + 20% tail (utf-8 safe)
-            if (content.size() > BOOTSTRAP_MAX_CHARS)
-            {
-                auto headSize = BOOTSTRAP_MAX_CHARS * 7 / 10;
-                auto tailSize = BOOTSTRAP_MAX_CHARS * 2 / 10;
-                auto head = ionclaw::util::StringHelper::utf8SafeTruncate(content, headSize);
-                auto safeTailSize = std::min(tailSize, content.size());
-                auto tailStart = content.size() - safeTailSize;
-
-                // advance past any UTF-8 continuation bytes to avoid splitting a multi-byte sequence
-                while (tailStart < content.size() &&
-                       (static_cast<unsigned char>(content[tailStart]) & 0xC0) == 0x80)
+                if (totalBootstrapChars >= BOOTSTRAP_TOTAL_MAX_CHARS)
                 {
-                    tailStart++;
+                    break;
                 }
 
-                auto tail = content.substr(tailStart);
-                content = head + "\n[...truncated, read " + filename + " for full content...]\n" + tail;
+                auto content = readProjectFile(filename);
+
+                if (content.empty())
+                {
+                    continue;
+                }
+
+                // trim whitespace
+                auto start = content.find_first_not_of(" \t\n\r");
+                auto end = content.find_last_not_of(" \t\n\r");
+
+                if (start != std::string::npos)
+                {
+                    content = content.substr(start, end - start + 1);
+                }
+
+                // truncate oversized files: keep 70% head + 20% tail (utf-8 safe)
+                if (content.size() > BOOTSTRAP_MAX_CHARS)
+                {
+                    auto headSize = BOOTSTRAP_MAX_CHARS * 7 / 10;
+                    auto tailSize = BOOTSTRAP_MAX_CHARS * 2 / 10;
+                    auto head = ionclaw::util::StringHelper::utf8SafeTruncate(content, headSize);
+                    auto safeTailSize = std::min(tailSize, content.size());
+                    auto tailStart = content.size() - safeTailSize;
+
+                    // advance past any utf-8 continuation bytes to avoid splitting a multi-byte sequence
+                    while (tailStart < content.size() &&
+                           (static_cast<unsigned char>(content[tailStart]) & 0xC0) == 0x80)
+                    {
+                        tailStart++;
+                    }
+
+                    auto tail = content.substr(tailStart);
+                    content = head + "\n[...truncated, read " + filename + " for full content...]\n" + tail;
+                }
+
+                // enforce total budget (utf-8 safe)
+                auto remaining = BOOTSTRAP_TOTAL_MAX_CHARS - totalBootstrapChars;
+
+                if (content.size() > remaining)
+                {
+                    content = ionclaw::util::StringHelper::utf8SafeTruncate(content, remaining);
+                }
+
+                totalBootstrapChars += content.size();
+
+                // soul.md persona embodiment instruction
+                if (filename == "SOUL.md")
+                {
+                    prompt << "\n\n# Persona\n"
+                           << "Embody the persona and tone described below. "
+                           << "Avoid stiff, generic replies; follow its guidance "
+                           << "unless higher-priority instructions override it.\n\n";
+                }
+                else
+                {
+                    prompt << "\n\n# " << filename << "\n";
+                }
+
+                prompt << content;
             }
-
-            // enforce total budget (utf-8 safe)
-            auto remaining = BOOTSTRAP_TOTAL_MAX_CHARS - totalBootstrapChars;
-
-            if (content.size() > remaining)
-            {
-                content = ionclaw::util::StringHelper::utf8SafeTruncate(content, remaining);
-            }
-
-            totalBootstrapChars += content.size();
-
-            // SOUL.md persona embodiment instruction
-            if (filename == "SOUL.md")
-            {
-                prompt << "\n\n# Persona\n"
-                       << "Embody the persona and tone described below. "
-                       << "Avoid stiff, generic replies; follow its guidance "
-                       << "unless higher-priority instructions override it.\n\n";
-            }
-            else
-            {
-                prompt << "\n\n# " << filename << "\n";
-            }
-
-            prompt << content;
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::error("[ContextBuilder] Failed to load bootstrap files: {}", e.what());
         }
     }
 
     // 12. memory context with recall instructions (full mode only)
     if (full && memory)
     {
-        auto memoryContext = memory->getMemoryContext();
-
-        if (!memoryContext.empty())
+        try
         {
-            prompt << "\n\n# Memory\n"
-                   << "Before answering questions about prior work, decisions, dates, people, "
-                   << "preferences, or todos: search memory files first, then use the relevant "
-                   << "information in your response. If low confidence after searching, say you checked.\n\n"
-                   << memoryContext;
+            auto memoryContext = memory->getMemoryContext();
+
+            if (!memoryContext.empty())
+            {
+                prompt << "\n\n# Memory\n"
+                       << "Before answering questions about prior work, decisions, dates, people, "
+                       << "preferences, or todos: search memory files first, then use the relevant "
+                       << "information in your response. If low confidence after searching, say you checked.\n\n"
+                       << memoryContext;
+            }
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::error("[ContextBuilder] Failed to load memory context: {}", e.what());
         }
     }
 
     // 13. always-on skills inline (full mode only)
     if (full && skillsLoader)
     {
-        for (const auto &[skillName, skillContent] : skillsLoader->getAlwaysSkills())
+        try
         {
-            prompt << "\n\n# Skill: " << skillName << "\n"
-                   << skillContent;
+            for (const auto &[skillName, skillContent] : skillsLoader->getAlwaysSkills())
+            {
+                prompt << "\n\n# Skill: " << skillName << "\n"
+                       << skillContent;
+            }
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::error("[ContextBuilder] Failed to load always-on skills: {}", e.what());
         }
     }
 
     // 14. skills summary (full mode only)
     if (full && skillsLoader)
     {
-        auto skillsSummary = skillsLoader->buildSkillsSummary();
-
-        if (!skillsSummary.empty())
+        try
         {
-            prompt << "\n\n# Skills\n"
-                   << "Before replying, scan <available_skills> <description> entries.\n"
-                   << "- If exactly one skill clearly applies: read its SKILL.md at "
-                   << "<location> with read_file, then follow it.\n"
-                   << "- If multiple could apply: choose the most specific one, "
-                   << "then read and follow it.\n"
-                   << "- If none clearly apply: do not read any SKILL.md.\n"
-                   << "Skills marked always=\"true\" are already loaded above.\n\n"
-                   << skillsSummary;
+            auto skillsSummary = skillsLoader->buildSkillsSummary();
+
+            if (!skillsSummary.empty())
+            {
+                prompt << "\n\n# Skills\n"
+                       << "Before replying, scan <available_skills> <description> entries.\n"
+                       << "- If exactly one skill clearly applies: read its SKILL.md at "
+                       << "<location> with read_file, then follow it.\n"
+                       << "- If multiple could apply: choose the most specific one, "
+                       << "then read and follow it.\n"
+                       << "- If none clearly apply: do not read any SKILL.md.\n"
+                       << "Skills marked always=\"true\" are already loaded above.\n\n"
+                       << skillsSummary;
+            }
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::error("[ContextBuilder] Failed to build skills summary: {}", e.what());
         }
     }
 
@@ -402,9 +430,7 @@ std::string ContextBuilder::buildMediaAnnotation(const std::vector<nlohmann::jso
         if (dot != std::string::npos)
         {
             auto ext = path.substr(dot);
-            std::transform(ext.begin(), ext.end(), ext.begin(),
-                           [](unsigned char c)
-                           { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+            ionclaw::util::StringHelper::toLowerInPlace(ext);
 
             if (ext == ".jpg" || ext == ".jpeg")
                 mime = "image/jpeg";
@@ -499,7 +525,7 @@ std::vector<ionclaw::provider::Message> ContextBuilder::buildMessages(
                         {
                             toolCall.arguments = nlohmann::json::parse(argsStr);
                         }
-                        catch (...)
+                        catch (const nlohmann::json::parse_error &)
                         {
                             toolCall.arguments = nlohmann::json::object();
                         }
@@ -654,6 +680,9 @@ std::string ContextBuilder::buildSubagentContext(int depth, int maxDepth)
     return ctx.str();
 }
 
+namespace
+{
+
 // detect error/diagnostic content in the tail of a tool result
 bool hasImportantTail(const std::string &content, size_t scanBytes = 2000)
 {
@@ -698,6 +727,8 @@ bool hasImportantTail(const std::string &content, size_t scanBytes = 2000)
     return false;
 }
 
+} // anonymous namespace
+
 // cap oversized tool results to fit within total character budget
 void ContextBuilder::enforceToolResultBudget(
     std::vector<ionclaw::provider::Message> &messages,
@@ -712,16 +743,16 @@ void ContextBuilder::enforceToolResultBudget(
         {
             // use larger tail budget if error content detected at the end
             auto importantTail = hasImportantTail(msg.content);
-            auto tailRatio = importantTail ? 3 : 4; // 30% or 25%
+            auto tailRatio = importantTail ? 4 : 3; // 40% or 30%
             auto tailBudget = std::min(static_cast<int64_t>(singleResultCap) * tailRatio / 10, static_cast<int64_t>(4000));
             auto headBudget = std::max(static_cast<int64_t>(0), static_cast<int64_t>(singleResultCap) - tailBudget);
 
             auto safeTailBudget = std::min(static_cast<size_t>(tailBudget), msg.content.size());
 
-            // UTF-8 safe head truncation
+            // utf-8 safe head truncation
             auto head = ionclaw::util::StringHelper::utf8SafeTruncate(msg.content, static_cast<size_t>(headBudget));
 
-            // UTF-8 safe tail extraction: skip continuation bytes at start
+            // utf-8 safe tail extraction: skip continuation bytes at start
             auto tailStart = msg.content.size() - safeTailBudget;
 
             while (tailStart < msg.content.size() &&
@@ -787,10 +818,10 @@ void ContextBuilder::enforceToolResultBudget(
 
             auto safeTailSize = std::min(static_cast<size_t>(tailSize), msg.content.size());
 
-            // UTF-8 safe head truncation
+            // utf-8 safe head truncation
             auto head = ionclaw::util::StringHelper::utf8SafeTruncate(msg.content, static_cast<size_t>(headSize));
 
-            // UTF-8 safe tail extraction: skip continuation bytes at start
+            // utf-8 safe tail extraction: skip continuation bytes at start
             auto tailStart = msg.content.size() - safeTailSize;
 
             while (tailStart < msg.content.size() &&

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <map>
-#include <regex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -48,7 +47,6 @@ private:
 
     // skill discovery constants
     static const std::string SKILL_FILENAME;
-    static const std::regex FRONTMATTER_RE;
     static std::pair<nlohmann::json, std::string> parseFrontmatter(const std::string &content);
     std::string resolveSource(const std::string &path) const;
     void scanSkillsDir(const std::string &base, std::map<std::string, std::string> &skills) const;

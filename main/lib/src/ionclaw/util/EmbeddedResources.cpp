@@ -24,10 +24,12 @@ namespace util
 {
 
 std::unordered_map<std::string, std::string> EmbeddedResources::webFiles;
-bool EmbeddedResources::webLoaded = false;
+std::once_flag EmbeddedResources::webLoadFlag;
+std::atomic<bool> EmbeddedResources::webLoaded{false};
 
 std::unordered_map<std::string, std::string> EmbeddedResources::skillFiles;
-bool EmbeddedResources::skillsLoaded = false;
+std::once_flag EmbeddedResources::skillsLoadFlag;
+std::atomic<bool> EmbeddedResources::skillsLoaded{false};
 
 bool EmbeddedResources::hasWebResources()
 {
@@ -58,12 +60,12 @@ bool EmbeddedResources::hasTemplateResources()
 
 void EmbeddedResources::loadWebResources()
 {
-#ifdef IONCLAW_EMBEDDED_RESOURCES
-    if (webLoaded)
-    {
-        return;
-    }
+    std::call_once(webLoadFlag, loadWebResourcesImpl);
+}
 
+void EmbeddedResources::loadWebResourcesImpl()
+{
+#ifdef IONCLAW_EMBEDDED_RESOURCES
     try
     {
         auto data = ionclaw_embedded_web::getData();
@@ -100,7 +102,7 @@ void EmbeddedResources::loadWebResources()
             webFiles[entryName] = content.str();
         }
 
-        webLoaded = true;
+        webLoaded.store(true, std::memory_order_release);
         spdlog::info("[EmbeddedResources] Loaded {} web files from embedded resources", webFiles.size());
     }
     catch (const std::exception &e)
@@ -112,7 +114,7 @@ void EmbeddedResources::loadWebResources()
 
 std::pair<const char *, size_t> EmbeddedResources::getWebFile(const std::string &path)
 {
-    if (!webLoaded)
+    if (!webLoaded.load(std::memory_order_acquire))
     {
         return {nullptr, 0};
     }
@@ -214,12 +216,12 @@ bool EmbeddedResources::extractTemplate(const std::string &targetDir)
 
 void EmbeddedResources::loadSkills()
 {
-#ifdef IONCLAW_EMBEDDED_RESOURCES
-    if (skillsLoaded)
-    {
-        return;
-    }
+    std::call_once(skillsLoadFlag, loadSkillsImpl);
+}
 
+void EmbeddedResources::loadSkillsImpl()
+{
+#ifdef IONCLAW_EMBEDDED_RESOURCES
     try
     {
         auto data = ionclaw_embedded_skills::getData();
@@ -272,7 +274,7 @@ void EmbeddedResources::loadSkills()
             skillFiles[skillName] = content.str();
         }
 
-        skillsLoaded = true;
+        skillsLoaded.store(true, std::memory_order_release);
         spdlog::info("[EmbeddedResources] Loaded {} built-in skills", skillFiles.size());
     }
     catch (const std::exception &e)

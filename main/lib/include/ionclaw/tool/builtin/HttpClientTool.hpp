@@ -13,7 +13,7 @@ namespace tool
 namespace builtin
 {
 
-class HttpClientTool : public Tool
+class HttpClientTool final : public Tool
 {
 public:
     ToolResult execute(const nlohmann::json &params, const ToolContext &context) override;

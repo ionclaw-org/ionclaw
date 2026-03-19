@@ -48,9 +48,8 @@ watch(() => newJob.value.type, (val) => {
   }
 })
 
-function toLocalISO(date) {
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+function toUtcISO(date) {
+  return date.toISOString()
 }
 
 onMounted(loadJobs)
@@ -58,31 +57,46 @@ onMounted(loadJobs)
 async function loadJobs() {
   try {
     jobs.value = await api.get('/scheduler/jobs')
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to load jobs', life: 3000 })
   } finally {
     loading.value = false
   }
 }
 
 async function createJob() {
+  if (!newJob.value.message?.trim()) {
+    toast.add({ severity: 'warn', summary: 'Validation', detail: 'Message is required', life: 3000 })
+    return
+  }
+
   const body = {
     name: newJob.value.name,
     message: newJob.value.message,
   }
   if (newJob.value.type === 'every') body.every_seconds = newJob.value.every_seconds
   if (newJob.value.type === 'cron') body.cron_expr = newJob.value.cron_expr
-  if (newJob.value.type === 'at' && newJob.value.at) body.at = toLocalISO(newJob.value.at)
+  if (newJob.value.type === 'at' && newJob.value.at) body.at = toUtcISO(newJob.value.at)
 
-  await api.post('/scheduler/jobs', body)
-  toast.add({ severity: 'success', summary: 'Created', detail: 'Job created', life: 2000 })
-  showDialog.value = false
-  newJob.value = { name: '', message: '', type: 'every', every_seconds: 3600, cron_expr: '', at: null }
-  await loadJobs()
+  try {
+    await api.post('/scheduler/jobs', body)
+    toast.add({ severity: 'success', summary: 'Created', detail: 'Job created', life: 2000 })
+    showDialog.value = false
+    newJob.value = { name: '', message: '', type: 'every', every_seconds: 3600, cron_expr: '', at: null }
+    await loadJobs()
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
+  }
 }
 
 async function removeJob(id) {
-  await api.del(`/scheduler/jobs/${id}`)
-  toast.add({ severity: 'info', summary: 'Removed', detail: 'Job deleted', life: 2000 })
-  await loadJobs()
+  try {
+    await api.del(`/scheduler/jobs/${id}`)
+    toast.add({ severity: 'info', summary: 'Removed', detail: 'Job deleted', life: 2000 })
+    await loadJobs()
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
+  }
 }
 
 function formatSchedule(job) {

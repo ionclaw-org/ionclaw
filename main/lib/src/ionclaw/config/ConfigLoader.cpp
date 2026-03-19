@@ -1,8 +1,10 @@
 #include "ionclaw/config/ConfigLoader.hpp"
 
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <regex>
+#include <set>
 #include <stdexcept>
 
 #include "spdlog/spdlog.h"
@@ -97,7 +99,10 @@ std::vector<std::string> ConfigLoader::expandStringList(const YAML::Node &node)
 
     for (const auto &item : node)
     {
-        result.push_back(expandEnvVars(item.as<std::string>()));
+        if (item.IsScalar())
+        {
+            result.push_back(expandEnvVars(item.as<std::string>()));
+        }
     }
 
     return result;
@@ -114,7 +119,10 @@ std::map<std::string, std::string> ConfigLoader::expandStringMap(const YAML::Nod
 
     for (const auto &pair : node)
     {
-        result[pair.first.as<std::string>()] = expandEnvVars(pair.second.as<std::string>());
+        if (pair.second.IsScalar())
+        {
+            result[pair.first.as<std::string>()] = expandEnvVars(pair.second.as<std::string>());
+        }
     }
 
     return result;
@@ -131,11 +139,21 @@ nlohmann::json ConfigLoader::yamlToJson(const YAML::Node &node)
 
     if (node.IsScalar())
     {
+        // try bool before int: yaml-cpp parses "true"/"false" as both bool and int,
+        // and trying int first would incorrectly convert booleans to 0/1
+        try
+        {
+            return node.as<bool>();
+        }
+        catch (const YAML::BadConversion &)
+        {
+        }
+
         try
         {
             return node.as<int>();
         }
-        catch (...)
+        catch (const YAML::BadConversion &)
         {
         }
 
@@ -143,15 +161,7 @@ nlohmann::json ConfigLoader::yamlToJson(const YAML::Node &node)
         {
             return node.as<double>();
         }
-        catch (...)
-        {
-        }
-
-        try
-        {
-            return node.as<bool>();
-        }
-        catch (...)
+        catch (const YAML::BadConversion &)
         {
         }
 
@@ -247,6 +257,27 @@ Config ConfigLoader::load(const std::string &path)
         throw std::runtime_error("Failed to load config file: " + path + " - " + e.what());
     }
 
+    return loadFromNode(root);
+}
+
+Config ConfigLoader::loadFromString(const std::string &yaml)
+{
+    YAML::Node root;
+
+    try
+    {
+        root = YAML::Load(yaml);
+    }
+    catch (const YAML::Exception &e)
+    {
+        throw std::runtime_error(std::string("Invalid YAML: ") + e.what());
+    }
+
+    return loadFromNode(root);
+}
+
+Config ConfigLoader::loadFromNode(const YAML::Node &root)
+{
     Config config;
 
     // bot
@@ -261,6 +292,11 @@ Config ConfigLoader::load(const std::string &path)
     {
         config.server.host = expandStr(server["host"], config.server.host);
         config.server.port = expandInt(server["port"], config.server.port);
+
+        if (config.server.port < 1 || config.server.port > 65535)
+        {
+            throw std::runtime_error("server port must be between 1 and 65535, got: " + std::to_string(config.server.port));
+        }
         config.server.publicUrl = expandStr(server["public_url"]);
         config.server.credential = expandStr(server["credential"], config.server.credential);
     }
@@ -294,9 +330,11 @@ Config ConfigLoader::load(const std::string &path)
     // tools
     if (auto tools = root["tools"])
     {
+        config.tools.restrictToWorkspace = expandBool(tools["restrict_to_workspace"], config.tools.restrictToWorkspace);
         config.tools.execTimeout = expandInt(tools["exec_timeout"], config.tools.execTimeout);
         config.tools.webSearchProvider = expandStr(tools["web_search_provider"]);
         config.tools.webSearchCredential = expandStr(tools["web_search_credential"]);
+        config.tools.webSearchMaxResults = expandInt(tools["web_search_max_results"], config.tools.webSearchMaxResults);
 
         if (auto ws = tools["web_search"])
         {
@@ -308,6 +346,11 @@ Config ConfigLoader::load(const std::string &path)
             if (ws["credential"])
             {
                 config.tools.webSearchCredential = expandStr(ws["credential"]);
+            }
+
+            if (ws["max_results"])
+            {
+                config.tools.webSearchMaxResults = expandInt(ws["max_results"], config.tools.webSearchMaxResults);
             }
         }
     }
@@ -328,7 +371,7 @@ Config ConfigLoader::load(const std::string &path)
             {
                 config.sessionBudget.maxDiskBytes = sb["max_disk_bytes"].as<int64_t>();
             }
-            catch (...)
+            catch (const YAML::BadConversion &)
             {
                 config.sessionBudget.maxDiskBytes = 0;
             }
@@ -340,8 +383,9 @@ Config ConfigLoader::load(const std::string &path)
             {
                 config.sessionBudget.highWaterRatio = sb["high_water_ratio"].as<double>();
             }
-            catch (...)
+            catch (const YAML::BadConversion &)
             {
+                spdlog::warn("[ConfigLoader] Invalid high_water_ratio value, skipping");
             }
         }
     }
@@ -821,6 +865,40 @@ std::string ConfigLoader::toYaml(const Config &config)
                 out << YAML::Key << "token" << YAML::Value << cred.token;
             }
 
+            // emit additional fields from raw that aren't covered by structured fields
+            // (e.g. consumer_key, consumer_secret, access_token, access_token_secret for oauth1;
+            //  header_name, value for header type)
+            static const std::set<std::string> knownFields = {"type", "key", "username", "password", "token"};
+
+            if (cred.raw.is_object())
+            {
+                for (auto &[fieldName, fieldValue] : cred.raw.items())
+                {
+                    if (knownFields.count(fieldName) > 0)
+                    {
+                        continue;
+                    }
+
+                    // emit scalar values only (skip nested objects)
+                    if (fieldValue.is_string())
+                    {
+                        out << YAML::Key << fieldName << YAML::Value << fieldValue.get<std::string>();
+                    }
+                    else if (fieldValue.is_boolean())
+                    {
+                        out << YAML::Key << fieldName << YAML::Value << fieldValue.get<bool>();
+                    }
+                    else if (fieldValue.is_number_integer())
+                    {
+                        out << YAML::Key << fieldName << YAML::Value << fieldValue.get<int64_t>();
+                    }
+                    else if (fieldValue.is_number_float())
+                    {
+                        out << YAML::Key << fieldName << YAML::Value << fieldValue.get<double>();
+                    }
+                }
+            }
+
             out << YAML::EndMap;
         }
 
@@ -913,9 +991,11 @@ std::string ConfigLoader::toYaml(const Config &config)
 
     // tools
     out << YAML::Key << "tools" << YAML::Value << YAML::BeginMap;
+    out << YAML::Key << "restrict_to_workspace" << YAML::Value << config.tools.restrictToWorkspace;
     out << YAML::Key << "exec_timeout" << YAML::Value << config.tools.execTimeout;
     out << YAML::Key << "web_search_provider" << YAML::Value << config.tools.webSearchProvider;
     out << YAML::Key << "web_search_credential" << YAML::Value << config.tools.webSearchCredential;
+    out << YAML::Key << "web_search_max_results" << YAML::Value << config.tools.webSearchMaxResults;
     out << YAML::EndMap;
 
     out << YAML::EndMap;
@@ -942,6 +1022,30 @@ void ConfigLoader::save(const Config &config, const std::string &path)
     if (!fout.good())
     {
         throw std::runtime_error("Failed to write config file: " + path);
+    }
+}
+
+void ConfigLoader::resolveWorkspaces(Config &config, const std::string &projectPath)
+{
+    auto defaultWorkspace = projectPath + "/workspace";
+
+    if (config.agents.empty())
+    {
+        AgentConfig defaultAgent;
+        defaultAgent.workspace = defaultWorkspace;
+        config.agents["main"] = defaultAgent;
+    }
+
+    for (auto &[name, agent] : config.agents)
+    {
+        if (agent.workspace.empty())
+        {
+            agent.workspace = defaultWorkspace;
+        }
+        else if (std::filesystem::path(agent.workspace).is_relative())
+        {
+            agent.workspace = projectPath + "/" + agent.workspace;
+        }
     }
 }
 

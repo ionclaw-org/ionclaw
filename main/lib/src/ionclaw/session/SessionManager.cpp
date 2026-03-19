@@ -4,6 +4,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <sstream>
 
 #include "ionclaw/util/StringHelper.hpp"
@@ -110,7 +111,7 @@ SessionManager::SessionManager(const std::string &sessionsDir, int64_t maxDiskBy
     }
 }
 
-std::mutex &SessionManager::getSessionMutex(const std::string &key)
+std::shared_ptr<std::mutex> SessionManager::getSessionMutex(const std::string &key)
 {
     std::lock_guard<std::mutex> lock(globalMutex);
 
@@ -118,11 +119,12 @@ std::mutex &SessionManager::getSessionMutex(const std::string &key)
 
     if (it == sessionMutexes.end())
     {
-        sessionMutexes[key] = std::make_unique<std::mutex>();
-        return *sessionMutexes[key];
+        auto mtx = std::make_shared<std::mutex>();
+        sessionMutexes[key] = mtx;
+        return mtx;
     }
 
-    return *it->second;
+    return it->second;
 }
 
 // internal: returns reference under caller-held locks
@@ -158,11 +160,11 @@ Session &SessionManager::getOrCreateLocked(const std::string &sessionKey)
 
 Session SessionManager::getOrCreate(const std::string &sessionKey)
 {
-    auto &mtx = getSessionMutex(sessionKey);
-    std::lock_guard<std::mutex> lock(mtx);
-
     {
+        auto mtx = getSessionMutex(sessionKey);
+        std::lock_guard<std::mutex> lock(*mtx);
         std::lock_guard<std::mutex> glock(globalMutex);
+
         auto it = cache.find(sessionKey);
 
         if (it != cache.end())
@@ -172,25 +174,38 @@ Session SessionManager::getOrCreate(const std::string &sessionKey)
         }
     }
 
-    // new session: check rate limit and capacity
-    if (maxCreationsPerMinute.load() > 0 && !checkRateLimit())
-    {
-        spdlog::warn("[SessionManager] Rate limit exceeded for session creation");
-    }
-
+    // evict outside session mutex to prevent cross-session deadlock
     evictIfNeeded();
 
+    // rate limit check and creation under both locks
+    auto mtx = getSessionMutex(sessionKey);
+    std::lock_guard<std::mutex> lock(*mtx);
     std::lock_guard<std::mutex> glock(globalMutex);
+
+    // double-check: another thread may have created it while we released the lock
+    auto it = cache.find(sessionKey);
+
+    if (it != cache.end())
+    {
+        touch(it->second);
+        return it->second;
+    }
+
+    if (maxCreationsPerMinute.load() > 0 && !checkRateLimitLocked())
+    {
+        spdlog::warn("[SessionManager] Rate limit exceeded for session creation: {}", sessionKey);
+        throw std::runtime_error("session creation rate limit exceeded");
+    }
+
     auto &session = getOrCreateLocked(sessionKey);
     return session; // return copy
 }
 
 void SessionManager::ensureSession(const std::string &sessionKey)
 {
-    auto &mtx = getSessionMutex(sessionKey);
-    std::lock_guard<std::mutex> lock(mtx);
-
     {
+        auto mtx = getSessionMutex(sessionKey);
+        std::lock_guard<std::mutex> lock(*mtx);
         std::lock_guard<std::mutex> glock(globalMutex);
 
         if (cache.find(sessionKey) != cache.end())
@@ -200,29 +215,42 @@ void SessionManager::ensureSession(const std::string &sessionKey)
         }
     }
 
-    if (maxCreationsPerMinute.load() > 0 && !checkRateLimit())
-    {
-        spdlog::warn("[SessionManager] Rate limit exceeded for session creation");
-    }
-
+    // evict outside session mutex to prevent cross-session deadlock
     evictIfNeeded();
 
+    // rate limit check and creation under both locks
+    auto mtx = getSessionMutex(sessionKey);
+    std::lock_guard<std::mutex> lock(*mtx);
     std::lock_guard<std::mutex> glock(globalMutex);
+
+    // double-check: another thread may have created it while we released the lock
+    if (cache.find(sessionKey) != cache.end())
+    {
+        touch(cache[sessionKey]);
+        return;
+    }
+
+    if (maxCreationsPerMinute.load() > 0 && !checkRateLimitLocked())
+    {
+        spdlog::warn("[SessionManager] Rate limit exceeded for session creation: {}", sessionKey);
+        throw std::runtime_error("session creation rate limit exceeded");
+    }
+
     getOrCreateLocked(sessionKey);
 }
 
-void SessionManager::addMessage(const std::string &sessionKey, const SessionMessage &message)
+bool SessionManager::addMessage(const std::string &sessionKey, const SessionMessage &message)
 {
     // ensure session exists before acquiring session-level lock
     ensureSession(sessionKey);
 
-    auto &mtx = getSessionMutex(sessionKey);
-    std::lock_guard<std::mutex> lock(mtx);
+    auto mtx = getSessionMutex(sessionKey);
+    std::lock_guard<std::mutex> lock(*mtx);
 
     // cap oversized message content before persisting to disk
     auto cappedMessage = message;
 
-    if (static_cast<int>(cappedMessage.content.size()) > MAX_MESSAGE_PERSIST_CHARS)
+    if (cappedMessage.content.size() > static_cast<size_t>(MAX_MESSAGE_PERSIST_CHARS))
     {
         cappedMessage.content = ionclaw::util::StringHelper::utf8SafeTruncate(
                                     cappedMessage.content, MAX_MESSAGE_PERSIST_CHARS) +
@@ -238,6 +266,7 @@ void SessionManager::addMessage(const std::string &sessionKey, const SessionMess
     std::string createdAt;
     std::string updatedAt;
     std::string displayName;
+    bool isSubagent = false;
 
     {
         std::lock_guard<std::mutex> glock(globalMutex);
@@ -246,14 +275,25 @@ void SessionManager::addMessage(const std::string &sessionKey, const SessionMess
 
         if (it == cache.end())
         {
-            // session was evicted between ensureSession and here; re-insert
-            Session session;
-            session.key = sessionKey;
-            session.createdAt = util::TimeHelper::now();
-            session.updatedAt = session.createdAt;
-            session.lastTouchedAt = session.createdAt;
-            cache[sessionKey] = std::move(session);
-            it = cache.find(sessionKey);
+            // session was evicted between ensureSession and here; reload from disk to preserve timestamps
+            auto filePath = sessionFilePath(sessionKey);
+
+            if (fs::exists(filePath))
+            {
+                loadFromDisk(sessionKey);
+                it = cache.find(sessionKey);
+            }
+
+            if (it == cache.end())
+            {
+                Session session;
+                session.key = sessionKey;
+                session.createdAt = util::TimeHelper::now();
+                session.updatedAt = session.createdAt;
+                session.lastTouchedAt = session.createdAt;
+                cache[sessionKey] = std::move(session);
+                it = cache.find(sessionKey);
+            }
         }
 
         auto &session = it->second;
@@ -283,6 +323,7 @@ void SessionManager::addMessage(const std::string &sessionKey, const SessionMess
         createdAt = session.createdAt;
         updatedAt = session.updatedAt;
         displayName = session.displayName;
+        isSubagent = session.liveState.contains("subagent") && session.liveState["subagent"] == true;
     }
 
     // file I/O outside globalMutex (per-session mutex still held, prevents concurrent writes)
@@ -290,8 +331,8 @@ void SessionManager::addMessage(const std::string &sessionKey, const SessionMess
 
     if (!ofs.is_open())
     {
-        spdlog::error("Failed to open session file for append: {}", filePath);
-        return;
+        spdlog::error("[SessionManager] Failed to open session file for append: {}", filePath);
+        return false;
     }
 
     if (!fileExists)
@@ -305,11 +346,22 @@ void SessionManager::addMessage(const std::string &sessionKey, const SessionMess
         {
             meta["display_name"] = displayName;
         }
+        // mark subagent sessions so they can be filtered from session list
+        if (isSubagent)
+        {
+            meta["subagent"] = true;
+        }
         ofs << meta.dump() << "\n";
     }
 
     ofs << cappedMessage.toJson().dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << "\n";
     ofs.flush();
+
+    if (!ofs.good())
+    {
+        spdlog::error("[SessionManager] Failed to flush session file: {}", filePath);
+        return false;
+    }
 
     // periodic disk budget sweep (pass active filenames to avoid deleting live sessions)
     if (++messageCounter % SWEEP_INTERVAL == 0)
@@ -317,12 +369,14 @@ void SessionManager::addMessage(const std::string &sessionKey, const SessionMess
         auto activeFiles = getActiveFilenames();
         sweeper.sweepIfNeeded(activeFiles);
     }
+
+    return true;
 }
 
 std::vector<SessionMessage> SessionManager::getHistory(const std::string &sessionKey, int maxMessages)
 {
-    auto &mtx = getSessionMutex(sessionKey);
-    std::lock_guard<std::mutex> lock(mtx);
+    auto mtx = getSessionMutex(sessionKey);
+    std::lock_guard<std::mutex> lock(*mtx);
 
     std::lock_guard<std::mutex> glock(globalMutex);
 
@@ -348,12 +402,12 @@ std::vector<SessionMessage> SessionManager::getHistory(const std::string &sessio
 
     auto &messages = it->second.messages;
 
-    if (static_cast<int>(messages.size()) <= maxMessages)
+    if (maxMessages <= 0 || messages.size() <= static_cast<size_t>(maxMessages))
     {
         return messages;
     }
 
-    auto start = messages.begin() + (static_cast<int>(messages.size()) - maxMessages);
+    auto start = messages.begin() + static_cast<ptrdiff_t>(messages.size() - static_cast<size_t>(maxMessages));
     return std::vector<SessionMessage>(start, messages.end());
 }
 
@@ -367,6 +421,12 @@ std::vector<SessionInfo> SessionManager::listSessions()
 
         for (const auto &[key, session] : cache)
         {
+            // skip subagent sessions
+            if (session.liveState.contains("subagent") && session.liveState["subagent"] == true)
+            {
+                continue;
+            }
+
             SessionInfo info;
             info.key = key;
             info.createdAt = session.createdAt;
@@ -422,6 +482,12 @@ std::vector<SessionInfo> SessionManager::listSessions()
                 continue;
             }
 
+            // skip subagent sessions
+            if (j.value("subagent", false))
+            {
+                continue;
+            }
+
             SessionInfo info;
             info.key = j.value("key", "");
             info.createdAt = j.value("created_at", "");
@@ -445,8 +511,8 @@ std::vector<SessionInfo> SessionManager::listSessions()
 
 void SessionManager::deleteSession(const std::string &sessionKey)
 {
-    auto &mtx = getSessionMutex(sessionKey);
-    std::lock_guard<std::mutex> lock(mtx);
+    auto mtx = getSessionMutex(sessionKey);
+    std::lock_guard<std::mutex> lock(*mtx);
 
     {
         std::lock_guard<std::mutex> glock(globalMutex);
@@ -469,8 +535,8 @@ void SessionManager::deleteSession(const std::string &sessionKey)
 
 void SessionManager::clearSession(const std::string &sessionKey)
 {
-    auto &mtx = getSessionMutex(sessionKey);
-    std::lock_guard<std::mutex> lock(mtx);
+    auto mtx = getSessionMutex(sessionKey);
+    std::lock_guard<std::mutex> lock(*mtx);
 
     // collect data under globalMutex, then do file I/O outside
     std::string filePath;
@@ -520,6 +586,15 @@ void SessionManager::clearSession(const std::string &sessionKey)
             }
             ofs << meta.dump() << "\n";
             ofs.flush();
+
+            if (!ofs.good())
+            {
+                spdlog::error("[SessionManager] Failed to flush cleared session file: {}", filePath);
+            }
+        }
+        else
+        {
+            spdlog::error("Failed to open session file for clear: {}", filePath);
         }
     }
 }
@@ -570,12 +645,17 @@ void SessionManager::writeSessionFile(const Session &session)
     }
 
     ofs.flush();
+
+    if (!ofs.good())
+    {
+        spdlog::error("[SessionManager] Failed to flush session file: {}", filePath);
+    }
 }
 
 void SessionManager::save(const std::string &sessionKey)
 {
-    auto &mtx = getSessionMutex(sessionKey);
-    std::lock_guard<std::mutex> lock(mtx);
+    auto mtx = getSessionMutex(sessionKey);
+    std::lock_guard<std::mutex> lock(*mtx);
 
     // copy session under globalMutex, then write outside to avoid holding both locks during I/O
     Session snapshot;
@@ -596,42 +676,55 @@ void SessionManager::save(const std::string &sessionKey)
 
 void SessionManager::setAbortCutoffAll()
 {
-    // snapshot all sessions under globalMutex, then write outside to minimize lock hold
-    // also hold per-session mutexes to prevent concurrent addMessage file appends
-    std::vector<std::pair<std::string, Session>> snapshots;
+    // collect session keys under globalMutex, then process each under its per-session mutex
+    // to prevent concurrent addMessage from appending between snapshot and write
+    std::vector<std::string> keys;
 
     {
         std::lock_guard<std::mutex> lock(globalMutex);
 
-        auto timestamp = util::TimeHelper::now();
-
-        for (auto &[key, session] : cache)
+        for (const auto &[key, session] : cache)
         {
-            session.abortedLastRun = true;
-            session.abortCutoffMessageIndex = static_cast<int>(session.messages.size());
-            session.abortCutoffTimestamp = timestamp;
-            snapshots.push_back({key, session});
+            keys.push_back(key);
         }
     }
 
-    // write each session file while holding its per-session mutex
-    for (const auto &[key, snapshot] : snapshots)
+    auto timestamp = util::TimeHelper::now();
+
+    for (const auto &key : keys)
     {
-        auto &mtx = getSessionMutex(key);
-        std::lock_guard<std::mutex> lock(mtx);
+        auto mtx = getSessionMutex(key);
+        std::lock_guard<std::mutex> sessionLock(*mtx);
+
+        Session snapshot;
+        {
+            std::lock_guard<std::mutex> glock(globalMutex);
+            auto it = cache.find(key);
+
+            if (it == cache.end())
+            {
+                continue;
+            }
+
+            it->second.abortedLastRun = true;
+            it->second.abortCutoffMessageIndex = static_cast<int>(std::min(it->second.messages.size(), static_cast<size_t>(std::numeric_limits<int>::max())));
+            it->second.abortCutoffTimestamp = timestamp;
+            snapshot = it->second;
+        }
+
         writeSessionFile(snapshot);
     }
 
-    if (!snapshots.empty())
+    if (!keys.empty())
     {
-        spdlog::info("[SessionManager] Set abort cutoff on {} sessions", static_cast<int>(snapshots.size()));
+        spdlog::info("[SessionManager] Set abort cutoff on {} sessions", keys.size());
     }
 }
 
 void SessionManager::clearAbortFlag(const std::string &sessionKey)
 {
-    auto &mtx = getSessionMutex(sessionKey);
-    std::lock_guard<std::mutex> lock(mtx);
+    auto mtx = getSessionMutex(sessionKey);
+    std::lock_guard<std::mutex> lock(*mtx);
 
     // mutate and snapshot under globalMutex, write outside
     Session snapshot;
@@ -656,8 +749,8 @@ void SessionManager::clearAbortFlag(const std::string &sessionKey)
 
 void SessionManager::updateLiveStateField(const std::string &sessionKey, const std::string &field, const nlohmann::json &value)
 {
-    auto &mtx = getSessionMutex(sessionKey);
-    std::lock_guard<std::mutex> lock(mtx);
+    auto mtx = getSessionMutex(sessionKey);
+    std::lock_guard<std::mutex> lock(*mtx);
 
     std::lock_guard<std::mutex> glock(globalMutex);
 
@@ -673,8 +766,8 @@ void SessionManager::updateLiveStateField(const std::string &sessionKey, const s
 
 void SessionManager::updateLastMessageContent(const std::string &sessionKey, const std::string &content)
 {
-    auto &mtx = getSessionMutex(sessionKey);
-    std::lock_guard<std::mutex> lock(mtx);
+    auto mtx = getSessionMutex(sessionKey);
+    std::lock_guard<std::mutex> lock(*mtx);
 
     std::lock_guard<std::mutex> glock(globalMutex);
 
@@ -686,23 +779,6 @@ void SessionManager::updateLastMessageContent(const std::string &sessionKey, con
     }
 
     it->second.messages.back().content = content;
-}
-
-void SessionManager::updateDisplayName(const std::string &sessionKey, const std::string &name)
-{
-    auto &mtx = getSessionMutex(sessionKey);
-    std::lock_guard<std::mutex> lock(mtx);
-
-    std::lock_guard<std::mutex> glock(globalMutex);
-
-    auto it = cache.find(sessionKey);
-
-    if (it == cache.end())
-    {
-        return;
-    }
-
-    it->second.displayName = name;
 }
 
 void SessionManager::touch(Session &session)
@@ -752,32 +828,33 @@ void SessionManager::evictIfNeeded()
 
             toWrite.push_back(cache[oldestKey]);
             cache.erase(oldestKey);
-            // do not erase sessionMutexes here: another thread may hold a reference
         }
     }
 
     // persist evicted sessions outside globalMutex, holding per-session mutex during write
     for (const auto &snapshot : toWrite)
     {
-        auto &mtx = getSessionMutex(snapshot.key);
-        std::lock_guard<std::mutex> lock(mtx);
+        auto mtx = getSessionMutex(snapshot.key);
+        std::lock_guard<std::mutex> lock(*mtx);
         writeSessionFile(snapshot);
     }
-}
 
-void SessionManager::reapIdleSessions()
-{
-    std::vector<Session> toWrite;
-
+    // clean up stale mutexes for sessions no longer in cache (safe: callers hold shared_ptr)
+    if (!toWrite.empty())
     {
         std::lock_guard<std::mutex> glock(globalMutex);
-        reapIdleSessionsLocked(toWrite);
-    }
 
-    // persist reaped sessions outside globalMutex
-    for (const auto &snapshot : toWrite)
-    {
-        writeSessionFile(snapshot);
+        for (auto it = sessionMutexes.begin(); it != sessionMutexes.end();)
+        {
+            if (cache.find(it->first) == cache.end() && it->second.use_count() == 1)
+            {
+                it = sessionMutexes.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
     }
 }
 
@@ -820,18 +897,15 @@ void SessionManager::reapIdleSessionsLocked(std::vector<Session> &outSnapshots)
         }
 
         cache.erase(key);
-        // do not erase sessionMutexes: another thread may hold a reference
     }
 }
 
-bool SessionManager::checkRateLimit()
+bool SessionManager::checkRateLimitLocked()
 {
     if (maxCreationsPerMinute.load() <= 0)
     {
         return true;
     }
-
-    std::lock_guard<std::mutex> lock(globalMutex);
 
     auto now = std::chrono::steady_clock::now();
     auto windowStart = now - std::chrono::seconds(60);

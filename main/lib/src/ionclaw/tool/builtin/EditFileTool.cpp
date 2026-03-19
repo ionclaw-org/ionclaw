@@ -1,6 +1,8 @@
 #include "ionclaw/tool/builtin/EditFileTool.hpp"
 
 #include <algorithm>
+
+#include "ionclaw/config/Config.hpp"
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -14,8 +16,11 @@ namespace tool
 namespace builtin
 {
 
+namespace
+{
+
 // find the closest matching section when old_text is not found
-static std::string findClosestMatch(const std::string &content, const std::string &query)
+std::string findClosestMatch(const std::string &content, const std::string &query)
 {
     if (query.empty() || content.empty())
     {
@@ -69,12 +74,15 @@ static std::string findClosestMatch(const std::string &content, const std::strin
     return context;
 }
 
+} // namespace
+
 ToolResult EditFileTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto rawPath = params.at("path").get<std::string>();
     auto oldText = params.at("old_text").get<std::string>();
     auto newText = params.at("new_text").get<std::string>();
-    auto resolvedPath = ToolHelper::validateAndResolvePath(context.workspacePath, rawPath, context.publicPath);
+    bool restrict = !context.config || context.config->tools.restrictToWorkspace;
+    auto resolvedPath = ToolHelper::validateAndResolvePath(context.workspacePath, rawPath, context.publicPath, restrict, context.projectPath);
 
     if (!std::filesystem::exists(resolvedPath) || !std::filesystem::is_regular_file(resolvedPath))
     {
@@ -111,7 +119,7 @@ ToolResult EditFileTool::execute(const nlohmann::json &params, const ToolContext
     }
 
     // check for ambiguity: require uniqueness
-    auto secondPos = content.find(oldText, pos + 1);
+    auto secondPos = content.find(oldText, pos + oldText.length());
 
     if (secondPos != std::string::npos)
     {
@@ -121,22 +129,35 @@ ToolResult EditFileTool::execute(const nlohmann::json &params, const ToolContext
 
     content.replace(pos, oldText.length(), newText);
 
-    std::ofstream outFile(resolvedPath, std::ios::binary | std::ios::trunc);
+    // atomic write: write to temp file, then rename to avoid data loss on crash
+    auto tempPath = resolvedPath + ".tmp";
 
-    if (!outFile.is_open())
     {
-        return "Error: cannot write to file: " + rawPath;
+        std::ofstream outFile(tempPath, std::ios::binary | std::ios::trunc);
+
+        if (!outFile.is_open())
+        {
+            return "Error: cannot write to file: " + rawPath;
+        }
+
+        outFile << content;
+        outFile.flush();
+
+        if (outFile.fail())
+        {
+            std::filesystem::remove(tempPath);
+            return "Error: write failed (disk full or I/O error): " + rawPath;
+        }
     }
 
-    outFile << content;
-    outFile.flush();
+    std::error_code ec;
+    std::filesystem::rename(tempPath, resolvedPath, ec);
 
-    if (outFile.fail())
+    if (ec)
     {
-        return "Error: write failed (disk full or I/O error): " + rawPath;
+        std::filesystem::remove(tempPath);
+        return "Error: failed to finalize file write: " + ec.message();
     }
-
-    outFile.close();
 
     return "File edited successfully: " + rawPath;
 }

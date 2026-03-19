@@ -9,7 +9,18 @@ void Routes::handleAuthLogin(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPS
 {
     try
     {
-        auto body = nlohmann::json::parse(readBody(req));
+        nlohmann::json body;
+
+        try
+        {
+            body = nlohmann::json::parse(readBody(req));
+        }
+        catch (const nlohmann::json::parse_error &e)
+        {
+            sendError(resp, e.what(), 400);
+            return;
+        }
+
         auto username = body.value("username", "");
         auto password = body.value("password", "");
 

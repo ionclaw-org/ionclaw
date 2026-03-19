@@ -66,7 +66,7 @@ bool JwtHelper::isValid(const std::string &token, const std::string &secret)
         verify(token, secret);
         return true;
     }
-    catch (...)
+    catch (const std::exception &)
     {
         return false;
     }

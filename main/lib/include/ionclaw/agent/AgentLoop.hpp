@@ -66,6 +66,18 @@ struct StreamResult
     nlohmann::json usage;
 };
 
+// per-turn mutable state, stack-allocated in processMessage to avoid data races
+// when maxConcurrent > 1 (multiple threads sharing the same AgentLoop instance)
+struct TurnState
+{
+    std::string lastSentContent;
+    std::set<std::string> recentToolFingerprints;
+    int memoryFlushCompactionCount = 0;
+    int compactionCount = 0;
+    ionclaw::bus::SessionQueue *sessionQueuePtr = nullptr;
+    ActiveTurnHandle *activeTurnHandle = nullptr;
+};
+
 class AgentLoop
 {
 public:
@@ -91,8 +103,8 @@ public:
     void setBus(ionclaw::bus::MessageBus *b) { busPtr = b; }
     void setCronService(ionclaw::cron::CronService *cs) { cronServicePtr = cs; }
     void setSubagentRegistry(SubagentRegistry *sr) { subagentRegistryPtr = sr; }
-    void setSessionQueue(ionclaw::bus::SessionQueue *sq) { sessionQueuePtr = sq; }
-    void setActiveTurnHandle(ActiveTurnHandle *handle) { activeTurnHandle = handle; }
+    void setSessionQueue(ionclaw::bus::SessionQueue *sq) { defaultSessionQueuePtr.store(sq, std::memory_order_release); }
+    void setActiveTurnHandle(ActiveTurnHandle *handle) { defaultActiveTurnHandle.store(handle, std::memory_order_release); }
     void setHookRunner(HookRunner *hr) { hookRunnerPtr = hr; }
 
 private:
@@ -112,8 +124,8 @@ private:
     ionclaw::bus::MessageBus *busPtr = nullptr;
     ionclaw::cron::CronService *cronServicePtr = nullptr;
     SubagentRegistry *subagentRegistryPtr = nullptr;
-    ionclaw::bus::SessionQueue *sessionQueuePtr = nullptr;
-    ActiveTurnHandle *activeTurnHandle = nullptr;
+    std::atomic<ionclaw::bus::SessionQueue *> defaultSessionQueuePtr{nullptr};
+    std::atomic<ActiveTurnHandle *> defaultActiveTurnHandle{nullptr};
     HookRunner *hookRunnerPtr = nullptr;
     std::atomic<bool> stopped{false};
 
@@ -122,10 +134,7 @@ private:
     static std::string stripTrailingDirectives(const std::string &text);
     static size_t estimatePromptBytes(const std::vector<ionclaw::provider::Message> &messages);
 
-    std::string lastSentContent;
-    std::set<std::string> recentToolFingerprints;
-    int memoryFlushCompactionCount = 0;
-    int compactionCount = 0;
+    void sendCommandResponse(const ionclaw::bus::InboundMessage &message, const std::string &sessionKey, const std::string &taskId, const std::string &agentName, const std::string &responseText, AgentEventCallback &callback);
 
     nlohmann::json resolveMedia(const std::vector<std::string> &paths, const std::string &projectRoot);
 
@@ -136,17 +145,20 @@ private:
         const std::string &sessionKey,
         const std::string &effectiveName,
         const ionclaw::tool::ToolContext &toolContext,
-        AgentEventCallback &callback);
+        AgentEventCallback &callback,
+        TurnState &turnState);
 
     bool tryMemoryFlush(
         std::vector<ionclaw::provider::Message> &messages,
         const ionclaw::tool::ToolContext &toolContext,
-        const nlohmann::json &modelParams);
+        const nlohmann::json &modelParams,
+        TurnState &turnState);
     void compactWithHooks(
         std::vector<ionclaw::provider::Message> &messages,
         const std::string &sessionKey,
         const std::string &taskId,
         const nlohmann::json &modelParams,
+        TurnState &turnState,
         const ionclaw::tool::ToolContext *toolContext = nullptr);
 
     StreamResult consumeStream(

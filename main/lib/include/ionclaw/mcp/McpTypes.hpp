@@ -10,8 +10,8 @@ namespace ionclaw
 namespace mcp
 {
 
-static constexpr const char *MCP_PROTOCOL_VERSION = "2025-03-26";
-static constexpr const char *MCP_CHANNEL = "mcp";
+inline constexpr const char *MCP_PROTOCOL_VERSION = "2025-03-26";
+inline constexpr const char *MCP_CHANNEL = "mcp";
 
 enum class RpcErrorCode : int
 {
@@ -73,6 +73,7 @@ struct McpSession
     bool initialized = false;
     std::string protocolVersion;
     std::chrono::system_clock::time_point createdAt = std::chrono::system_clock::now();
+    std::chrono::system_clock::time_point lastActiveAt = std::chrono::system_clock::now();
 };
 
 } // namespace mcp

@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <sstream>
 
+#include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
 
 namespace ionclaw
@@ -80,22 +81,30 @@ std::string Task::stateToString(TaskState state)
 
 TaskState Task::stateFromString(const std::string &str)
 {
-    if (str == "DOING" || str == "doing")
+    std::string lower = str;
+    ionclaw::util::StringHelper::toLowerInPlace(lower);
+
+    if (lower == "doing")
     {
         return TaskState::Doing;
     }
 
-    if (str == "DONE" || str == "done")
+    if (lower == "done")
     {
         return TaskState::Done;
     }
 
-    if (str == "ERROR" || str == "error")
+    if (lower == "error")
     {
         return TaskState::Error;
     }
 
-    return TaskState::Todo;
+    if (lower == "todo")
+    {
+        return TaskState::Todo;
+    }
+
+    throw std::invalid_argument("Invalid task state: " + str);
 }
 
 nlohmann::json Task::toJson() const
@@ -139,7 +148,14 @@ Task Task::fromJson(const nlohmann::json &j)
     t.id = jsonString(j, "id");
     t.title = jsonString(j, "title");
     t.description = jsonString(j, "description");
-    t.state = Task::stateFromString(jsonString(j, "state"));
+    try
+    {
+        t.state = Task::stateFromString(jsonString(j, "state"));
+    }
+    catch (const std::invalid_argument &)
+    {
+        t.state = TaskState::Todo;
+    }
     t.channel = jsonString(j, "channel");
     t.chatId = jsonString(j, "chat_id");
     t.agentName = jsonString(j, "agent_name");

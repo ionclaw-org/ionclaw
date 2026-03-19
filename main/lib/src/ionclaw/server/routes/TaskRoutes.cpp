@@ -60,8 +60,18 @@ void Routes::handleTaskUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
             return;
         }
 
-        // update task state and return updated task
-        auto state = ionclaw::task::Task::stateFromString(stateStr);
+        // validate state value before updating
+        ionclaw::task::TaskState state;
+
+        try
+        {
+            state = ionclaw::task::Task::stateFromString(stateStr);
+        }
+        catch (const std::invalid_argument &)
+        {
+            sendError(resp, "Invalid task state: " + stateStr + " (valid: TODO, DOING, DONE, ERROR)");
+            return;
+        }
         auto result = body.value("result", "");
         taskManager->updateState(taskId, state, result);
 

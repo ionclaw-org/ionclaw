@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import Card from 'primevue/card'
 import Tag from 'primevue/tag'
 import Dialog from 'primevue/dialog'
@@ -62,7 +62,7 @@ function runFilter(q) {
     seen.add(key)
     if (skill.name.toLowerCase().includes(q)) {
       nameMatches.push(skill)
-    } else if (skill.description.toLowerCase().includes(q)) {
+    } else if ((skill.description || '').toLowerCase().includes(q)) {
       descMatches.push(skill)
     }
   }
@@ -92,11 +92,16 @@ watch(search, (val) => {
 })
 
 onMounted(() => Promise.all([loadCatalog(), loadTargets()]))
+onUnmounted(() => clearTimeout(searchTimer))
 
 async function loadCatalog() {
   loading.value = true
   try {
-    const res = await fetch(MARKETPLACE_URL)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
+    const res = await fetch(MARKETPLACE_URL, { signal: controller.signal })
+    clearTimeout(timeoutId)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
     allSkills.value = Array.isArray(data) ? data : data.skills || []
   } catch (e) {
@@ -131,6 +136,7 @@ async function viewReadme(skill) {
   readDialogVisible.value = true
   try {
     const res = await fetch(skill['readme-url'])
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
     readContent.value = await res.text()
   } catch {
     readContent.value = '> Failed to load skill readme.'
@@ -144,6 +150,7 @@ async function viewLicense(skill) {
   licenseDialogVisible.value = true
   try {
     const res = await fetch(skill.license)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
     licenseContent.value = await res.text()
   } catch {
     licenseContent.value = 'Failed to load license.'
@@ -173,7 +180,7 @@ async function confirmInstall() {
     confirmChecking.value = true
     try {
       const agent = selectedTarget.value || ''
-      const check = await api.get(`/marketplace/check/${skill.source}/${skill.name}?agent=${encodeURIComponent(agent)}`)
+      const check = await api.get(`/marketplace/check/${encodeURIComponent(skill.source)}/${encodeURIComponent(skill.name)}?agent=${encodeURIComponent(agent)}`)
       if (check.installed) {
         confirmReplace.value = true
         return

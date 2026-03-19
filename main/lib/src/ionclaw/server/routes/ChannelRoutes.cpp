@@ -11,13 +11,17 @@ void Routes::handleChannelsList(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPS
 {
     nlohmann::json result = nlohmann::json::object();
 
-    for (const auto &[name, ch] : config->channels)
     {
-        result[name] = {
-            {"enabled", ch.enabled},
-            {"credential", ch.credential},
-            {"running", ch.running},
-        };
+        std::lock_guard<std::mutex> lock(configMutex_);
+
+        for (const auto &[name, ch] : config->channels)
+        {
+            result[name] = {
+                {"enabled", ch.enabled},
+                {"credential", ch.credential},
+                {"running", ch.running},
+            };
+        }
     }
 
     sendJson(resp, result);
@@ -25,35 +29,41 @@ void Routes::handleChannelsList(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPS
 
 void Routes::handleChannelGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp, const std::string &name)
 {
-    auto it = config->channels.find(name);
+    nlohmann::json out;
 
-    if (it == config->channels.end())
     {
-        sendError(resp, "Channel not found", 404);
-        return;
+        std::lock_guard<std::mutex> lock(configMutex_);
+        auto it = config->channels.find(name);
+
+        if (it == config->channels.end())
+        {
+            sendError(resp, "Channel not found", 404);
+            return;
+        }
+
+        auto &ch = it->second;
+
+        out = {
+            {"name", name},
+            {"enabled", ch.enabled},
+            {"running", ch.running},
+            {"credential", ch.credential},
+            {"allowed_users", ch.allowedUsers},
+        };
+        if (ch.raw.contains("proxy") && ch.raw["proxy"].is_string())
+        {
+            out["proxy"] = ch.raw["proxy"].get<std::string>();
+        }
+        if (ch.raw.contains("reply_to_message") && ch.raw["reply_to_message"].is_boolean())
+        {
+            out["reply_to_message"] = ch.raw["reply_to_message"].get<bool>();
+        }
+        if (ch.raw.contains("require_auth") && ch.raw["require_auth"].is_boolean())
+        {
+            out["require_auth"] = ch.raw["require_auth"].get<bool>();
+        }
     }
 
-    auto &ch = it->second;
-
-    nlohmann::json out = {
-        {"name", name},
-        {"enabled", ch.enabled},
-        {"running", ch.running},
-        {"credential", ch.credential},
-        {"allowed_users", ch.allowedUsers},
-    };
-    if (ch.raw.contains("proxy") && ch.raw["proxy"].is_string())
-    {
-        out["proxy"] = ch.raw["proxy"].get<std::string>();
-    }
-    if (ch.raw.contains("reply_to_message") && ch.raw["reply_to_message"].is_boolean())
-    {
-        out["reply_to_message"] = ch.raw["reply_to_message"].get<bool>();
-    }
-    if (ch.raw.contains("require_auth") && ch.raw["require_auth"].is_boolean())
-    {
-        out["require_auth"] = ch.raw["require_auth"].get<bool>();
-    }
     sendJson(resp, out);
 }
 
@@ -61,10 +71,19 @@ void Routes::handleChannelUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::H
 {
     try
     {
+        std::lock_guard<std::mutex> lock(configMutex_);
         auto body = nlohmann::json::parse(readBody(req));
         auto configData = body.value("config", nlohmann::json::object());
 
-        auto &ch = config->channels[name];
+        auto it = config->channels.find(name);
+
+        if (it == config->channels.end())
+        {
+            sendError(resp, "Channel not found", 404);
+            return;
+        }
+
+        auto &ch = it->second;
 
         if (configData.contains("enabled"))
         {
@@ -76,13 +95,16 @@ void Routes::handleChannelUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::H
             ch.credential = configData["credential"].get<std::string>();
         }
 
-        if (configData.contains("allowed_users"))
+        if (configData.contains("allowed_users") && configData["allowed_users"].is_array())
         {
             ch.allowedUsers.clear();
 
             for (const auto &u : configData["allowed_users"])
             {
-                ch.allowedUsers.push_back(u.get<std::string>());
+                if (u.is_string())
+                {
+                    ch.allowedUsers.push_back(u.get<std::string>());
+                }
             }
         }
 
@@ -105,32 +127,34 @@ void Routes::handleChannelUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::H
     }
     catch (const std::exception &e)
     {
-        sendError(resp, e.what());
+        sendError(resp, e.what(), 500);
     }
 }
 
 void Routes::handleChannelStart(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp, const std::string &name)
 {
-    auto it = config->channels.find(name);
-
-    if (it == config->channels.end())
-    {
-        sendError(resp, "Channel not found", 404);
-        return;
-    }
-
-    auto &ch = it->second;
-
-    if (ch.running)
-    {
-        sendError(resp, "Channel already running", 409);
-        return;
-    }
-
     try
     {
+        std::lock_guard<std::mutex> lock(configMutex_);
+        auto it = config->channels.find(name);
+
+        if (it == config->channels.end())
+        {
+            sendError(resp, "Channel not found", 404);
+            return;
+        }
+
+        auto &ch = it->second;
+
+        if (ch.running)
+        {
+            sendError(resp, "Channel already running", 409);
+            return;
+        }
+
         channelManager->startChannel(name);
         ch.running = true;
+        dispatcher->broadcast("channel:status", {{"name", name}, {"running", true}});
         sendJson(resp, {{"status", "started"}});
     }
     catch (const std::exception &e)
@@ -141,25 +165,34 @@ void Routes::handleChannelStart(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPS
 
 void Routes::handleChannelStop(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp, const std::string &name)
 {
-    auto it = config->channels.find(name);
-
-    if (it == config->channels.end())
+    try
     {
-        sendError(resp, "Channel not found", 404);
-        return;
+        std::lock_guard<std::mutex> lock(configMutex_);
+        auto it = config->channels.find(name);
+
+        if (it == config->channels.end())
+        {
+            sendError(resp, "Channel not found", 404);
+            return;
+        }
+
+        auto &ch = it->second;
+
+        if (!ch.running)
+        {
+            sendError(resp, "Channel not running", 409);
+            return;
+        }
+
+        channelManager->stopChannel(name);
+        ch.running = false;
+        dispatcher->broadcast("channel:status", {{"name", name}, {"running", false}});
+        sendJson(resp, {{"status", "stopped"}});
     }
-
-    auto &ch = it->second;
-
-    if (!ch.running)
+    catch (const std::exception &e)
     {
-        sendError(resp, "Channel not running", 409);
-        return;
+        sendError(resp, e.what(), 500);
     }
-
-    channelManager->stopChannel(name);
-    ch.running = false;
-    sendJson(resp, {{"status", "stopped"}});
 }
 
 } // namespace server

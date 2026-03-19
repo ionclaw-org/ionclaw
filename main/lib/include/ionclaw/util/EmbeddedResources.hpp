@@ -1,6 +1,8 @@
 #pragma once
 
+#include <atomic>
 #include <cstddef>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -40,11 +42,16 @@ public:
 
 private:
     static std::unordered_map<std::string, std::string> webFiles;
-    static bool webLoaded;
+    static std::once_flag webLoadFlag;
+    static std::atomic<bool> webLoaded;
 
     // skill name -> SKILL.md content
     static std::unordered_map<std::string, std::string> skillFiles;
-    static bool skillsLoaded;
+    static std::once_flag skillsLoadFlag;
+    static std::atomic<bool> skillsLoaded;
+
+    static void loadWebResourcesImpl();
+    static void loadSkillsImpl();
 };
 
 } // namespace util

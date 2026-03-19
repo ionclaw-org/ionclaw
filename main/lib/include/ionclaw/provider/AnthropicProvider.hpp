@@ -13,7 +13,7 @@ namespace ionclaw
 namespace provider
 {
 
-class AnthropicProvider : public LlmProvider
+class AnthropicProvider final : public LlmProvider
 {
 public:
     AnthropicProvider(const std::string &apiKey, const std::string &baseUrl = "https://api.anthropic.com",

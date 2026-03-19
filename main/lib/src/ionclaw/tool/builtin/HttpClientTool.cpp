@@ -370,7 +370,8 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
     if (params.contains("download_path") && params["download_path"].is_string())
     {
         auto downloadPath = params["download_path"].get<std::string>();
-        auto resolvedPath = ToolHelper::validateAndResolvePath(context.workspacePath, downloadPath, context.publicPath);
+        bool restrict = !context.config || context.config->tools.restrictToWorkspace;
+        auto resolvedPath = ToolHelper::validateAndResolvePath(context.workspacePath, downloadPath, context.publicPath, restrict, context.projectPath);
 
         try
         {
@@ -386,6 +387,11 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
             // ensure parent directory exists
             std::error_code ec;
             std::filesystem::create_directories(std::filesystem::path(resolvedPath).parent_path(), ec);
+
+            if (ec)
+            {
+                return "Error: failed to create directory for download: " + ec.message();
+            }
 
             std::ofstream outFile(resolvedPath, std::ios::binary);
 
@@ -415,7 +421,8 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
     if (params.contains("upload_file") && params["upload_file"].is_string())
     {
         auto uploadFile = params["upload_file"].get<std::string>();
-        auto resolvedUpload = ToolHelper::validateAndResolvePath(context.workspacePath, uploadFile, context.publicPath);
+        bool restrict = !context.config || context.config->tools.restrictToWorkspace;
+        auto resolvedUpload = ToolHelper::validateAndResolvePath(context.workspacePath, uploadFile, context.publicPath, restrict, context.projectPath);
 
         if (!std::filesystem::exists(resolvedUpload))
         {
@@ -453,10 +460,10 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
             if (scheme == "https")
             {
 #ifdef _WIN32
-                auto context = new Poco::Net::Context(
+                Poco::Net::Context::Ptr context = new Poco::Net::Context(
                     Poco::Net::Context::CLIENT_USE, "");
 #else
-                auto context = new Poco::Net::Context(
+                Poco::Net::Context::Ptr context = new Poco::Net::Context(
                     Poco::Net::Context::CLIENT_USE,
                     "", "", "",
                     Poco::Net::Context::VERIFY_NONE,

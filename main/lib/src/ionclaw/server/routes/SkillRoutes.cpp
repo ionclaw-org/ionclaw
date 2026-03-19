@@ -258,7 +258,7 @@ void Routes::handleSkillUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTT
     }
     catch (const std::exception &e)
     {
-        sendError(resp, e.what());
+        sendError(resp, e.what(), 500);
     }
 }
 

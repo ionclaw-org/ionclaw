@@ -10,7 +10,6 @@ import InputText from 'primevue/inputtext'
 import Dialog from 'primevue/dialog'
 import Message from 'primevue/message'
 import Tag from 'primevue/tag'
-import ProgressBar from 'primevue/progressbar'
 import { useToast } from 'primevue/usetoast'
 import { Codemirror } from 'vue-codemirror'
 import { yaml } from '@codemirror/lang-yaml'
@@ -39,7 +38,7 @@ const systemInfoLoading = ref(true)
 const formSchemas = ref({})
 
 const bot = ref({ name: '', description: '' })
-const serverConfig = ref({ host: '0.0.0.0', port: 8000, public_url: '', credential: '' })
+const serverConfig = ref({ host: '0.0.0.0', port: 8080, public_url: '', credential: '' })
 const webClientConfig = ref({ credential: '' })
 const credentials = ref({})
 const providers = ref({})
@@ -54,6 +53,7 @@ const activeTab = ref('info')
 const rawYaml = ref('')
 const yamlLoading = ref(false)
 const restarting = ref(false)
+const configLoaded = ref(false)
 
 const showSaveConfirm = ref(false)
 const showRestartConfirm = ref(false)
@@ -92,6 +92,94 @@ async function loadFormSchemas() {
   }
 }
 
+function mapConfigToLocal() {
+  if (!configStore.config) return
+  configLoaded.value = true
+
+  bot.value = { ...configStore.config.bot }
+  const srv = configStore.config.server || {}
+  serverConfig.value = {
+    host: srv.host || '0.0.0.0',
+    port: srv.port || 8080,
+    public_url: srv.public_url || '',
+    credential: srv.credential || '',
+  }
+  webClientConfig.value = { credential: configStore.config.web_client?.credential || '' }
+
+  // credentials
+  const cfgCreds = configStore.config.credentials || {}
+  const parsedCreds = {}
+  for (const [name, cred] of Object.entries(cfgCreds)) {
+    parsedCreds[name] = { ...cred }
+  }
+  credentials.value = parsedCreds
+
+  // providers
+  const cfgProvs = configStore.config.providers || {}
+  const parsedProvs = {}
+  for (const [name, prov] of Object.entries(cfgProvs)) {
+    parsedProvs[name] = { credential: prov.credential || '', base_url: prov.base_url || '', timeout: prov.timeout ?? 60 }
+  }
+  providers.value = parsedProvs
+
+  tools.value = {
+    general: { restrict_to_workspace: configStore.config.tools?.restrict_to_workspace ?? true },
+    exec: { timeout: configStore.config.tools?.exec?.timeout ?? 60 },
+    web_search: {
+      provider: configStore.config.tools?.web_search?.provider || 'brave',
+      credential: configStore.config.tools?.web_search?.credential || '',
+      max_results: configStore.config.tools?.web_search?.max_results ?? 5,
+    },
+  }
+
+  const st = configStore.config.storage || {}
+  storage.value = {
+    type: st.type || 'local',
+  }
+
+  const img = configStore.config.image || {}
+  imageConfig.value = {
+    model: img.model || '',
+    aspect_ratio: img.aspect_ratio || '',
+    size: img.size || '',
+  }
+
+  const tr = configStore.config.transcription || {}
+  transcriptionConfig.value = {
+    model: tr.model || '',
+  }
+
+  const cfgAgents = configStore.config.agents || {}
+  const parsedAgents = {}
+  for (const [name, agent] of Object.entries(cfgAgents)) {
+    if (!agent || typeof agent !== 'object') continue
+    parsedAgents[name] = {
+      workspace: agent.workspace || '',
+      description: agent.description || '',
+      model: agent.model || '',
+      instructions: agent.instructions || '',
+      toolsStr: (agent.tools || []).join(', '),
+    }
+  }
+  agentsConfig.value = parsedAgents
+
+  const tg = configStore.config.channels?.telegram || {}
+  telegram.value = {
+    enabled: tg.enabled || false,
+    credential: tg.credential || '',
+    allowed_users: (tg.allowed_users || []).join(', '),
+    proxy: tg.proxy || '',
+    reply_to_message: tg.reply_to_message || false,
+  }
+
+  const mcpCh = configStore.config.channels?.mcp || {}
+  mcp.value = {
+    enabled: mcpCh.enabled || false,
+    require_auth: mcpCh.require_auth || false,
+    credential: mcpCh.credential || '',
+  }
+}
+
 onMounted(async () => {
   await Promise.all([
     configStore.loadConfig(),
@@ -100,91 +188,7 @@ onMounted(async () => {
     loadSystemInfo(),
     loadFormSchemas(),
   ])
-  if (configStore.config) {
-    bot.value = { ...configStore.config.bot }
-    const srv = configStore.config.server || {}
-    serverConfig.value = {
-      host: srv.host || '0.0.0.0',
-      port: srv.port || 8000,
-      public_url: srv.public_url || '',
-      credential: srv.credential || '',
-    }
-    webClientConfig.value = { credential: configStore.config.web_client?.credential || '' }
-
-    // credentials
-    const cfgCreds = configStore.config.credentials || {}
-    const parsedCreds = {}
-    for (const [name, cred] of Object.entries(cfgCreds)) {
-      parsedCreds[name] = { ...cred }
-    }
-    credentials.value = parsedCreds
-
-    // providers
-    const cfgProvs = configStore.config.providers || {}
-    const parsedProvs = {}
-    for (const [name, prov] of Object.entries(cfgProvs)) {
-      parsedProvs[name] = { credential: prov.credential || '', base_url: prov.base_url || '', timeout: prov.timeout ?? 60 }
-    }
-    providers.value = parsedProvs
-
-    tools.value = {
-      general: {
-        restrict_to_workspace: configStore.config.tools?.general?.restrict_to_workspace ?? true,
-      },
-      exec: { timeout: configStore.config.tools?.exec?.timeout ?? 60 },
-      web_search: {
-        provider: configStore.config.tools?.web_search?.provider || 'brave',
-        credential: configStore.config.tools?.web_search?.credential || '',
-        max_results: configStore.config.tools?.web_search?.max_results ?? 5,
-      },
-    }
-
-    const st = configStore.config.storage || {}
-    storage.value = {
-      type: st.type || 'local',
-    }
-
-    const img = configStore.config.image || {}
-    imageConfig.value = {
-      model: img.model || '',
-      aspect_ratio: img.aspect_ratio || '',
-      size: img.size || '',
-    }
-
-    const tr = configStore.config.transcription || {}
-    transcriptionConfig.value = {
-      model: tr.model || '',
-    }
-
-    const cfgAgents = configStore.config.agents || {}
-    const parsedAgents = {}
-    for (const [name, agent] of Object.entries(cfgAgents)) {
-      parsedAgents[name] = {
-        workspace: agent.workspace || '',
-        description: agent.description || '',
-        model: agent.model || '',
-        instructions: agent.instructions || '',
-        toolsStr: (agent.tools || []).join(', '),
-      }
-    }
-    agentsConfig.value = parsedAgents
-
-    const tg = configStore.config.channels?.telegram || {}
-    telegram.value = {
-      enabled: tg.enabled || false,
-      credential: tg.credential || '',
-      allowed_users: (tg.allowed_users || []).join(', '),
-      proxy: tg.proxy || '',
-      reply_to_message: tg.reply_to_message || false,
-    }
-
-    const mcpCh = configStore.config.channels?.mcp || {}
-    mcp.value = {
-      enabled: mcpCh.enabled || false,
-      require_auth: mcpCh.require_auth || false,
-      credential: mcpCh.credential || '',
-    }
-  }
+  mapConfigToLocal()
 })
 
 function coerceTypes(section, data) {
@@ -193,6 +197,11 @@ function coerceTypes(section, data) {
   if (section === 'server') {
     if (result.port !== undefined) result.port = parseInt(result.port, 10) || 0
   } else if (section === 'tools') {
+    // flatten general fields to top level for the backend
+    if (result.general) {
+      Object.assign(result, result.general)
+      delete result.general
+    }
     if (result.exec?.timeout !== undefined) {
       result.exec = { ...result.exec, timeout: parseInt(result.exec.timeout, 10) || 0 }
     }
@@ -205,6 +214,10 @@ function coerceTypes(section, data) {
 }
 
 async function saveSection(section, data) {
+  if (!configLoaded.value) {
+    toast.add({ severity: 'error', summary: 'Error', detail: 'Config not loaded. Reload the page before saving.', life: 5000 })
+    return
+  }
   const payload = coerceTypes(section, data)
   try {
     await configStore.saveSection(section, payload)
@@ -230,14 +243,27 @@ watch(activeTab, (tab) => {
   if (tab === 'advanced') loadYaml()
 })
 
-function validateYaml() {
+async function validateYaml() {
+  // client-side syntax check first
   try {
     jsYaml.load(rawYaml.value)
-    toast.add({ severity: 'success', summary: 'Valid', detail: 'YAML syntax is correct', life: 2000 })
   } catch (e) {
     const line = e.mark ? e.mark.line + 1 : null
     const detail = line ? `Line ${line}: ${e.reason || e.message}` : e.message
     toast.add({ severity: 'error', summary: 'Invalid YAML', detail, life: 5000 })
+    return
+  }
+
+  // server-side structural validation
+  try {
+    const res = await api.post('/config/validate', { yaml: rawYaml.value })
+    if (res.valid) {
+      toast.add({ severity: 'success', summary: 'Valid', detail: 'Configuration is valid', life: 2000 })
+    } else {
+      toast.add({ severity: 'error', summary: 'Invalid', detail: res.error || 'Unknown error', life: 5000 })
+    }
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 5000 })
   }
 }
 
@@ -251,7 +277,8 @@ async function saveAdvanced() {
       return
     }
     toast.add({ severity: 'success', summary: 'Saved', detail: 'Config updated', life: 2000 })
-    await loadYaml()
+    await Promise.all([loadYaml(), configStore.loadConfig()])
+    mapConfigToLocal()
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
   }
@@ -492,52 +519,9 @@ async function toggleMcp(running) {
                   </div>
                 </div>
 
-                <div v-if="systemInfo.disk?.total_gb" class="info-section">
-                  <h3><i class="pi pi-database"></i> Disk</h3>
-                  <div class="info-row">
-                    <span class="info-label">Total</span>
-                    <span class="info-value">{{ systemInfo.disk.total_gb }} GB</span>
-                  </div>
-                  <div class="info-row">
-                    <span class="info-label">Used</span>
-                    <span class="info-value">{{ systemInfo.disk.used_gb }} GB ({{ systemInfo.disk.percent }}%)</span>
-                  </div>
-                  <div class="info-row">
-                    <span class="info-label">Free</span>
-                    <span class="info-value">{{ systemInfo.disk.free_gb }} GB</span>
-                  </div>
-                  <ProgressBar :value="systemInfo.disk.percent" :show-value="false" style="height: 0.5rem; margin-top: 0.5rem" />
-                </div>
-
-                <div v-if="systemInfo.gpu?.length" class="info-section">
-                  <h3><i class="pi pi-image"></i> Graphics</h3>
-                  <template v-for="(gpu, i) in systemInfo.gpu" :key="i">
-                    <div class="info-row">
-                      <span class="info-label">{{ systemInfo.gpu.length > 1 ? `GPU ${i + 1}` : 'GPU' }}</span>
-                      <span class="info-value">{{ gpu.name }}</span>
-                    </div>
-                    <div v-if="gpu.cores" class="info-row">
-                      <span class="info-label">Cores</span>
-                      <span class="info-value">{{ gpu.cores }}</span>
-                    </div>
-                    <div v-if="gpu.vendor" class="info-row">
-                      <span class="info-label">Vendor</span>
-                      <span class="info-value">{{ gpu.vendor }}</span>
-                    </div>
-                    <div v-if="gpu.metal" class="info-row">
-                      <span class="info-label">Metal</span>
-                      <span class="info-value">{{ gpu.metal }}</span>
-                    </div>
-                  </template>
-                </div>
-
-                <div v-if="systemInfo.version || systemInfo.python" class="info-section">
+                <div v-if="systemInfo.version" class="info-section">
                   <h3><i class="pi pi-code"></i> Runtime</h3>
-                  <div v-if="systemInfo.python" class="info-row">
-                    <span class="info-label">Python</span>
-                    <span class="info-value">{{ systemInfo.python }}</span>
-                  </div>
-                  <div v-if="systemInfo.version" class="info-row">
+                  <div class="info-row">
                     <span class="info-label">Version</span>
                     <span class="info-value">{{ systemInfo.version }}</span>
                   </div>
@@ -826,14 +810,11 @@ async function toggleMcp(running) {
 }
 
 .page-header {
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--p-content-border-color);
-}
-
-.page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--p-content-border-color);
 }
 
 .page-header h2 {

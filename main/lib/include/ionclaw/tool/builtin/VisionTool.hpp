@@ -9,7 +9,7 @@ namespace tool
 namespace builtin
 {
 
-class VisionTool : public Tool
+class VisionTool final : public Tool
 {
 public:
     ToolResult execute(const nlohmann::json &params, const ToolContext &context) override;

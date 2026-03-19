@@ -47,7 +47,7 @@ nlohmann::json Routes::buildFormSchemas()
                                                                                                  {{"label", "DuckDuckGo"}, {"value", "duckduckgo"}},
                                                                                              })}},
         {{"name", "credential"}, {"type", "credential"}, {"label", "Credential (reference)"}},
-        {{"name", "max_results"}, {"type", "int"}, {"label", "Max Results"}},
+        {{"name", "max_results"}, {"type", "int"}, {"label", "Max Results (1-10)"}},
     });
 
     schemas["channels_telegram"] = json::array({
@@ -66,6 +66,8 @@ nlohmann::json Routes::buildFormSchemas()
 
     schemas["image"] = json::array({
         {{"name", "model"}, {"type", "text"}, {"label", "Model"}, {"placeholder", "openai/dall-e-3"}},
+        {{"name", "aspect_ratio"}, {"type", "text"}, {"label", "Aspect Ratio"}, {"placeholder", "16:9"}},
+        {{"name", "size"}, {"type", "text"}, {"label", "Size"}, {"placeholder", "1024x1024"}},
     });
 
     schemas["transcription"] = json::array({

@@ -8,10 +8,15 @@ namespace ionclaw
 namespace platform
 {
 
-static std::string platformName()
+namespace
+{
+
+std::string platformName()
 {
     return tool::Platform::current();
 }
+
+} // namespace
 
 PlatformBridge::PlatformBridge()
     : handler([](const std::string &function, const nlohmann::json & /*params*/) -> std::string
@@ -36,13 +41,18 @@ void PlatformBridge::setHandler(Handler h)
 
 std::string PlatformBridge::invoke(const std::string &function, const nlohmann::json &params)
 {
-    std::lock_guard<std::mutex> lock(mutex);
+    // copy handler under lock to avoid holding mutex during callback
+    Handler h;
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        h = handler;
+    }
 
     spdlog::debug("[PlatformBridge] Invoking: {}", function);
 
     try
     {
-        return handler(function, params);
+        return h(function, params);
     }
     catch (const std::exception &e)
     {

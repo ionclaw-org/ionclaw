@@ -29,7 +29,13 @@ export const useTasksStore = defineStore('tasks', () => {
   )
 
   async function loadTasks() {
-    const list = await api.get('/tasks')
+    let list
+    try {
+      list = await api.get('/tasks')
+    } catch (e) {
+      console.error('[tasks] load error:', e)
+      return
+    }
     const fresh = {}
     for (const t of list) {
       fresh[t.id] = t

@@ -1,6 +1,8 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
+import { humanizeToolName } from '../../utils/format'
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },
@@ -19,7 +21,7 @@ renderer.link = function (args) {
 
 function renderMarkdown(text) {
   if (!text) return ''
-  return marked(text, { breaks: true, renderer })
+  return DOMPurify.sanitize(marked(text, { breaks: true, renderer }))
 }
 
 function isImage(path) {
@@ -41,13 +43,6 @@ function isLastToolUse(content, index) {
     if (content[i].type === 'tool_use') return i === index
   }
   return false
-}
-
-function humanizeToolName(name) {
-  if (!name || typeof name !== 'string') return name || ''
-  return name
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 function scrollToBottom() {
@@ -89,7 +84,7 @@ watch(
       </div>
       <div class="message-body">
         <div v-if="msg.agent_name" class="agent-label">
-          <i class="pi pi-user"></i> {{ msg.agent_name }} Agent
+          <i class="pi pi-user"></i> {{ msg.agent_name }}
         </div>
         <div v-if="msg.media?.length" class="message-media">
           <template v-for="(path, k) in msg.media" :key="k">
@@ -122,7 +117,7 @@ watch(
       <div class="message-avatar"><i class="pi pi-sparkles"></i></div>
       <div class="message-body">
         <div v-if="liveMessage.agent_name" class="agent-label">
-          <i class="pi pi-user"></i> {{ liveMessage.agent_name }} Agent
+          <i class="pi pi-user"></i> {{ liveMessage.agent_name }}
         </div>
         <template v-for="(block, k) in liveMessage.content" :key="k">
           <div v-if="block.type === 'text' && block.text" class="message-content" v-html="renderMarkdown(block.text)"></div>
@@ -247,8 +242,34 @@ watch(
   justify-content: flex-end;
 }
 
+.message-content {
+  line-height: 1.7;
+  font-size: 0.9rem;
+}
+
+.message-content :deep(h1),
+.message-content :deep(h2),
+.message-content :deep(h3),
+.message-content :deep(h4),
+.message-content :deep(h5),
+.message-content :deep(h6) {
+  color: var(--p-text-color);
+  font-weight: 700;
+  margin: 1.25rem 0 0.5rem 0;
+}
+
+.message-content :deep(h1) { font-size: 1.35rem; }
+.message-content :deep(h2) { font-size: 1.15rem; }
+.message-content :deep(h3) { font-size: 1.05rem; }
+
+.message-content :deep(h1:first-child),
+.message-content :deep(h2:first-child),
+.message-content :deep(h3:first-child) {
+  margin-top: 0;
+}
+
 .message-content :deep(p) {
-  margin: 0 0 0.5rem 0;
+  margin: 0 0 0.75rem 0;
 }
 
 .message-content :deep(p:last-child) {
@@ -256,16 +277,92 @@ watch(
 }
 
 .message-content :deep(pre) {
-  background: var(--p-content-hover-background);
-  padding: 0.75rem;
-  border-radius: 0.5rem;
+  background: var(--p-surface-950, #09090b);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
   overflow-x: auto;
-  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.message-content :deep(pre code) {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  color: var(--p-text-muted-color);
+  font-size: inherit;
 }
 
 .message-content :deep(code) {
-  font-family: 'SF Mono', monospace;
-  font-size: 0.85em;
+  font-family: 'SF Mono', ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 0.84em;
+  background: var(--p-surface-950, #09090b);
+  color: var(--p-primary-color);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+
+.message-content :deep(ul),
+.message-content :deep(ol) {
+  padding-left: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.message-content :deep(li) {
+  margin-bottom: 0.3rem;
+}
+
+.message-content :deep(li:last-child) {
+  margin-bottom: 0;
+}
+
+.message-content :deep(blockquote) {
+  border-left: 3px solid var(--p-primary-color);
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-bottom: 0.75rem;
+  color: var(--p-text-muted-color);
+}
+
+.message-content :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.message-content :deep(th),
+.message-content :deep(td) {
+  border: 1px solid var(--p-content-border-color);
+  padding: 0.45rem 0.7rem;
+}
+
+.message-content :deep(th) {
+  background: var(--p-surface-950, #09090b);
+  color: var(--p-text-color);
+  font-weight: 600;
+}
+
+.message-content :deep(img) {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.message-content :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--p-content-border-color);
+  margin: 1.25rem 0;
+}
+
+.message-content :deep(a) {
+  color: var(--p-primary-color);
+  text-decoration: none;
+}
+
+.message-content :deep(a:hover) {
+  text-decoration: underline;
 }
 
 .message-media {

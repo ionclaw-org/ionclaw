@@ -9,7 +9,7 @@ namespace tool
 namespace builtin
 {
 
-class MemorySearchTool : public Tool
+class MemorySearchTool final : public Tool
 {
 public:
     ToolResult execute(const nlohmann::json &params, const ToolContext &context) override;

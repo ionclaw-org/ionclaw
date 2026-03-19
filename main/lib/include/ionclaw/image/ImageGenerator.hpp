@@ -18,6 +18,7 @@ struct ImageGeneratorContext
 {
     std::string workspacePath;
     std::string publicPath;
+    std::string projectPath;
     std::string model;
     std::string providerName;
     const ionclaw::config::Config *config = nullptr;

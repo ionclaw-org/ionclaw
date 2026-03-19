@@ -13,8 +13,7 @@ std::atomic<uint64_t> UniqueId::counter{0};
 
 std::string UniqueId::uuid()
 {
-    std::random_device rd;
-    std::mt19937_64 gen(rd());
+    static thread_local std::mt19937_64 gen(std::random_device{}());
     std::uniform_int_distribution<uint64_t> dist;
 
     auto hi = dist(gen);
@@ -43,8 +42,7 @@ std::string UniqueId::uuid()
 
 std::string UniqueId::shortId()
 {
-    std::random_device rd;
-    std::mt19937_64 gen(rd());
+    static thread_local std::mt19937_64 gen(std::random_device{}());
     std::uniform_int_distribution<uint64_t> dist;
 
     auto value = dist(gen);

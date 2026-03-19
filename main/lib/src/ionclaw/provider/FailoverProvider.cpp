@@ -63,7 +63,8 @@ bool FailoverProvider::isFailoverableError(const std::string &errorCategory)
            errorCategory == "rate_limit" ||
            errorCategory == "model_not_found" ||
            errorCategory == "timeout" ||
-           errorCategory == "transient";
+           errorCategory == "transient" ||
+           errorCategory == "host_not_found";
 }
 
 void FailoverProvider::markGood(size_t idx)
@@ -213,9 +214,14 @@ void FailoverProvider::chatStream(const ChatCompletionRequest &request, StreamCa
     bool contentDelivered = false;
 
     // wrap callback to track whether any content has been delivered to the consumer
+    // only set contentDelivered on actual content chunks, not metadata (usage/done)
     auto wrappedCallback = [&callback, &contentDelivered](const StreamChunk &chunk)
     {
-        contentDelivered = true;
+        if (chunk.type == "content" || chunk.type == "tool_call" || chunk.type == "thinking")
+        {
+            contentDelivered = true;
+        }
+
         callback(chunk);
     };
 

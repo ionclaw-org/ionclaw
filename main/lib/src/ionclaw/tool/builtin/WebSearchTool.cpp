@@ -14,8 +14,9 @@ ToolResult WebSearchTool::execute(const nlohmann::json &params, const ToolContex
 {
     std::string query = params.at("query").get<std::string>();
 
-    // parse optional result count
-    int count = 5;
+    // parse optional result count, default from config
+    int defaultCount = (context.config) ? context.config->tools.webSearchMaxResults : 5;
+    int count = defaultCount;
 
     if (params.contains("count") && params["count"].is_number_integer())
     {

@@ -1,5 +1,6 @@
 #include "ionclaw/mcp/McpDispatcher.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <condition_variable>
 #include <deque>
@@ -81,9 +82,9 @@ bool McpDispatcher::isEnabled() const
 
 bool McpDispatcher::isAllowedOrigin(const std::string &origin) const
 {
-    // MCP spec 2025-11-25: servers MUST validate the Origin header.
-    // When auth is enabled, any origin is allowed (token provides access control).
-    // When auth is disabled, only local origins are safe (prevents DNS rebinding on localhost).
+    // mcp spec 2025-11-25: servers must validate the origin header.
+    // when auth is enabled, any origin is allowed (token provides access control).
+    // when auth is disabled, only local origins are safe (prevents dns rebinding on localhost).
     if (requiresAuth())
     {
         return true;
@@ -179,6 +180,27 @@ void McpDispatcher::closeSession(const std::string &id)
     spdlog::info("[MCP] Session closed: {}", id);
 }
 
+void McpDispatcher::reapIdleSessionsLocked()
+{
+    static constexpr int SESSION_IDLE_TIMEOUT_SECONDS = CHAT_TIMEOUT_SECONDS * 2;
+
+    auto now = std::chrono::system_clock::now();
+    auto cutoff = now - std::chrono::seconds(SESSION_IDLE_TIMEOUT_SECONDS);
+
+    for (auto it = sessions.begin(); it != sessions.end();)
+    {
+        if (it->second.lastActiveAt < cutoff)
+        {
+            spdlog::info("[MCP] Reaping idle session: {}", it->first);
+            it = sessions.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
 nlohmann::json McpDispatcher::dispatch(
     const std::string &sessionId,
     const JsonRpcRequest &request,
@@ -199,6 +221,10 @@ nlohmann::json McpDispatcher::dispatch(
     // all methods past initialize require a valid session
     {
         std::lock_guard<std::mutex> lock(sessionsMutex);
+
+        // reap idle sessions (no activity for 2x the chat timeout)
+        reapIdleSessionsLocked();
+
         auto it = sessions.find(sessionId);
         if (it == sessions.end())
         {
@@ -210,6 +236,9 @@ nlohmann::json McpDispatcher::dispatch(
             spdlog::warn("[MCP] Session not initialized for method '{}': {}", method, sessionId);
             return JsonRpcResponse::err(request.id, static_cast<int>(RpcErrorCode::InvalidRequest), "Session not initialized");
         }
+
+        // update activity timestamp
+        it->second.lastActiveAt = std::chrono::system_clock::now();
     }
 
     if (method == "notifications/initialized")
@@ -337,7 +366,7 @@ nlohmann::json McpDispatcher::handleToolsCall(
     auto args = req.params.value("arguments", nlohmann::json::object());
 
     // extract client-provided progress token for spec-compliant notifications/progress
-    // MCP spec: progressToken can be string | number — preserve original type
+    // mcp spec: progressToken can be string | number — preserve original type
     nlohmann::json progressToken;
     if (req.params.contains("_meta") && req.params["_meta"].is_object())
     {
@@ -489,9 +518,12 @@ nlohmann::json McpDispatcher::toolChat(
                                     }
                                 });
 
-    // RAII guard: ensure handler is always removed, even on exceptions
-    auto handlerGuard = std::shared_ptr<void>(nullptr, [this, &handlerId](void *)
-                                              { dispatcher->removeHandler(handlerId); });
+    // raii guard: ensure handler is always removed, even on exceptions.
+    // capture dispatcher by shared_ptr value (not via this) to prevent
+    // use-after-free if McpDispatcher is destroyed while toolChat is in progress.
+    auto dispatcherCopy = dispatcher;
+    auto handlerGuard = std::shared_ptr<void>(nullptr, [dispatcherCopy, handlerId](void *)
+                                              { dispatcherCopy->removeHandler(handlerId); });
 
     // use client-provided progress token if available, otherwise fall back to taskId
     const auto effectiveProgressToken = progressToken.is_null() ? nlohmann::json(taskId) : std::move(progressToken);
@@ -522,7 +554,8 @@ nlohmann::json McpDispatcher::toolChat(
     {
         // streaming mode: forward chunks as notifications/progress events
         static constexpr int POLL_INTERVAL_SECONDS = 30;
-        int elapsed = 0;
+        int idleElapsed = 0;
+        auto startTime = std::chrono::steady_clock::now();
 
         while (true)
         {
@@ -555,7 +588,7 @@ nlohmann::json McpDispatcher::toolChat(
 
             if (!chunk.empty())
             {
-                elapsed = 0;
+                idleElapsed = 0;
                 auto event = JsonRpcResponse::notification("notifications/progress", {{"progressToken", effectiveProgressToken},
                                                                                       {"message", chunk}});
                 if (!(*sseCallback)(event))
@@ -566,7 +599,7 @@ nlohmann::json McpDispatcher::toolChat(
             }
             else
             {
-                elapsed += POLL_INTERVAL_SECONDS;
+                idleElapsed += POLL_INTERVAL_SECONDS;
             }
 
             if (isDone)
@@ -580,9 +613,14 @@ nlohmann::json McpDispatcher::toolChat(
                 return nlohmann::json(stream->fullText);
             }
 
-            if (elapsed >= CHAT_TIMEOUT_SECONDS)
+            // check both idle timeout and wall-clock timeout
+            auto wallElapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                                   std::chrono::steady_clock::now() - startTime)
+                                   .count();
+
+            if (idleElapsed >= CHAT_TIMEOUT_SECONDS || wallElapsed >= CHAT_TIMEOUT_SECONDS * 2)
             {
-                throw std::runtime_error("Chat timed out after " + std::to_string(CHAT_TIMEOUT_SECONDS) + " seconds");
+                throw std::runtime_error("Chat timed out after " + std::to_string(wallElapsed) + " seconds");
             }
         }
     }
@@ -729,20 +767,20 @@ nlohmann::json McpDispatcher::toolListAgents(const nlohmann::json &)
 
 nlohmann::json McpDispatcher::toolListTasks(const nlohmann::json &args)
 {
-    auto limit = std::max(1, args.value("limit", 50));
+    auto limit = std::clamp(args.value("limit", 50), 1, 500);
     auto all = taskManager->listTasks();
     auto result = nlohmann::json::array();
 
-    auto start = (static_cast<int>(all.size()) > limit)
-                     ? all.size() - static_cast<size_t>(limit)
-                     : 0;
+    size_t start = (all.size() > static_cast<size_t>(limit))
+                       ? all.size() - static_cast<size_t>(limit)
+                       : 0;
 
     for (size_t i = start; i < all.size(); ++i)
     {
         result.push_back(all[i].toJson());
     }
 
-    return {{"tasks", result}, {"count", static_cast<int>(result.size())}};
+    return {{"tasks", result}, {"count", result.size()}};
 }
 
 nlohmann::json McpDispatcher::toolGetTask(const nlohmann::json &args)
@@ -754,6 +792,12 @@ nlohmann::json McpDispatcher::toolGetTask(const nlohmann::json &args)
     }
 
     auto task = taskManager->getTask(taskId);
+
+    if (task.id.empty())
+    {
+        throw std::runtime_error("Task not found: " + taskId);
+    }
+
     return task.toJson();
 }
 
@@ -794,7 +838,7 @@ nlohmann::json McpDispatcher::handleResourcesRead(const JsonRpcRequest &req)
 
     // ionclaw://sessions/{id} template
     static const std::string SESSION_PREFIX = "ionclaw://sessions/";
-    if (uri.substr(0, SESSION_PREFIX.size()) == SESSION_PREFIX)
+    if (uri.size() >= SESSION_PREFIX.size() && uri.compare(0, SESSION_PREFIX.size(), SESSION_PREFIX) == 0)
     {
         auto chatId = uri.substr(SESSION_PREFIX.size());
         try

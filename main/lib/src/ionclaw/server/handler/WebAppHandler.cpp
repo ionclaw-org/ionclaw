@@ -1,5 +1,6 @@
 #include "ionclaw/server/handler/WebAppHandler.hpp"
 
+#include <filesystem>
 #include <fstream>
 
 #include "Poco/Net/HTTPServerRequest.h"
@@ -75,13 +76,27 @@ void WebAppHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::
         return;
     }
 
-    // filesystem mode: serve from webDir
+    // filesystem mode: serve from webDir (with path traversal protection)
     auto filePath = webDir + path;
-    std::ifstream ifs(filePath, std::ios::binary);
+    std::error_code ecPath, ecRoot;
+    auto canonicalPath = std::filesystem::weakly_canonical(filePath, ecPath);
+    auto canonicalRoot = std::filesystem::weakly_canonical(webDir, ecRoot);
+
+    if (ecPath || ecRoot || (canonicalPath.string().find(canonicalRoot.string() + "/") != 0 && canonicalPath != canonicalRoot))
+    {
+        resp.setStatus(Poco::Net::HTTPResponse::HTTP_FORBIDDEN);
+        resp.setContentType("text/plain");
+        auto &out = resp.send();
+        out << "Forbidden";
+        return;
+    }
+
+    auto resolvedPath = canonicalPath.string();
+    std::ifstream ifs(resolvedPath, std::ios::binary);
 
     if (ifs.good())
     {
-        auto ext = Poco::Path(filePath).getExtension();
+        auto ext = Poco::Path(resolvedPath).getExtension();
         resp.setContentType(HttpHelper::contentTypeForExtension(ext));
         resp.setStatus(Poco::Net::HTTPResponse::HTTP_OK);
         auto &out = resp.send();

@@ -60,6 +60,13 @@ ToolResult MemorySaveTool::execute(const nlohmann::json &params, const ToolConte
     }
 
     file << content << "\n";
+    file.flush();
+
+    if (file.fail())
+    {
+        return "Error: write failed (disk full or I/O error): " + filename.str();
+    }
+
     file.close();
 
     return "Saved to " + filename.str();

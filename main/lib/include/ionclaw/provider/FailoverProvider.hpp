@@ -14,7 +14,7 @@ namespace ionclaw
 namespace provider
 {
 
-class FailoverProvider : public LlmProvider
+class FailoverProvider final : public LlmProvider
 {
 public:
     FailoverProvider(std::vector<std::shared_ptr<LlmProvider>> providers,

@@ -115,7 +115,7 @@ ToolResult WebFetchTool::execute(const nlohmann::json &params, const ToolContext
         maxChars = std::max(1000, params["max_chars"].get<int>());
     }
 
-    // SSRF validation
+    // ssrf validation
     try
     {
         ionclaw::util::SsrfGuard::validateUrl(url);
@@ -149,13 +149,13 @@ ToolResult WebFetchTool::execute(const nlohmann::json &params, const ToolContext
 
         if (contentType.find("application/json") != std::string::npos)
         {
-            // JSON: pretty-print
+            // json: pretty-print
             try
             {
                 auto json = nlohmann::json::parse(response.body);
                 text = json.dump(2);
             }
-            catch (...)
+            catch (const nlohmann::json::parse_error &)
             {
                 text = response.body;
             }
@@ -164,7 +164,7 @@ ToolResult WebFetchTool::execute(const nlohmann::json &params, const ToolContext
         }
         else if (contentType.find("text/html") != std::string::npos)
         {
-            // HTML: strip tags to readable text
+            // html: strip tags to readable text
             text = stripHtml(response.body);
             extractor = "html";
         }
@@ -177,7 +177,7 @@ ToolResult WebFetchTool::execute(const nlohmann::json &params, const ToolContext
 
         bool truncated = false;
 
-        if (static_cast<int>(text.size()) > maxChars)
+        if (text.size() > static_cast<size_t>(maxChars))
         {
             text = ionclaw::util::StringHelper::utf8SafeTruncate(text, maxChars);
             truncated = true;
@@ -189,7 +189,7 @@ ToolResult WebFetchTool::execute(const nlohmann::json &params, const ToolContext
             {"status", response.statusCode},
             {"extractor", extractor},
             {"truncated", truncated},
-            {"length", static_cast<int>(text.size())},
+            {"length", static_cast<int64_t>(text.size())},
             {"text", text},
         };
 

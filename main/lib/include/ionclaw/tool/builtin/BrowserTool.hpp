@@ -9,7 +9,7 @@ namespace tool
 namespace builtin
 {
 
-class BrowserTool : public Tool
+class BrowserTool final : public Tool
 {
 public:
     ToolResult execute(const nlohmann::json &params, const ToolContext &context) override;

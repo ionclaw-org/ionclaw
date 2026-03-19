@@ -88,9 +88,6 @@ public:
     // returns true if debounce completed, false if interrupted/cleared
     bool waitDebounce(const std::string &sessionKey, int debounceMs);
 
-    // wake up any thread waiting on debounce (e.g. on interrupt/clear)
-    void wakeDebounce();
-
     // remove queue state for a session entirely
     void remove(const std::string &sessionKey);
 

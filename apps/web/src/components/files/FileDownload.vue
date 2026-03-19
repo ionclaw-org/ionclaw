@@ -102,10 +102,4 @@ async function onDownload() {
   color: var(--p-text-muted-color);
 }
 
-.download-hint {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--p-text-muted-color);
-  text-align: center;
-}
 </style>

@@ -61,6 +61,8 @@ onMounted(async () => {
   window.addEventListener('resize', onResize)
   try {
     await loadFiles()
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to load files', life: 3000 })
   } finally {
     loading.value = false
   }
@@ -87,20 +89,24 @@ function onSelect(item) {
 }
 
 async function openFile(path) {
-  const data = await api.get(`/files/${path}`)
-  if (data.error) {
-    toast.add({ severity: 'error', summary: 'Error', detail: data.error, life: 3000 })
-    return
+  try {
+    const data = await api.get(`/files/${path}`)
+    currentFile.value = data
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
   }
-  currentFile.value = data
 }
 
 async function saveFile(content) {
   const path = currentFile.value?.path
   if (!path) return
-  await api.put(`/files/${path}`, { content })
-  toast.add({ severity: 'success', summary: 'Saved', detail: path, life: 2000 })
-  await loadFiles()
+  try {
+    await api.put(`/files/${path}`, { content })
+    toast.add({ severity: 'success', summary: 'Saved', detail: path, life: 2000 })
+    await loadFiles()
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Save failed', detail: e.message, life: 3000 })
+  }
 }
 
 function closeFile() {
@@ -153,6 +159,10 @@ function openRename() {
 async function confirmRename() {
   const name = renameForm.value.name.trim()
   if (!name || !selectedItem.value) return
+  if (/[\/\x00]/.test(name)) {
+    toast.add({ severity: 'error', summary: 'Error', detail: 'Invalid characters in filename', life: 3000 })
+    return
+  }
   const path = selectedItem.value.path
   try {
     const res = await api.post(`/files/rename/${path}`, { name })
@@ -179,7 +189,8 @@ function openDeleteConfirm() {
 async function confirmCreateFile() {
   const name = newFileForm.value.name.trim()
   if (!name) return
-  const path = createParentPath.value ? `${createParentPath.value}/${name}` : name
+  const parent = createParentPath.value?.replace(/\/+$/, '') || ''
+  const path = parent ? `${parent}/${name}` : name
   try {
     const res = await api.post(`/files/create/${path}`)
     if (res.error) {
@@ -197,7 +208,8 @@ async function confirmCreateFile() {
 async function confirmCreateFolder() {
   const name = newFolderForm.value.name.trim()
   if (!name) return
-  const path = createParentPath.value ? `${createParentPath.value}/${name}` : name
+  const parent = createParentPath.value?.replace(/\/+$/, '') || ''
+  const path = parent ? `${parent}/${name}` : name
   try {
     const res = await api.post(`/files/mkdir/${path}`)
     if (res.error) {

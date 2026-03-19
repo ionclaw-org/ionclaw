@@ -8,6 +8,7 @@
 
 #include "ionclaw/tool/Platform.hpp"
 #include "ionclaw/util/EmbeddedResources.hpp"
+#include "ionclaw/util/StringHelper.hpp"
 #include "spdlog/spdlog.h"
 #include "yaml-cpp/yaml.h"
 
@@ -20,7 +21,6 @@ namespace agent
 
 // skill discovery constants
 const std::string SkillsLoader::SKILL_FILENAME = "SKILL.md";
-const std::regex SkillsLoader::FRONTMATTER_RE(R"(^---\s*\n([\s\S]*?)\n---\s*\n)");
 
 SkillsLoader::SkillsLoader(const std::string &projectPath, const std::string &workspacePath)
     : projectSkillsDir(projectPath.empty() ? "" : projectPath + "/skills")
@@ -36,53 +36,67 @@ void SkillsLoader::scanSkillsDir(const std::string &base, std::map<std::string, 
         return;
     }
 
-    // collect top-level directory entries
-    std::vector<fs::directory_entry> entries;
-
-    for (const auto &entry : fs::directory_iterator(base))
+    try
     {
-        if (entry.is_directory())
+        // collect top-level directory entries
+        std::vector<fs::directory_entry> entries;
+
+        for (const auto &entry : fs::directory_iterator(base))
         {
-            entries.push_back(entry);
+            if (entry.is_directory())
+            {
+                entries.push_back(entry);
+            }
+        }
+
+        std::sort(entries.begin(), entries.end());
+
+        // check each entry for a direct or nested skill file
+        for (const auto &entry : entries)
+        {
+            auto skillFile = entry.path() / SKILL_FILENAME;
+
+            if (fs::exists(skillFile))
+            {
+                skills[entry.path().filename().string()] = skillFile.string();
+                continue;
+            }
+
+            // nested: skills/source/skill-name/SKILL.md
+            try
+            {
+                std::vector<fs::directory_entry> nested;
+
+                for (const auto &nestedEntry : fs::directory_iterator(entry.path()))
+                {
+                    if (nestedEntry.is_directory())
+                    {
+                        nested.push_back(nestedEntry);
+                    }
+                }
+
+                std::sort(nested.begin(), nested.end());
+
+                for (const auto &nestedEntry : nested)
+                {
+                    auto nestedFile = nestedEntry.path() / SKILL_FILENAME;
+
+                    if (fs::exists(nestedFile))
+                    {
+                        auto key = entry.path().filename().string() + "/" + nestedEntry.path().filename().string();
+                        skills[key] = nestedFile.string();
+                    }
+                }
+            }
+            catch (const fs::filesystem_error &e)
+            {
+                spdlog::warn("[SkillsLoader] Failed to scan nested dir {}: {}", entry.path().string(), e.what());
+            }
         }
     }
-
-    std::sort(entries.begin(), entries.end());
-
-    // check each entry for a direct or nested skill file
-    for (const auto &entry : entries)
+    catch (const fs::filesystem_error &e)
     {
-        auto skillFile = entry.path() / SKILL_FILENAME;
-
-        if (fs::exists(skillFile))
-        {
-            skills[entry.path().filename().string()] = skillFile.string();
-            continue;
-        }
-
-        // nested: skills/source/skill-name/SKILL.md
-        std::vector<fs::directory_entry> nested;
-
-        for (const auto &nestedEntry : fs::directory_iterator(entry.path()))
-        {
-            if (nestedEntry.is_directory())
-            {
-                nested.push_back(nestedEntry);
-            }
-        }
-
-        std::sort(nested.begin(), nested.end());
-
-        for (const auto &nestedEntry : nested)
-        {
-            auto nestedFile = nestedEntry.path() / SKILL_FILENAME;
-
-            if (fs::exists(nestedFile))
-            {
-                auto key = entry.path().filename().string() + "/" + nestedEntry.path().filename().string();
-                skills[key] = nestedFile.string();
-            }
-        }
+        spdlog::warn("[SkillsLoader] Failed to scan skills dir {}: {}", base, e.what());
     }
 }
 
@@ -109,9 +123,11 @@ std::map<std::string, std::string> SkillsLoader::discoverSkills() const
 // parse yaml frontmatter from skill markdown content
 std::pair<nlohmann::json, std::string> SkillsLoader::parseFrontmatter(const std::string &content)
 {
+    // thread-safe regex for concurrent skill parsing
+    thread_local static const std::regex frontmatterRe(R"(^---\s*\n([\s\S]*?)\n---\s*\n)");
     std::smatch match;
 
-    if (!std::regex_search(content, match, FRONTMATTER_RE))
+    if (!std::regex_search(content, match, frontmatterRe))
     {
         return {nlohmann::json::object(), content};
     }
@@ -150,7 +166,7 @@ std::pair<nlohmann::json, std::string> SkillsLoader::parseFrontmatter(const std:
                     {
                         metadata[key] = pair.second.as<bool>();
                     }
-                    catch (...)
+                    catch (const YAML::BadConversion &)
                     {
                         metadata[key] = pair.second.as<std::string>();
                     }
@@ -194,30 +210,21 @@ bool SkillsLoader::matchesPlatform(const nlohmann::json &metadata)
 
     auto currentStr = tool::Platform::current();
 
-    // case-insensitive comparison helper
-    auto toLower = [](std::string s)
-    {
-        std::transform(s.begin(), s.end(), s.begin(),
-                       [](unsigned char c)
-                       { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
-        return s;
-    };
-
-    auto currentLower = toLower(currentStr);
+    auto currentLower = ionclaw::util::StringHelper::toLower(currentStr);
 
     // platform can be a string or an array of strings
     const auto &val = metadata["platform"];
 
     if (val.is_string())
     {
-        return toLower(val.get<std::string>()) == currentLower;
+        return ionclaw::util::StringHelper::toLower(val.get<std::string>()) == currentLower;
     }
 
     if (val.is_array())
     {
         for (const auto &item : val)
         {
-            if (item.is_string() && toLower(item.get<std::string>()) == currentLower)
+            if (item.is_string() && ionclaw::util::StringHelper::toLower(item.get<std::string>()) == currentLower)
             {
                 return true;
             }
@@ -428,6 +435,18 @@ std::string SkillsLoader::deleteSkill(const std::string &name)
     try
     {
         auto skillDir = fs::path(it->second).parent_path();
+
+        // prevent deleting the base skills directory itself
+        auto canonical = fs::weakly_canonical(skillDir).string();
+        auto projCanonical = projectSkillsDir.empty() ? "" : fs::weakly_canonical(projectSkillsDir).string();
+        auto wsCanonical = workspaceSkillsDir.empty() ? "" : fs::weakly_canonical(workspaceSkillsDir).string();
+
+        if ((!projCanonical.empty() && canonical == projCanonical) ||
+            (!wsCanonical.empty() && canonical == wsCanonical))
+        {
+            return "Cannot delete skills base directory";
+        }
+
         fs::remove_all(skillDir);
         return "";
     }

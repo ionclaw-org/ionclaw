@@ -7,7 +7,7 @@ namespace ionclaw
 namespace search
 {
 
-class DuckDuckGoSearchProvider : public SearchProvider
+class DuckDuckGoSearchProvider final : public SearchProvider
 {
 public:
     std::string name() const override;

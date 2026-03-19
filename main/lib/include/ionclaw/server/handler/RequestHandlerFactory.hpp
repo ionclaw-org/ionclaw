@@ -17,7 +17,7 @@ namespace server
 namespace handler
 {
 
-class RequestHandlerFactory : public Poco::Net::HTTPRequestHandlerFactory
+class RequestHandlerFactory final : public Poco::Net::HTTPRequestHandlerFactory
 {
 public:
     RequestHandlerFactory(

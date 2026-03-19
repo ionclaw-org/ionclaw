@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -38,12 +39,12 @@ public:
         const std::vector<std::string> &toolNames,
         const ionclaw::config::ToolPolicy &policy);
 
-    void setContextWindowTokens(int tokens) { contextWindowTokens = tokens; }
+    void setContextWindowTokens(int tokens) { contextWindowTokens.store(tokens, std::memory_order_relaxed); }
 
 private:
     std::map<std::string, std::shared_ptr<Tool>> tools;
     mutable std::mutex mutex;
-    int contextWindowTokens = 0;
+    std::atomic<int> contextWindowTokens{0};
 };
 
 } // namespace tool

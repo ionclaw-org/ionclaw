@@ -11,7 +11,7 @@ namespace server
 namespace handler
 {
 
-class WebAppHandler : public Poco::Net::HTTPRequestHandler
+class WebAppHandler final : public Poco::Net::HTTPRequestHandler
 {
 public:
     explicit WebAppHandler(const std::string &webDir);

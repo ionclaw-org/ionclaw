@@ -64,6 +64,8 @@ Auth::Auth(const ionclaw::config::Config &config)
 
 void Auth::reload(const ionclaw::config::Config &config)
 {
+    std::lock_guard<std::mutex> lock(mutex_);
+
     auto webCredIt = config.credentials.find(config.webClient.credential);
 
     if (webCredIt != config.credentials.end())
@@ -84,6 +86,8 @@ void Auth::reload(const ionclaw::config::Config &config)
 
 std::string Auth::login(const std::string &username, const std::string &password)
 {
+    std::lock_guard<std::mutex> lock(mutex_);
+
     if (username != validUsername || password != validPassword)
     {
         throw std::runtime_error("Invalid username or password");
@@ -95,12 +99,8 @@ std::string Auth::login(const std::string &username, const std::string &password
 
 bool Auth::verifyToken(const std::string &token) const
 {
+    std::lock_guard<std::mutex> lock(mutex_);
     return ionclaw::util::JwtHelper::isValid(token, secret);
-}
-
-nlohmann::json Auth::getTokenPayload(const std::string &token) const
-{
-    return ionclaw::util::JwtHelper::verify(token, secret);
 }
 
 std::string Auth::extractBearerToken(const std::string &authHeader)

@@ -84,6 +84,7 @@ struct ToolContext
 {
     std::string workspacePath;
     std::string publicPath;
+    std::string projectPath;
     std::string sessionKey;
     std::string agentName;
     std::function<void(const std::string &channel, const std::string &chatId, const std::string &content)> messageSender;

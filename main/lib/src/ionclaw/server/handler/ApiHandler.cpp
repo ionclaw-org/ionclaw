@@ -179,14 +179,6 @@ void ApiHandler::routeRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
         return;
     }
 
-    auto providerName = HttpHelper::extractPathParam(path, "/api/providers/");
-
-    if (!providerName.empty() && (method == "PUT" || method == "PATCH"))
-    {
-        routes->handleProviderUpdate(req, resp, providerName);
-        return;
-    }
-
     // config (specific routes before generic)
     if (path == "/api/config/yaml" && method == "GET")
     {
@@ -287,37 +279,11 @@ void ApiHandler::routeRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
         std::string name = (slash != std::string::npos) ? checkSuffix.substr(slash + 1) : "";
         if (!name.empty())
         {
-            routes->handleMarketplaceCheck(req, resp, source, name);
-            return;
-        }
-    }
-
-    // credentials
-    if (path == "/api/credentials" && method == "GET")
-    {
-        routes->handleCredentialsList(req, resp);
-        return;
-    }
-
-    if (path == "/api/credentials" && method == "POST")
-    {
-        routes->handleCredentialCreate(req, resp);
-        return;
-    }
-
-    auto credName = HttpHelper::extractPathParam(path, "/api/credentials/");
-
-    if (!credName.empty())
-    {
-        if (method == "PUT")
-        {
-            routes->handleCredentialUpdate(req, resp, credName);
-            return;
-        }
-
-        if (method == "DELETE")
-        {
-            routes->handleCredentialDelete(req, resp, credName);
+            // decode URL-encoded parameters (e.g. names with special characters)
+            std::string decodedSource, decodedName;
+            Poco::URI::decode(source, decodedSource);
+            Poco::URI::decode(name, decodedName);
+            routes->handleMarketplaceCheck(req, resp, decodedSource, decodedName);
             return;
         }
     }
@@ -389,7 +355,7 @@ void ApiHandler::routeRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
             return;
         }
 
-        if (method == "PUT")
+        if (method == "PUT" && !filePath.empty())
         {
             routes->handleFileWrite(req, resp, filePath);
             return;

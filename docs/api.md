@@ -229,6 +229,8 @@ Request body:
 }
 ```
 
+Returns `400` with a descriptive message if `state` is missing or not one of the valid values.
+
 ---
 
 ### Files
@@ -242,6 +244,7 @@ Request body:
 | POST | `/api/files/mkdir/{path}` | Create a directory |
 | POST | `/api/files/upload/{path}` | Upload files to a directory |
 | POST | `/api/files/upload` | Upload files to the root directory |
+| POST | `/api/files/rename/{path}` | Rename a file or directory |
 | PUT | `/api/files/{path}` | Write content to a file |
 | DELETE | `/api/files/{path}` | Delete a file or directory (recursive) |
 
@@ -260,6 +263,18 @@ Request body:
 ```json
 {
   "content": "string"
+}
+```
+
+**POST /api/files/rename/{path}**
+
+Rename a file or directory. Hidden paths and protected files cannot be renamed. Names with path separators or leading dots are rejected.
+
+Request body:
+
+```json
+{
+  "name": "string"
 }
 ```
 
@@ -383,6 +398,35 @@ If the skill already exists at the target, it is replaced. Response: `{}` on suc
 | PUT | `/api/config/{section}` | Update a single configuration section |
 | POST | `/api/config/restart` | Reload configuration and restart services |
 
+**POST /api/config/validate**
+
+Validates a YAML configuration string. Checks both YAML syntax and structural validity (all sections, types, and fields).
+
+Request body:
+
+```json
+{
+  "yaml": "string"
+}
+```
+
+Response:
+
+```json
+{
+  "valid": true
+}
+```
+
+Or on error:
+
+```json
+{
+  "valid": false,
+  "error": "string"
+}
+```
+
 **PUT /api/config/{section}**
 
 Valid sections: `bot`, `server`, `agents`, `image`, `web_client`, `tools`, `storage`, `credentials`, `providers`, `channels`, `advanced`.
@@ -391,23 +435,11 @@ For the `advanced` section, the body can contain a `yaml` key with the full YAML
 
 ---
 
-### Credentials
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/credentials` | List all credentials (sensitive values masked) |
-| POST | `/api/credentials` | Create a new credential |
-| PUT | `/api/credentials/{name}` | Update a credential |
-| DELETE | `/api/credentials/{name}` | Delete a credential |
-
----
-
 ### Providers
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/providers` | List all LLM providers |
-| PUT | `/api/providers/{name}` | Update provider configuration |
 
 ---
 

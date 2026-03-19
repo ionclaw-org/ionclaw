@@ -12,7 +12,7 @@ namespace tool
 namespace builtin
 {
 
-class GenerateImageTool : public Tool
+class GenerateImageTool final : public Tool
 {
 public:
     ToolResult execute(const nlohmann::json &params, const ToolContext &context) override;

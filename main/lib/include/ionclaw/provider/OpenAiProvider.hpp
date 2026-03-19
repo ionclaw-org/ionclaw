@@ -13,7 +13,7 @@ namespace ionclaw
 namespace provider
 {
 
-class OpenAiProvider : public LlmProvider
+class OpenAiProvider final : public LlmProvider
 {
 public:
     OpenAiProvider(const std::string &apiKey, const std::string &baseUrl = "https://api.openai.com/v1",

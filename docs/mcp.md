@@ -311,9 +311,9 @@ When the MCP channel is stopped, all in-memory MCP sessions are cleared. Clients
 ### API
 
 ```
-PUT  /channels/mcp          — update config (persists to config.yml)
-POST /channels/mcp/start    — start channel (runtime only)
-POST /channels/mcp/stop     — stop channel (runtime only)
+PUT  /api/channels/mcp          — update config (persists to config.yml)
+POST /api/channels/mcp/start    — start channel (runtime only)
+POST /api/channels/mcp/stop     — stop channel (runtime only)
 ```
 
 ## Client Setup

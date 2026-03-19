@@ -23,8 +23,20 @@ McpHandler::McpHandler(
 
 void McpHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp)
 {
-    // CORS headers for browser-based MCP clients
-    resp.set("Access-Control-Allow-Origin", "*");
+    // mcp spec 2025-11-25: validate origin header to prevent dns rebinding attacks
+    auto origin = req.get("Origin", "");
+    if (!origin.empty() && !mcpDispatcher->isAllowedOrigin(origin))
+    {
+        resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_FORBIDDEN);
+        resp.setContentType("application/json");
+        auto &ostr = resp.send();
+        ostr << R"({"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Forbidden: invalid Origin"}})";
+        return;
+    }
+
+    // cors headers set after origin validation to avoid leaking access on rejected origins
+    auto allowOrigin = origin.empty() ? std::string("*") : origin;
+    resp.set("Access-Control-Allow-Origin", allowOrigin);
     resp.set("Access-Control-Allow-Headers", "Authorization, Content-Type, MCP-Session-Id, MCP-Protocol-Version");
     resp.set("Access-Control-Expose-Headers", "MCP-Session-Id");
 
@@ -33,17 +45,6 @@ void McpHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTT
         resp.set("Access-Control-Allow-Methods", "POST, GET, DELETE, OPTIONS");
         resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_NO_CONTENT);
         resp.send();
-        return;
-    }
-
-    // MCP spec 2025-11-25: validate Origin header to prevent DNS rebinding attacks
-    auto origin = req.get("Origin", "");
-    if (!origin.empty() && !mcpDispatcher->isAllowedOrigin(origin))
-    {
-        resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_FORBIDDEN);
-        resp.setContentType("application/json");
-        auto &ostr = resp.send();
-        ostr << R"({"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Forbidden: invalid Origin"}})";
         return;
     }
 
@@ -95,16 +96,32 @@ void McpHandler::handlePost(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
         return;
     }
 
-    // read and parse request body
+    // read and parse request body (capped at 10MB to prevent OOM)
+    static constexpr size_t MAX_BODY_SIZE = 10 * 1024 * 1024;
     nlohmann::json body;
     try
     {
-        std::string bodyStr(
-            std::istreambuf_iterator<char>(req.stream()),
-            std::istreambuf_iterator<char>());
+        std::string bodyStr;
+        auto &istr = req.stream();
+        char buf[8192];
+
+        while (istr.read(buf, sizeof(buf)) || istr.gcount() > 0)
+        {
+            bodyStr.append(buf, static_cast<size_t>(istr.gcount()));
+
+            if (bodyStr.size() > MAX_BODY_SIZE)
+            {
+                resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
+                resp.setContentType("application/json");
+                auto &ostr = resp.send();
+                ostr << R"({"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Request body too large"}})";
+                return;
+            }
+        }
+
         body = nlohmann::json::parse(bodyStr);
     }
-    catch (...)
+    catch (const nlohmann::json::parse_error &)
     {
         resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
         resp.setContentType("application/json");
@@ -157,7 +174,7 @@ void McpHandler::handlePost(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
     {
         request = ionclaw::mcp::JsonRpcRequest::parse(body);
     }
-    catch (...)
+    catch (const nlohmann::json::parse_error &)
     {
         resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
         resp.setContentType("application/json");
@@ -179,7 +196,7 @@ void McpHandler::handlePost(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
 
         auto &ostr = resp.send();
 
-        // MCP spec 2025-11-25: prime the client with an event ID for reconnection
+        // mcp spec 2025-11-25: prime the client with an event id for reconnection
         ostr << "id: " << sessionId << ":0\ndata: \n\n";
         ostr.flush();
 
@@ -207,7 +224,7 @@ void McpHandler::handlePost(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
         catch (const std::exception &e)
         {
             spdlog::error("[MCP] SSE dispatch exception: {}", e.what());
-            auto errResult = ionclaw::mcp::JsonRpcResponse::err(request.id, -32603, e.what());
+            auto errResult = ionclaw::mcp::JsonRpcResponse::err(request.id, -32603, "internal error");
             ostr << "id: " << sessionId << ":" << eventSeq++ << "\n";
             ostr << "event: message\ndata: " << errResult.dump() << "\n\n";
             ostr.flush();
@@ -215,20 +232,32 @@ void McpHandler::handlePost(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
     }
     else
     {
-        auto result = mcpDispatcher->dispatch(sessionId, request, nullptr);
-
-        // notifications have no id and produce no response body — spec: 202 Accepted
-        if (result.is_null())
+        try
         {
-            resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_ACCEPTED);
-            resp.send();
-            return;
-        }
+            auto result = mcpDispatcher->dispatch(sessionId, request, nullptr);
 
-        resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_OK);
-        resp.setContentType("application/json");
-        auto &ostr = resp.send();
-        ostr << result.dump();
+            // notifications have no id and produce no response body — spec: 202 Accepted
+            if (result.is_null())
+            {
+                resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_ACCEPTED);
+                resp.send();
+                return;
+            }
+
+            resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_OK);
+            resp.setContentType("application/json");
+            auto &ostr = resp.send();
+            ostr << result.dump();
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::error("[MCP] dispatch exception: {}", e.what());
+            resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_OK);
+            resp.setContentType("application/json");
+            auto &ostr = resp.send();
+            auto errResult = ionclaw::mcp::JsonRpcResponse::err(request.id, -32603, "internal error");
+            ostr << errResult.dump();
+        }
     }
 }
 
@@ -267,8 +296,23 @@ void McpHandler::handleGet(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSer
     auto &ostr = resp.send();
 
     // keep the SSE connection alive with periodic pings
+    // use shorter sleep intervals to release threads faster on disconnect
+    static constexpr int PING_INTERVAL_SECONDS = 30;
+    static constexpr int MAX_SSE_DURATION_SECONDS = 3600;
+    auto sseStart = std::chrono::steady_clock::now();
+
     while (ostr.good() && mcpDispatcher->hasSession(sessionId))
     {
+        // check maximum SSE connection duration to prevent indefinite thread hold
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                           std::chrono::steady_clock::now() - sseStart)
+                           .count();
+
+        if (elapsed >= MAX_SSE_DURATION_SECONDS)
+        {
+            break;
+        }
+
         auto ping = ionclaw::mcp::JsonRpcResponse::notification("ping", nlohmann::json::object());
         ostr << "event: message\ndata: " << ping.dump() << "\n\n";
         ostr.flush();
@@ -278,7 +322,11 @@ void McpHandler::handleGet(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSer
             break;
         }
 
-        std::this_thread::sleep_for(std::chrono::seconds(30));
+        // sleep in shorter intervals to detect session removal faster
+        for (int i = 0; i < PING_INTERVAL_SECONDS && mcpDispatcher->hasSession(sessionId); ++i)
+        {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
     }
 }
 

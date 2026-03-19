@@ -4,6 +4,8 @@
 #include <climits>
 #include <cstdint>
 
+#include "ionclaw/util/StringHelper.hpp"
+
 namespace ionclaw
 {
 namespace agent
@@ -64,17 +66,17 @@ int ContextWindow::getModelLimit(const std::string &model, const nlohmann::json 
     {
         // lowercase model for substring matching
         std::string modelLower = model;
-        std::transform(modelLower.begin(), modelLower.end(), modelLower.begin(),
-                       [](unsigned char c)
-                       { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+        ionclaw::util::StringHelper::toLowerInPlace(modelLower);
 
-        // find first matching model prefix
+        // find longest matching model key (most specific match wins)
+        size_t bestLen = 0;
+
         for (const auto &[key, modelLimit] : MODEL_CONTEXT_LIMITS)
         {
-            if (modelLower.find(key) != std::string::npos)
+            if (modelLower.find(key) != std::string::npos && key.size() > bestLen)
             {
+                bestLen = key.size();
                 limit = modelLimit;
-                break;
             }
         }
     }

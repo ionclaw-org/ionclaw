@@ -9,7 +9,7 @@ namespace ionclaw
 namespace transcription
 {
 
-class LocalTranscriptionProvider : public TranscriptionProvider
+class LocalTranscriptionProvider final : public TranscriptionProvider
 {
 public:
     explicit LocalTranscriptionProvider(const std::string &providerName);

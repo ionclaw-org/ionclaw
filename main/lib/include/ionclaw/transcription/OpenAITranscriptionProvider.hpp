@@ -12,7 +12,7 @@ namespace ionclaw
 namespace transcription
 {
 
-class OpenAITranscriptionProvider : public TranscriptionProvider
+class OpenAITranscriptionProvider final : public TranscriptionProvider
 {
 public:
     explicit OpenAITranscriptionProvider(const std::string &providerName);

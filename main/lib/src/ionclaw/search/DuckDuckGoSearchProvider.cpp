@@ -1,10 +1,10 @@
 #include "ionclaw/search/DuckDuckGoSearchProvider.hpp"
 
 #include <algorithm>
-#include <iomanip>
 #include <sstream>
 
 #include "ionclaw/util/HttpClient.hpp"
+#include "ionclaw/util/StringHelper.hpp"
 #include "nlohmann/json.hpp"
 
 namespace ionclaw
@@ -20,25 +20,8 @@ std::string DuckDuckGoSearchProvider::name() const
 std::string DuckDuckGoSearchProvider::search(const std::string &query, int count, const ionclaw::config::CredentialConfig &credential) const
 {
     (void)credential;
-    std::ostringstream encoded;
-    for (char c : query)
-    {
-        if (isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.' || c == '~')
-        {
-            encoded << c;
-        }
-        else if (c == ' ')
-        {
-            encoded << '+';
-        }
-        else
-        {
-            encoded << '%' << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
-                    << static_cast<int>(static_cast<unsigned char>(c));
-        }
-    }
 
-    std::string url = "https://api.duckduckgo.com/?q=" + encoded.str() + "&format=json";
+    std::string url = "https://api.duckduckgo.com/?q=" + ionclaw::util::StringHelper::urlEncode(query) + "&format=json";
 
     std::map<std::string, std::string> headers = {{"Accept", "application/json"}};
 
@@ -47,10 +30,16 @@ std::string DuckDuckGoSearchProvider::search(const std::string &query, int count
     if (response.statusCode != 200)
     {
         return "Error: DuckDuckGo API returned HTTP " + std::to_string(response.statusCode) +
-               ": " + response.body.substr(0, 500);
+               ": " + ionclaw::util::StringHelper::utf8SafeTruncate(response.body, 500);
     }
 
-    auto json = nlohmann::json::parse(response.body);
+    auto json = nlohmann::json::parse(response.body, nullptr, false);
+
+    if (json.is_discarded())
+    {
+        return "Error: DuckDuckGo API returned invalid JSON";
+    }
+
     std::string abstractText = json.value("AbstractText", "");
     std::string abstractUrl = json.value("AbstractURL", "");
     auto related = json.value("RelatedTopics", nlohmann::json::array());

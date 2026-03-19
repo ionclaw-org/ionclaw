@@ -27,7 +27,9 @@ public:
     // resolve reference image paths from params, cleaning annotations
     static std::vector<std::string> resolveReferencePaths(const nlohmann::json &params,
                                                           const std::string &workspacePath,
-                                                          const std::string &publicPath);
+                                                          const std::string &publicPath,
+                                                          bool restrictToWorkspace,
+                                                          const std::string &projectPath);
 
     // parse OpenAI-style response: extract b64_json from data[0], decode, save
     static std::string decodeAndSave(const std::string &responseBody,

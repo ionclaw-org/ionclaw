@@ -37,6 +37,7 @@ function toTreeNodes(items) {
 }
 
 function fileIcon(name) {
+  if (!name) return 'pi pi-file'
   const ext = name.split('.').pop().toLowerCase()
   const icons = {
     md: 'pi pi-file-edit',
@@ -66,6 +67,8 @@ function fileIcon(name) {
   return icons[ext] || 'pi pi-file'
 }
 
+const treeNodes = computed(() => toTreeNodes(props.files))
+
 function onNodeSelect(node) {
   if (node.data) {
     emit('select', node.data)
@@ -76,7 +79,7 @@ function onNodeSelect(node) {
 <template>
   <div class="file-tree-wrapper">
     <Tree
-      :value="toTreeNodes(files)"
+      :value="treeNodes"
       v-model:expandedKeys="expandedKeys"
       :selectionKeys="selectionKeys"
       selection-mode="single"

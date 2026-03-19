@@ -8,6 +8,7 @@
 
 #include "Poco/Net/HTMLForm.h"
 #include "Poco/Net/PartHandler.h"
+#include "ionclaw/util/StringHelper.hpp"
 
 namespace ionclaw
 {
@@ -15,6 +16,37 @@ namespace server
 {
 
 namespace fs = std::filesystem;
+
+// resolves a relative file path to a canonical absolute path within projectRoot
+std::string Routes::resolveFilePath(const std::string &relativePath) const
+{
+    std::string fullPath = projectRoot + "/" + relativePath;
+
+    try
+    {
+        auto canonicalPath = fs::weakly_canonical(fs::path(fullPath));
+        auto canonicalRoot = fs::weakly_canonical(fs::path(projectRoot));
+        std::string rootStr = canonicalRoot.string();
+
+        if (!rootStr.empty() && rootStr.back() != fs::path::preferred_separator)
+        {
+            rootStr += fs::path::preferred_separator;
+        }
+
+        auto canonicalStr = canonicalPath.string();
+
+        if (canonicalStr != canonicalRoot.string() && canonicalStr.rfind(rootStr, 0) != 0)
+        {
+            return "";
+        }
+
+        return canonicalStr;
+    }
+    catch (const std::exception &)
+    {
+        return "";
+    }
+}
 
 // files that cannot be read, edited, or deleted via the file API
 const std::set<std::string> Routes::PROTECTED_FILES = {
@@ -81,7 +113,6 @@ void Routes::handleFileRead(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServe
     // normalize path
     std::string rel = (path.size() > 0 && path[0] == '/') ? path.substr(1) : path;
 
-    // block hidden and protected paths
     if (isHiddenPath(rel))
     {
         sendError(resp, "Access denied", 403);
@@ -94,46 +125,19 @@ void Routes::handleFileRead(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServe
         return;
     }
 
-    std::string fullPath = projectRoot + "/" + rel;
+    auto fullPath = resolveFilePath(rel);
 
-    // canonicalize paths for traversal check
-    fs::path canonicalPath;
-    fs::path canonicalRoot;
-
-    try
-    {
-        canonicalPath = fs::weakly_canonical(fs::path(fullPath));
-        canonicalRoot = fs::weakly_canonical(fs::path(projectRoot));
-    }
-    catch (...)
-    {
-        sendError(resp, "File not found", 404);
-        return;
-    }
-
-    // verify path is within project root
-    std::string rootStr = canonicalRoot.string();
-
-    if (!rootStr.empty() && rootStr.back() != '/' && rootStr.back() != fs::path::preferred_separator)
-    {
-        rootStr += fs::path::preferred_separator;
-    }
-
-    std::string canonicalStr = canonicalPath.string();
-
-    if (canonicalStr != rootStr && canonicalStr.rfind(rootStr, 0) != 0)
+    if (fullPath.empty())
     {
         sendError(resp, "Access denied", 403);
         return;
     }
 
-    if (!fs::exists(canonicalPath))
+    if (!fs::exists(fullPath))
     {
         sendError(resp, "File not found", 404);
         return;
     }
-
-    fullPath = canonicalStr;
 
     // return directory listing for directories
     if (fs::is_directory(fullPath))
@@ -151,9 +155,7 @@ void Routes::handleFileRead(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServe
         ext = ext.substr(1);
     }
 
-    std::transform(ext.begin(), ext.end(), ext.begin(),
-                   [](unsigned char c)
-                   { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+    ionclaw::util::StringHelper::toLowerInPlace(ext);
 
     auto fileType = detectFileType(ext);
 
@@ -222,25 +224,15 @@ void Routes::handleFileWrite(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPS
 
         auto body = nlohmann::json::parse(readBody(req));
         auto content = body.value("content", "");
-        std::string fullPath = projectRoot + "/" + path;
 
-        // verify path is within project root
-        fs::path canonicalPath = fs::weakly_canonical(fs::path(fullPath));
-        fs::path canonicalRoot = fs::weakly_canonical(fs::path(projectRoot));
-        std::string rootStr = canonicalRoot.string();
+        auto fullPath = resolveFilePath(path);
 
-        if (!rootStr.empty() && rootStr.back() != fs::path::preferred_separator)
-        {
-            rootStr += fs::path::preferred_separator;
-        }
-
-        if (canonicalPath.string().rfind(rootStr, 0) != 0)
+        if (fullPath.empty())
         {
             sendError(resp, "Access denied", 403);
             return;
         }
 
-        fullPath = canonicalPath.string();
         auto parent = fs::path(fullPath).parent_path();
 
         if (!parent.empty())
@@ -263,13 +255,12 @@ void Routes::handleFileWrite(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPS
     }
     catch (const std::exception &e)
     {
-        sendError(resp, e.what());
+        sendError(resp, e.what(), 500);
     }
 }
 
 void Routes::handleFileDelete(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp, const std::string &path)
 {
-    // block hidden and protected paths
     if (isHiddenPath(path))
     {
         sendError(resp, "Access denied", 403);
@@ -282,31 +273,11 @@ void Routes::handleFileDelete(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
         return;
     }
 
-    std::string fullPath = projectRoot + "/" + path;
+    auto fullPath = resolveFilePath(path);
 
-    // verify path is within project root
-    try
+    if (fullPath.empty())
     {
-        fs::path canonicalPath = fs::weakly_canonical(fs::path(fullPath));
-        fs::path canonicalRoot = fs::weakly_canonical(fs::path(projectRoot));
-        std::string rootStr = canonicalRoot.string();
-
-        if (!rootStr.empty() && rootStr.back() != fs::path::preferred_separator)
-        {
-            rootStr += fs::path::preferred_separator;
-        }
-
-        if (canonicalPath.string().rfind(rootStr, 0) != 0)
-        {
-            sendError(resp, "Access denied", 403);
-            return;
-        }
-
-        fullPath = canonicalPath.string();
-    }
-    catch (...)
-    {
-        sendError(resp, "File not found", 404);
+        sendError(resp, "Access denied", 403);
         return;
     }
 
@@ -316,7 +287,15 @@ void Routes::handleFileDelete(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
         return;
     }
 
-    fs::remove_all(fullPath);
+    std::error_code removeEc;
+    fs::remove_all(fullPath, removeEc);
+
+    if (removeEc)
+    {
+        sendError(resp, "Failed to delete: " + removeEc.message(), 500);
+        return;
+    }
+
     sendJson(resp, {{"status", "deleted"}});
 }
 
@@ -329,30 +308,20 @@ void Routes::handleFileMkdir(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
         return;
     }
 
-    std::string fullPath = projectRoot + "/" + path;
+    auto fullPath = resolveFilePath(path);
 
-    // verify path is within project root
-    fs::path canonicalPath = fs::weakly_canonical(fs::path(fullPath));
-    fs::path canonicalRoot = fs::weakly_canonical(fs::path(projectRoot));
-    std::string rootStr = canonicalRoot.string();
-
-    if (!rootStr.empty() && rootStr.back() != fs::path::preferred_separator)
-    {
-        rootStr += fs::path::preferred_separator;
-    }
-
-    if (canonicalPath.string().rfind(rootStr, 0) != 0)
+    if (fullPath.empty())
     {
         sendError(resp, "Access denied", 403);
         return;
     }
 
     std::error_code ec;
-    fs::create_directories(canonicalPath.string(), ec);
+    fs::create_directories(fullPath, ec);
 
     if (ec)
     {
-        sendError(resp, "Failed to create directory: " + ec.message());
+        sendError(resp, "Failed to create directory: " + ec.message(), 500);
         return;
     }
 
@@ -361,7 +330,6 @@ void Routes::handleFileMkdir(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
 
 void Routes::handleFileCreate(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp, const std::string &path)
 {
-    // block hidden and protected paths
     if (isHiddenPath(path))
     {
         sendError(resp, "Access denied", 403);
@@ -374,37 +342,13 @@ void Routes::handleFileCreate(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
         return;
     }
 
-    std::string fullPath = projectRoot + "/" + path;
+    auto fullPath = resolveFilePath(path);
 
-    fs::path canonicalPath;
-    fs::path canonicalRoot;
-
-    try
-    {
-        canonicalPath = fs::weakly_canonical(fs::path(fullPath));
-        canonicalRoot = fs::weakly_canonical(fs::path(projectRoot));
-    }
-    catch (...)
-    {
-        sendError(resp, "Invalid path", 400);
-        return;
-    }
-
-    // verify path is within project root
-    std::string rootStr = canonicalRoot.string();
-
-    if (!rootStr.empty() && rootStr.back() != fs::path::preferred_separator)
-    {
-        rootStr += fs::path::preferred_separator;
-    }
-
-    if (canonicalPath.string().rfind(rootStr, 0) != 0)
+    if (fullPath.empty())
     {
         sendError(resp, "Access denied", 403);
         return;
     }
-
-    fullPath = canonicalPath.string();
 
     if (fs::exists(fullPath))
     {
@@ -472,59 +416,36 @@ void Routes::handleFileRename(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
             return;
         }
 
-        std::string fullPath = projectRoot + "/" + path;
+        auto fullPath = resolveFilePath(path);
 
-        // canonicalize source path
-        fs::path canonicalPath;
-        fs::path canonicalRoot;
-
-        try
-        {
-            canonicalPath = fs::weakly_canonical(fs::path(fullPath));
-            canonicalRoot = fs::weakly_canonical(fs::path(projectRoot));
-        }
-        catch (...)
-        {
-            sendError(resp, "File not found", 404);
-            return;
-        }
-
-        // verify source is within project root
-        std::string rootStr = canonicalRoot.string();
-
-        if (!rootStr.empty() && rootStr.back() != fs::path::preferred_separator)
-        {
-            rootStr += fs::path::preferred_separator;
-        }
-
-        std::string canonicalStr = canonicalPath.string();
-
-        if (canonicalStr.rfind(rootStr, 0) != 0)
+        if (fullPath.empty())
         {
             sendError(resp, "Access denied", 403);
             return;
         }
 
         // prevent renaming the project root itself
-        if (canonicalStr == canonicalRoot.string() || canonicalStr == rootStr)
+        auto canonicalRoot = fs::weakly_canonical(fs::path(projectRoot));
+
+        if (fullPath == canonicalRoot.string() || fullPath == canonicalRoot.string() + std::string(1, fs::path::preferred_separator))
         {
             sendError(resp, "Cannot rename root directory", 403);
             return;
         }
 
-        if (!fs::exists(canonicalPath))
+        if (!fs::exists(fullPath))
         {
             sendError(resp, "File not found", 404);
             return;
         }
 
         // build destination path (same parent, new name)
-        fs::path destPath = canonicalPath.parent_path() / newName;
+        fs::path destPath = fs::path(fullPath).parent_path() / newName;
 
         // verify destination is within project root
-        std::string destStr = fs::weakly_canonical(destPath).string();
+        auto destResolved = resolveFilePath(fs::relative(destPath, canonicalRoot).string());
 
-        if (destStr.rfind(rootStr, 0) != 0)
+        if (destResolved.empty())
         {
             sendError(resp, "Access denied", 403);
             return;
@@ -533,9 +454,9 @@ void Routes::handleFileRename(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
         if (fs::exists(destPath))
         {
             // same file — treat as no-op success
-            if (fs::equivalent(canonicalPath, destPath))
+            if (fs::equivalent(fs::path(fullPath), destPath))
             {
-                auto relPath = fs::relative(canonicalPath, canonicalRoot).string();
+                auto relPath = fs::relative(fs::path(fullPath), canonicalRoot).string();
                 sendJson(resp, {{"status", "ok"}, {"path", relPath}});
                 return;
             }
@@ -544,7 +465,7 @@ void Routes::handleFileRename(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
             return;
         }
 
-        fs::rename(canonicalPath, destPath);
+        fs::rename(fs::path(fullPath), destPath);
 
         // compute new relative path
         auto newRelPath = fs::relative(destPath, canonicalRoot).string();
@@ -553,7 +474,7 @@ void Routes::handleFileRename(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
     }
     catch (const std::exception &e)
     {
-        sendError(resp, e.what());
+        sendError(resp, e.what(), 500);
     }
 }
 
@@ -575,45 +496,19 @@ void Routes::handleFileDownload(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPS
         return;
     }
 
-    std::string fullPath = projectRoot + "/" + rel;
+    auto fullPath = resolveFilePath(rel);
 
-    // canonicalize paths for traversal check
-    fs::path canonicalPath;
-    fs::path canonicalRoot;
-
-    try
-    {
-        canonicalPath = fs::weakly_canonical(fs::path(fullPath));
-        canonicalRoot = fs::weakly_canonical(fs::path(projectRoot));
-    }
-    catch (...)
-    {
-        sendError(resp, "File not found", 404);
-        return;
-    }
-
-    // verify path is within project root
-    std::string canonicalStr = canonicalPath.string();
-    std::string rootStr = canonicalRoot.string();
-
-    if (!rootStr.empty() && rootStr.back() != '/' && rootStr.back() != fs::path::preferred_separator)
-    {
-        rootStr += fs::path::preferred_separator;
-    }
-
-    if (canonicalStr != rootStr && canonicalStr.rfind(rootStr, 0) != 0)
+    if (fullPath.empty())
     {
         sendError(resp, "Access denied", 403);
         return;
     }
 
-    if (!fs::exists(canonicalPath) || !fs::is_regular_file(canonicalPath))
+    if (!fs::exists(fullPath) || !fs::is_regular_file(fullPath))
     {
         sendError(resp, "File not found", 404);
         return;
     }
-
-    fullPath = canonicalStr;
 
     std::ifstream ifs(fullPath, std::ios::binary);
 
@@ -631,9 +526,7 @@ void Routes::handleFileDownload(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPS
         ext = ext.substr(1);
     }
 
-    std::transform(ext.begin(), ext.end(), ext.begin(),
-                   [](unsigned char c)
-                   { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+    ionclaw::util::StringHelper::toLowerInPlace(ext);
 
     // determine content type from file type
     auto fileType = detectFileType(ext);
@@ -664,7 +557,7 @@ void Routes::handleFileDownload(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPS
 
     for (char c : filename)
     {
-        if (c == '"' || c == '\\' || c < 0x20)
+        if (c == '"' || c == '\\' || static_cast<unsigned char>(c) < 0x20)
         {
             safeFilename += '_';
         }
@@ -692,38 +585,22 @@ void Routes::handleFileUpload(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
             return;
         }
 
-        std::string targetDir = path.empty() ? projectRoot : (projectRoot + "/" + path);
+        std::string targetDir;
 
-        fs::path canonicalPath;
-        fs::path canonicalRoot;
-
-        try
+        if (path.empty())
         {
-            canonicalPath = fs::weakly_canonical(fs::path(targetDir));
-            canonicalRoot = fs::weakly_canonical(fs::path(projectRoot));
+            targetDir = fs::weakly_canonical(fs::path(projectRoot)).string();
         }
-        catch (...)
+        else
         {
-            sendError(resp, "Invalid path", 400);
-            return;
+            targetDir = resolveFilePath(path);
+
+            if (targetDir.empty())
+            {
+                sendError(resp, "Access denied", 403);
+                return;
+            }
         }
-
-        // verify path is within project root
-        std::string canonicalStr = canonicalPath.string();
-        std::string rootStr = canonicalRoot.string();
-
-        if (!rootStr.empty() && rootStr.back() != fs::path::preferred_separator)
-        {
-            rootStr += fs::path::preferred_separator;
-        }
-
-        if (canonicalStr != canonicalRoot.string() && canonicalStr.rfind(rootStr, 0) != 0)
-        {
-            sendError(resp, "Access denied", 403);
-            return;
-        }
-
-        targetDir = canonicalStr;
 
         std::error_code ec;
         fs::create_directories(targetDir, ec);
@@ -770,6 +647,12 @@ void Routes::handleFileUpload(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
                     return;
                 }
 
+                // skip protected config files
+                if (Routes::isProtectedFile(basename))
+                {
+                    return;
+                }
+
                 auto fullPath = dir + "/" + basename;
 
                 std::ofstream ofs(fullPath, std::ios::binary);
@@ -783,7 +666,7 @@ void Routes::handleFileUpload(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
             }
 
         private:
-            const std::string &dir;
+            std::string dir;
             nlohmann::json &uploaded;
         };
 

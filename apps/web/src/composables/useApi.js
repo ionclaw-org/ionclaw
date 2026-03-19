@@ -25,7 +25,9 @@ export function useApi() {
       try {
         const json = JSON.parse(text)
         if (json.error) message = json.error
-      } catch {}
+      } catch (e) {
+        console.warn('[api] Failed to parse error response as JSON:', e.message)
+      }
       throw new Error(message)
     }
   }
@@ -38,7 +40,19 @@ export function useApi() {
     })
 
     await handleError(res)
-    return res.json()
+
+    const contentType = res.headers.get('content-type') || ''
+    if (contentType.includes('application/json')) {
+      return res.json()
+    }
+
+    const text = await res.text()
+    if (!text) return {}
+    try {
+      return JSON.parse(text)
+    } catch {
+      return {}
+    }
   }
 
   function get(path) {
@@ -51,10 +65,6 @@ export function useApi() {
 
   function put(path, body) {
     return request(path, { method: 'PUT', body: JSON.stringify(body) })
-  }
-
-  function patch(path, body) {
-    return request(path, { method: 'PATCH', body: JSON.stringify(body) })
   }
 
   function del(path) {
@@ -75,7 +85,7 @@ export function useApi() {
     return res.json()
   }
 
-  async function downloadFile(path) {
+  async function downloadFile(path, filename) {
     const clean = path.startsWith('/') ? path.slice(1) : path
     const url = `${BASE_URL}/files/download/${clean}`
     const res = await fetch(url, { headers: getHeaders() })
@@ -86,12 +96,12 @@ export function useApi() {
     const blobUrl = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = blobUrl
-    a.download = clean.split('/').pop()
+    a.download = filename || clean.split('/').pop()
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(blobUrl)
   }
 
-  return { get, post, put, patch, del, upload, downloadFile }
+  return { get, post, put, del, upload, downloadFile }
 }

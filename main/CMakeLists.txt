@@ -19,7 +19,6 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/bus/Events.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/bus/MessageBus.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/bus/EventDispatcher.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/LlmProvider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/AnthropicProvider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/OpenAiProvider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/ProviderFactory.cpp
@@ -101,7 +100,6 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/SystemRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/SkillRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/MarketplaceRoutes.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/CredentialRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/FileRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/heartbeat/HeartbeatService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/cron/CronService.cpp

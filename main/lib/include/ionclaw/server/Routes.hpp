@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <set>
 #include <string>
 
@@ -70,14 +71,13 @@ public:
 
     // providers
     void handleProvidersList(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
-    void handleProviderUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &name);
 
     // config
     void handleConfigGet(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
     void handleConfigYaml(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
-    void handleConfigValidate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
     void handleConfigUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
     void handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &section);
+    void handleConfigValidate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
     void handleConfigRestart(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
 
     // system
@@ -95,12 +95,6 @@ public:
     void handleMarketplaceTargets(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
     void handleMarketplaceCheck(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &source, const std::string &name);
     void handleMarketplaceInstall(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
-
-    // credentials
-    void handleCredentialsList(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
-    void handleCredentialCreate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
-    void handleCredentialUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &name);
-    void handleCredentialDelete(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &name);
 
     // files
     void handleFilesList(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
@@ -145,6 +139,9 @@ private:
     std::string workspaceDir; // default agent workspace; each agent can have its own folder under project_root
     std::string projectRoot;  // directory where server was started; file tree and paths are relative to this
 
+    // protects concurrent config mutations and disk writes
+    std::mutex configMutex_;
+
     // file access constants
     static const std::set<std::string> PROTECTED_FILES;
     static const std::set<std::string> SYSTEM_FILES;
@@ -165,13 +162,17 @@ private:
     // file helpers
     nlohmann::json buildFileTree(const std::string &dirPath, const std::string &rootPath) const;
     nlohmann::json buildFileTreeFromProject(const std::string &dirPath, const std::string &rootPath) const;
-    nlohmann::json buildFileTreeWithPrefix(const std::string &dirPath, const std::string &rootPath, const std::string &pathPrefix) const;
+    nlohmann::json buildFileTreeImpl(const std::string &dirPath, const std::string &rootPath, bool skipNonEssential) const;
     std::string detectFileType(const std::string &ext) const;
 
     // file access filtering
     static bool isProtectedFile(const std::string &path);
     static bool isHiddenPath(const std::string &path);
     static bool isSystemFile(const std::string &name);
+
+    // resolves a relative file path to a canonical absolute path within projectRoot;
+    // returns empty string if the path escapes the root or is invalid
+    std::string resolveFilePath(const std::string &relativePath) const;
 
     // form schemas
     static nlohmann::json buildFormSchemas();

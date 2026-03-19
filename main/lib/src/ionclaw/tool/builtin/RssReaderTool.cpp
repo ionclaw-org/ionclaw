@@ -42,17 +42,15 @@ std::string RssReaderTool::getElementText(Poco::XML::Element *parent, const std:
 // strip html tags and unescape basic entities
 std::string RssReaderTool::stripHtmlTags(const std::string &html)
 {
-    std::regex tagRegex(R"(<[^>]+>)");
+    // thread_local to avoid data race on concurrent std::regex_search calls
+    thread_local static const std::regex tagRegex(R"(<[^>]+>)");
+    thread_local static const std::regex ampRegex(R"(&amp;)");
+    thread_local static const std::regex ltRegex(R"(&lt;)");
+    thread_local static const std::regex gtRegex(R"(&gt;)");
+
     auto result = std::regex_replace(html, tagRegex, "");
-
-    // unescape basic entities
-    std::regex ampRegex(R"(&amp;)");
     result = std::regex_replace(result, ampRegex, "&");
-
-    std::regex ltRegex(R"(&lt;)");
     result = std::regex_replace(result, ltRegex, "<");
-
-    std::regex gtRegex(R"(&gt;)");
     result = std::regex_replace(result, gtRegex, ">");
 
     // trim whitespace
@@ -70,7 +68,13 @@ std::string RssReaderTool::stripHtmlTags(const std::string &html)
 // execute rss/atom feed fetch and parse
 ToolResult RssReaderTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
-    auto url = params.at("url").get<std::string>();
+    auto url = params.value("url", std::string(""));
+
+    if (url.empty())
+    {
+        return "Error: url is required";
+    }
+
     int count = 10;
 
     if (params.contains("count") && params["count"].is_number_integer())

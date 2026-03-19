@@ -48,7 +48,7 @@ std::string LocalImageGenerator::generate(const std::string &prompt,
     }
 
     // gradient rgb buffer (placeholder image)
-    std::vector<unsigned char> pixels(static_cast<size_t>(width * height * 3));
+    std::vector<unsigned char> pixels(static_cast<size_t>(width) * static_cast<size_t>(height) * 3);
 
     for (int y = 0; y < height; ++y)
     {
@@ -65,6 +65,12 @@ std::string LocalImageGenerator::generate(const std::string &prompt,
     std::string mediaDir = context.publicPath + "/media";
     std::error_code ec;
     std::filesystem::create_directories(mediaDir, ec);
+
+    if (ec)
+    {
+        return "Error: failed to create media directory: " + ec.message();
+    }
+
     std::string path = mediaDir + "/" + filename;
 
     if (stbi_write_png(path.c_str(), width, height, 3, pixels.data(), 0) == 0)

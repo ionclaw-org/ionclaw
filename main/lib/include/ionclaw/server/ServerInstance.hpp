@@ -56,6 +56,9 @@ private:
     static std::shared_ptr<Routes> routes;
     static std::shared_ptr<HttpServer> httpServer;
     static std::mutex mutex;
+
+    // release all shared components (used by start error path and stop)
+    static void resetComponents();
 };
 
 } // namespace server

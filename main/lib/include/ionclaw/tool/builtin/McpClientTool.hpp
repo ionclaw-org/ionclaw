@@ -12,7 +12,7 @@ namespace tool
 namespace builtin
 {
 
-class McpClientTool : public Tool
+class McpClientTool final : public Tool
 {
 public:
     ToolResult execute(const nlohmann::json &params, const ToolContext &context) override;

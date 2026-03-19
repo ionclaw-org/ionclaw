@@ -7,7 +7,11 @@ export const useAgentsStore = defineStore('agents', () => {
   const agents = ref([])
 
   async function loadAgents() {
-    agents.value = await api.get('/agents')
+    try {
+      agents.value = await api.get('/agents')
+    } catch (e) {
+      console.error('[agents] load error:', e)
+    }
   }
 
   return { agents, loadAgents }

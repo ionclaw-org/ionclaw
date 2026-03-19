@@ -1,7 +1,10 @@
 #include "ionclaw/util/StringHelper.hpp"
 
 #include <algorithm>
+#include <cctype>
+#include <iomanip>
 #include <regex>
+#include <sstream>
 
 namespace ionclaw
 {
@@ -67,7 +70,7 @@ std::string StringHelper::sanitizeForPrompt(const std::string &str)
 
         if (byte < 0x80)
         {
-            // ASCII: allow printable + tab, newline, carriage return
+            // ascii: allow printable + tab, newline, carriage return
             if (byte >= 0x20 || byte == '\t' || byte == '\n' || byte == '\r')
             {
                 result += str[i];
@@ -205,6 +208,44 @@ std::string StringHelper::stripReasoningTags(const std::string &str)
     }
 
     return result.substr(start, end - start + 1);
+}
+
+void StringHelper::toLowerInPlace(std::string &str)
+{
+    std::transform(str.begin(), str.end(), str.begin(),
+                   [](unsigned char c)
+                   { return c < 0x80 ? static_cast<unsigned char>(std::tolower(c)) : c; });
+}
+
+std::string StringHelper::toLower(const std::string &str)
+{
+    std::string result = str;
+    toLowerInPlace(result);
+    return result;
+}
+
+std::string StringHelper::urlEncode(const std::string &str)
+{
+    std::ostringstream encoded;
+
+    for (char c : str)
+    {
+        if (std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.' || c == '~')
+        {
+            encoded << c;
+        }
+        else if (c == ' ')
+        {
+            encoded << '+';
+        }
+        else
+        {
+            encoded << '%' << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
+                    << static_cast<int>(static_cast<unsigned char>(c));
+        }
+    }
+
+    return encoded.str();
 }
 
 } // namespace util

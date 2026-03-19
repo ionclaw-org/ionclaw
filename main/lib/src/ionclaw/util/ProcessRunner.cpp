@@ -283,7 +283,7 @@ ProcessResult ProcessRunner::run(const std::string &command, int timeoutSeconds,
 
         if (ready < 0)
         {
-            // EINTR: interrupted by signal, just retry
+            // eintr: interrupted by signal, just retry
             if (errno == EINTR)
             {
                 continue;
@@ -312,7 +312,7 @@ ProcessResult ProcessRunner::run(const std::string &command, int timeoutSeconds,
                 }
                 else
                 {
-                    // EOF or error: pipe closed
+                    // eof or error: pipe closed
                     break;
                 }
             }
@@ -342,12 +342,37 @@ ProcessResult ProcessRunner::run(const std::string &command, int timeoutSeconds,
 
     close(pipefd[0]);
 
-    // collect exit status if not already done
+    // collect exit status if not already done (timed poll to avoid indefinite block)
     if (!childExited && !result.timedOut)
     {
         int status = 0;
-        waitpid(pid, &status, 0);
-        collectExitStatus(result, status);
+        static constexpr int MAX_WAIT_POLLS = 100;
+
+        for (int i = 0; i < MAX_WAIT_POLLS; ++i)
+        {
+            auto ret = waitpid(pid, &status, WNOHANG);
+
+            if (ret == pid)
+            {
+                collectExitStatus(result, status);
+                childExited = true;
+                break;
+            }
+
+            if (ret == -1)
+            {
+                break;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+
+        if (!childExited)
+        {
+            // force-collect after poll exhaustion
+            waitpid(pid, &status, 0);
+            collectExitStatus(result, status);
+        }
     }
 
     return result;

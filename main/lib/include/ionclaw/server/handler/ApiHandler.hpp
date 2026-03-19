@@ -17,7 +17,7 @@ namespace server
 namespace handler
 {
 
-class ApiHandler : public Poco::Net::HTTPRequestHandler
+class ApiHandler final : public Poco::Net::HTTPRequestHandler
 {
 public:
     ApiHandler(

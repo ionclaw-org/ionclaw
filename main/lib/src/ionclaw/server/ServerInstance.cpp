@@ -128,26 +128,8 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
         }
 
         // resolve agent workspaces
+        ionclaw::config::ConfigLoader::resolveWorkspaces(cfg, resolvedPath);
         auto defaultWorkspace = resolvedPath + "/workspace";
-
-        if (cfg.agents.empty())
-        {
-            ionclaw::config::AgentConfig defaultAgent;
-            defaultAgent.workspace = defaultWorkspace;
-            cfg.agents["main"] = defaultAgent;
-        }
-
-        for (auto &[name, agent] : cfg.agents)
-        {
-            if (agent.workspace.empty())
-            {
-                agent.workspace = defaultWorkspace;
-            }
-            else if (std::filesystem::path(agent.workspace).is_relative())
-            {
-                agent.workspace = resolvedPath + "/" + agent.workspace;
-            }
-        }
 
         // set public directory path on config
         cfg.publicDir = resolvedPath + "/public";
@@ -289,22 +271,56 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
     {
         spdlog::error("Failed to start server: {}", e.what());
 
-        // cleanup on failure
-        httpServer.reset();
-        orchestrator.reset();
-        routes.reset();
-        cronService.reset();
-        heartbeatService.reset();
-        channelManager.reset();
-        mcpDispatcher.reset();
-        auth.reset();
-        wsManager.reset();
-        toolRegistry.reset();
-        taskManager.reset();
-        sessionManager.reset();
-        bus.reset();
-        dispatcher.reset();
-        config.reset();
+        // stop services that may have been started before the failure
+        if (orchestrator)
+        {
+            try
+            {
+                orchestrator->stop();
+            }
+            catch (const std::exception &stopErr)
+            {
+                spdlog::warn("[ServerInstance] Error stopping orchestrator: {}", stopErr.what());
+            }
+        }
+
+        if (cronService)
+        {
+            try
+            {
+                cronService->stop();
+            }
+            catch (const std::exception &stopErr)
+            {
+                spdlog::warn("[ServerInstance] Error stopping cron service: {}", stopErr.what());
+            }
+        }
+
+        if (heartbeatService)
+        {
+            try
+            {
+                heartbeatService->stop();
+            }
+            catch (const std::exception &stopErr)
+            {
+                spdlog::warn("[ServerInstance] Error stopping heartbeat service: {}", stopErr.what());
+            }
+        }
+
+        if (channelManager)
+        {
+            try
+            {
+                channelManager->stopAll();
+            }
+            catch (const std::exception &stopErr)
+            {
+                spdlog::warn("[ServerInstance] Error stopping channels: {}", stopErr.what());
+            }
+        }
+
+        resetComponents();
 
         return {"", 0, false, e.what()};
     }
@@ -336,30 +352,38 @@ ServerResult ServerInstance::stop()
         taskManager->save();
         spdlog::info("Tasks saved");
 
-        // release components
-        httpServer.reset();
-        routes.reset();
-        cronService.reset();
-        heartbeatService.reset();
-        channelManager.reset();
-        mcpDispatcher.reset();
-        orchestrator.reset();
-        auth.reset();
-        wsManager.reset();
-        toolRegistry.reset();
-        taskManager.reset();
-        sessionManager.reset();
-        bus.reset();
-        dispatcher.reset();
-        config.reset();
+        resetComponents();
 
         return {"", 0, true};
     }
     catch (const std::exception &e)
     {
         spdlog::error("Failed to stop server: {}", e.what());
+
+        // force release all components to avoid stuck state
+        resetComponents();
+
         return {"", 0, false, e.what()};
     }
+}
+
+void ServerInstance::resetComponents()
+{
+    httpServer.reset();
+    routes.reset();
+    cronService.reset();
+    heartbeatService.reset();
+    channelManager.reset();
+    mcpDispatcher.reset();
+    orchestrator.reset();
+    auth.reset();
+    wsManager.reset();
+    toolRegistry.reset();
+    taskManager.reset();
+    sessionManager.reset();
+    bus.reset();
+    dispatcher.reset();
+    config.reset();
 }
 
 } // namespace server

@@ -1,9 +1,12 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "nlohmann/json.hpp"
@@ -32,6 +35,8 @@ public:
         std::string proxy,
         bool replyToMessage,
         std::string publicDir);
+
+    ~TelegramRunner();
 
     void start();
     void stop();
@@ -77,6 +82,19 @@ private:
     std::thread pollThread;
     std::thread outboundThread;
     int64_t lastUpdateId{0};
+
+    // typing ticker: periodic sendChatAction while task is processing
+    static constexpr int TYPING_INTERVAL_SEC = 4;
+    void startTypingTicker(const std::string &chatId);
+    void stopTypingTicker(const std::string &chatId);
+    void stopAllTypingTickers();
+    void registerTypingHandler();
+    void unregisterTypingHandler();
+
+    std::mutex typingMutex_;
+    std::condition_variable typingCv_;
+    std::unordered_map<std::string, std::thread> typingTickers_;
+    std::unordered_map<std::string, bool> typingActive_;
 };
 
 } // namespace channel

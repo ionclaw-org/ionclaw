@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 
+#include "Poco/URI.h"
 #include "Poco/Zip/ZipArchive.h"
 #include "Poco/Zip/ZipStream.h"
 
@@ -33,28 +34,50 @@ void Routes::handleMarketplaceTargets(Poco::Net::HTTPServerRequest &, Poco::Net:
     sendJson(resp, arr);
 }
 
+namespace
+{
+
+// validate marketplace path segments contain only safe characters
+bool isValidMarketplaceSegment(const std::string &s)
+{
+    if (s.empty())
+    {
+        return false;
+    }
+
+    for (char c : s)
+    {
+        if (!std::isalnum(static_cast<unsigned char>(c)) && c != '-' && c != '_' && c != '.')
+        {
+            return false;
+        }
+    }
+
+    // reject hidden names and parent traversal
+    return s[0] != '.' && s.find("..") == std::string::npos;
+}
+
+} // namespace
+
 void Routes::handleMarketplaceCheck(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp,
                                     const std::string &source, const std::string &name)
 {
+    if (!isValidMarketplaceSegment(source) || !isValidMarketplaceSegment(name))
+    {
+        sendError(resp, "Invalid source or name", 400);
+        return;
+    }
+
     // extract agent query parameter
     std::string agent;
-    auto uri = req.getURI();
-    auto q = uri.find('?');
+    Poco::URI parsedUri(req.getURI());
 
-    if (q != std::string::npos)
+    for (const auto &[key, value] : parsedUri.getQueryParameters())
     {
-        std::string query = uri.substr(q + 1);
-        auto pos = query.find("agent=");
-
-        if (pos != std::string::npos)
+        if (key == "agent")
         {
-            agent = query.substr(pos + 6);
-            auto amp = agent.find('&');
-
-            if (amp != std::string::npos)
-            {
-                agent = agent.substr(0, amp);
-            }
+            agent = value;
+            break;
         }
     }
 
@@ -101,7 +124,13 @@ void Routes::handleMarketplaceInstall(Poco::Net::HTTPServerRequest &req, Poco::N
 
         if (source.empty() || name.empty())
         {
-            sendJson(resp, {{"error", "Missing source or name"}});
+            sendError(resp, "Missing source or name");
+            return;
+        }
+
+        if (!isValidMarketplaceSegment(source) || !isValidMarketplaceSegment(name))
+        {
+            sendError(resp, "Invalid source or name", 400);
             return;
         }
 
@@ -118,13 +147,13 @@ void Routes::handleMarketplaceInstall(Poco::Net::HTTPServerRequest &req, Poco::N
 
             if (it == config->agents.end())
             {
-                sendJson(resp, {{"error", "Unknown agent"}});
+                sendError(resp, "Unknown agent", 404);
                 return;
             }
 
             if (it->second.workspace.empty())
             {
-                sendJson(resp, {{"error", "Agent has no workspace"}});
+                sendError(resp, "Agent has no workspace");
                 return;
             }
 
@@ -137,13 +166,13 @@ void Routes::handleMarketplaceInstall(Poco::Net::HTTPServerRequest &req, Poco::N
 
         if (response.statusCode != 200)
         {
-            sendJson(resp, {{"error", "Failed to fetch skill package: HTTP " + std::to_string(response.statusCode)}});
+            sendError(resp, "Failed to fetch skill package: HTTP " + std::to_string(response.statusCode), 502);
             return;
         }
 
         if (response.body.empty())
         {
-            sendJson(resp, {{"error", "Skill package is empty"}});
+            sendError(resp, "Skill package is empty", 502);
             return;
         }
 
@@ -161,7 +190,7 @@ void Routes::handleMarketplaceInstall(Poco::Net::HTTPServerRequest &req, Poco::N
 
             if (!zipOut.is_open())
             {
-                sendJson(resp, {{"error", "Failed to write temp file"}});
+                sendError(resp, "Failed to write temp file", 500);
                 return;
             }
 
@@ -174,7 +203,7 @@ void Routes::handleMarketplaceInstall(Poco::Net::HTTPServerRequest &req, Poco::N
             if (!zipFile.is_open())
             {
                 fs::remove(tempZip);
-                sendJson(resp, {{"error", "Failed to open package"}});
+                sendError(resp, "Failed to open package", 500);
                 return;
             }
 
@@ -200,6 +229,17 @@ void Routes::handleMarketplaceInstall(Poco::Net::HTTPServerRequest &req, Poco::N
                 }
 
                 fs::path outputPath = targetDir / relativePath;
+
+                // zip slip protection: verify resolved path is within target directory
+                auto resolvedOutput = fs::weakly_canonical(outputPath).string();
+                auto resolvedTarget = fs::weakly_canonical(targetDir).string();
+
+                if (resolvedOutput.rfind(resolvedTarget, 0) != 0)
+                {
+                    spdlog::warn("[Marketplace] Zip entry escapes target dir: {}", entryName);
+                    continue;
+                }
+
                 std::error_code mkdirEc;
                 fs::create_directories(outputPath.parent_path(), mkdirEc);
 
@@ -252,7 +292,7 @@ void Routes::handleMarketplaceInstall(Poco::Net::HTTPServerRequest &req, Poco::N
                 fs::remove(tempZip);
             }
 
-            sendJson(resp, {{"error", std::string("Extract failed: ") + e.what()}});
+            sendError(resp, std::string("Extract failed: ") + e.what(), 500);
             return;
         }
 
@@ -260,7 +300,7 @@ void Routes::handleMarketplaceInstall(Poco::Net::HTTPServerRequest &req, Poco::N
     }
     catch (const std::exception &e)
     {
-        sendJson(resp, {{"error", e.what()}});
+        sendError(resp, e.what(), 500);
     }
 }
 

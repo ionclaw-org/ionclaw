@@ -150,10 +150,10 @@ TranscriptionResult OpenAITranscriptionProvider::transcribe(const std::string &a
     if (uri.getScheme() == "https")
     {
 #ifdef _WIN32
-        auto ctx = new Poco::Net::Context(
+        Poco::Net::Context::Ptr ctx = new Poco::Net::Context(
             Poco::Net::Context::CLIENT_USE, "");
 #else
-        auto ctx = new Poco::Net::Context(
+        Poco::Net::Context::Ptr ctx = new Poco::Net::Context(
             Poco::Net::Context::CLIENT_USE, "", "", "",
             Poco::Net::Context::VERIFY_NONE, 9, true,
             "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
@@ -201,7 +201,7 @@ TranscriptionResult OpenAITranscriptionProvider::transcribe(const std::string &a
 
     if (status != 200)
     {
-        spdlog::error("[transcription] API returned HTTP {}: {}", status, respBody.substr(0, 500));
+        spdlog::error("[transcription] API returned HTTP {}: {}", status, ionclaw::util::StringHelper::utf8SafeTruncate(respBody, 500));
         return {};
     }
 
