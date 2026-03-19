@@ -306,6 +306,19 @@ void Orchestrator::run()
                             taskIdStr = message.metadata["task_id"].get<std::string>();
                         }
 
+                        // mark task as error so it doesn't stay stuck in DOING
+                        if (!taskIdStr.empty())
+                        {
+                            try
+                            {
+                                taskManager->updateState(taskIdStr, ionclaw::task::TaskState::Error, e.what());
+                            }
+                            catch (const std::exception &taskErr)
+                            {
+                                spdlog::error("[Orchestrator] Failed to mark task as error: {}", taskErr.what());
+                            }
+                        }
+
                         nlohmann::json msgData = {
                             {"chat_id", sessionKey},
                             {"content", nlohmann::json::array({{{"type", "text"}, {"text", std::string("I encountered an error: ") + e.what()}}})},
@@ -707,6 +720,19 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
             handleSubagentCompletion(subagentRunId, std::string("Error: ") + ex.what(), true);
         }
 
+        // mark task as error so it doesn't stay stuck in DOING
+        if (!turnHandle->taskId.empty())
+        {
+            try
+            {
+                taskManager->updateState(turnHandle->taskId, ionclaw::task::TaskState::Error, ex.what());
+            }
+            catch (const std::exception &taskErr)
+            {
+                spdlog::error("[Orchestrator] Failed to mark task as error: {}", taskErr.what());
+            }
+        }
+
         // broadcast error to client with full context (task_id, agent) so the UI can display it
         try
         {
@@ -740,6 +766,19 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
         if (!subagentRunId.empty() && subagentRegistry)
         {
             handleSubagentCompletion(subagentRunId, "Error: non-standard exception", true);
+        }
+
+        // mark task as error so it doesn't stay stuck in DOING
+        if (!turnHandle->taskId.empty())
+        {
+            try
+            {
+                taskManager->updateState(turnHandle->taskId, ionclaw::task::TaskState::Error, "non-standard exception");
+            }
+            catch (const std::exception &taskErr)
+            {
+                spdlog::error("[Orchestrator] Failed to mark task as error: {}", taskErr.what());
+            }
         }
 
         try

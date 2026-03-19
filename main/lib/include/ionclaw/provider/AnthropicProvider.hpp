@@ -40,6 +40,7 @@ private:
     // message processing
     static void sanitizeMessages(nlohmann::json &messages);
     static nlohmann::json validateTranscript(const nlohmann::json &messages);
+    static std::string normalizeStopReason(const std::string &stopReason);
 };
 
 } // namespace provider

@@ -316,7 +316,7 @@ void TaskManager::recoverStaleTasks()
 
         for (auto &[id, task] : tasks)
         {
-            if (task.state == TaskState::Doing)
+            if (task.state == TaskState::Doing || task.state == TaskState::Todo)
             {
                 task.state = TaskState::Error;
                 task.errorMessage = "Interrupted by server restart";

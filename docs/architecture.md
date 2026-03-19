@@ -219,18 +219,19 @@ Subagents run on the same Orchestrator worker thread as the parent (sequential, 
 
 `ProviderHelper::classifyError()` categorizes LLM API errors into actionable types:
 
-| Category | Trigger | Recovery Action |
-|----------|---------|-----------------|
-| `context_overflow` | Context length exceeded, too many tokens | Compact and retry (up to 3 attempts) |
-| `rate_limit` | Rate limit hit, 429 status | Exponential backoff with 2s base |
-| `billing` | Billing/quota exceeded | Fail with error |
-| `auth` | Authentication failure, 401/403 | Fail with error |
-| `model_not_found` | "model_not_found", "model not found", "does not exist" | Fail with error |
-| `timeout` | Request timeout | Downgrade thinking level, retry |
-| `transient` | 500, 502, 503, connection errors | Single retry with 2.5s delay |
-| `role_ordering` | "Roles must alternate" | Clear session, retry |
-| `thinking_constraint` | Reasoning budget constraint | Graduated downgrade: high→medium→low→off |
-| `unknown` | Unrecognized error | Fail with error |
+| Category | Trigger | Failover | Recovery Action |
+|----------|---------|----------|-----------------|
+| `context_overflow` | Context length exceeded, too many tokens | No | Compact and retry (up to 3 attempts) |
+| `rate_limit` | Rate limit hit, 429 status | Yes | Exponential backoff with 2s base |
+| `billing` | Billing/quota exceeded | No | Fail with error |
+| `auth` | Authentication failure, 401/403 | Yes | Failover to next profile |
+| `model_not_found` | "model_not_found", "model not found", "does not exist" | Yes | Failover to next profile |
+| `host_not_found` | DNS failure, host unreachable | Yes | Failover to next profile |
+| `timeout` | Request timeout | Yes | Downgrade thinking level, retry |
+| `transient` | 500, 502, 503, connection errors | Yes | Single retry with 2.5s delay |
+| `role_ordering` | "Roles must alternate" | No | Clear session, retry |
+| `thinking_constraint` | Reasoning budget constraint | No | Graduated downgrade: high→medium→low→off |
+| `unknown` | Unrecognized error | No | Fail with error |
 
 #### Prompt Caching (Anthropic)
 
