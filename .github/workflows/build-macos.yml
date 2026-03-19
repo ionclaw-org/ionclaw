@@ -50,7 +50,6 @@ jobs:
           path: |
             ${{ env.CPM_SOURCE_CACHE }}
             build/release/_deps
-            build/shared/_deps
           key: cpm-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('cmake/cpm/cpm-dependency.cmake') }}
           restore-keys: cpm-${{ runner.os }}-${{ matrix.arch }}-
 
@@ -68,12 +67,6 @@ jobs:
         if: matrix.cmake_extra != ''
         run: file build/release/bin/ionclaw-server
 
-      - name: Build shared library
-        if: ${{ inputs.release }}
-        run: |
-          cmake -B build/shared -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON ${{ matrix.cmake_extra }}
-          cmake --build build/shared --config ${{ env.BUILD_TYPE }} -j$(sysctl -n hw.ncpu)
-
       - name: Package server
         if: ${{ inputs.release }}
         run: |
@@ -82,20 +75,9 @@ jobs:
           cp LICENSE.md dist/${{ matrix.artifact }}/
           tar -czf ${{ matrix.artifact }}.tar.gz -C dist ${{ matrix.artifact }}
 
-      - name: Package shared library
-        if: ${{ inputs.release }}
-        run: |
-          mkdir -p dist/${{ matrix.artifact }}-shared
-          cp build/shared/lib/libionclaw.dylib dist/${{ matrix.artifact }}-shared/
-          cp main/lib/include/ionclaw/ionclaw.h dist/${{ matrix.artifact }}-shared/
-          cp LICENSE.md dist/${{ matrix.artifact }}-shared/
-          tar -czf ${{ matrix.artifact }}-shared.tar.gz -C dist ${{ matrix.artifact }}-shared
-
       - name: Upload artifacts
         if: ${{ inputs.release }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: |
-            ${{ matrix.artifact }}.tar.gz
-            ${{ matrix.artifact }}-shared.tar.gz
+          path: ${{ matrix.artifact }}.tar.gz
