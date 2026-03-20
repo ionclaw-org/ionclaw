@@ -109,7 +109,7 @@ IonClaw has a community token on Solana via pump.fun:
 
 **CA:** `H88xMt2eK9TXB8cgA9ZCX7j4oMehbnGATFaHxNdHpump`
 
-[View on pump.fun](https://pump.fun/coin/H88xMt2eK9TXB8cgA9ZCX7j4oMehbnGATFaHxNdHpump)
+[pump.fun](https://pump.fun/coin/H88xMt2eK9TXB8cgA9ZCX7j4oMehbnGATFaHxNdHpump) · [DEXScreener](https://dexscreener.com/solana/H88xMt2eK9TXB8cgA9ZCX7j4oMehbnGATFaHxNdHpump)
 
 ## License
 
