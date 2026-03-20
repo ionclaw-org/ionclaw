@@ -497,7 +497,8 @@ async function doInstall(skill) {
 }
 
 .readme-content :deep(pre) {
-  background: var(--p-surface-100);
+  background: var(--p-content-hover-background);
+  color: var(--p-text-color);
   padding: 0.75rem 1rem;
   border-radius: 0.5rem;
   overflow-x: auto;

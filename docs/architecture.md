@@ -80,6 +80,19 @@ User (Web UI) → HTTP API → MessageBus (inbound)
 
 The `EventDispatcher` broadcasts events to all registered handlers. The `WebSocketManager` is one such handler — it pushes events to connected WebSocket clients.
 
+### Dual-Path Delivery
+
+Every user-facing message (responses, errors, command replies) is delivered through two paths:
+
+1. **EventDispatcher broadcast** — pushes to WebSocket clients (web UI). The web UI acts as a mirror that always shows all activity regardless of originating channel.
+2. **MessageBus outbound** — delivers to the originating channel (Telegram, MCP, etc.). Each channel runner filters by `outbound.channel` and only processes its own messages.
+
+This ensures the web dashboard always reflects the full conversation state, and the channel that initiated the request always receives the response. When the originating channel is `web`, the outbound publish is naturally ignored by other channel runners (no duplication).
+
+Cron jobs use the channel and chatId stored at job creation time, so scheduled responses are routed back to the channel where the job was created.
+
+### Event Types
+
 Event types (server → client) include:
 - `chat:typing` — agent is processing (show typing indicator)
 - `chat:stream` — streaming content tokens

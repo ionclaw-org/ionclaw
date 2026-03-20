@@ -319,9 +319,11 @@ void Orchestrator::run()
                             }
                         }
 
+                        auto errorText = std::string("I encountered an error: ") + e.what();
+
                         nlohmann::json msgData = {
                             {"chat_id", sessionKey},
-                            {"content", nlohmann::json::array({{{"type", "text"}, {"text", std::string("I encountered an error: ") + e.what()}}})},
+                            {"content", nlohmann::json::array({{{"type", "text"}, {"text", errorText}}})},
                             {"error", e.what()},
                         };
                         if (!taskIdStr.empty())
@@ -332,6 +334,23 @@ void Orchestrator::run()
                         if (!taskIdStr.empty())
                             endData["task_id"] = taskIdStr;
                         dispatcher->broadcast("chat:stream_end", endData);
+
+                        // publish to outbound bus so the originating channel receives the error
+                        if (bus)
+                        {
+                            ionclaw::bus::OutboundMessage outbound;
+                            outbound.channel = message.channel.empty() ? "web" : message.channel;
+                            outbound.chatId = message.chatId;
+                            outbound.content = errorText;
+                            outbound.metadata = {};
+
+                            if (!taskIdStr.empty())
+                                outbound.metadata["task_id"] = taskIdStr;
+                            if (message.metadata.contains("reply_to_message_id"))
+                                outbound.metadata["reply_to_message_id"] = message.metadata["reply_to_message_id"];
+
+                            bus->publishOutbound(outbound);
+                        }
                     }
                     catch (const std::exception &broadcastErr)
                     {
@@ -733,12 +752,14 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
             }
         }
 
-        // broadcast error to client with full context (task_id, agent) so the UI can display it
+        // broadcast error to web client
         try
         {
+            auto errorText = std::string("I encountered an error: ") + ex.what();
+
             dispatcher->broadcast("chat:message", {
                                                       {"chat_id", sessionKey},
-                                                      {"content", nlohmann::json::array({{{"type", "text"}, {"text", std::string("I encountered an error: ") + ex.what()}}})},
+                                                      {"content", nlohmann::json::array({{{"type", "text"}, {"text", errorText}}})},
                                                       {"error", ex.what()},
                                                       {"agent_name", targetAgent},
                                                       {"task_id", turnHandle->taskId},
@@ -748,6 +769,23 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
                                                          {"agent_name", targetAgent},
                                                          {"task_id", turnHandle->taskId},
                                                      });
+
+            // publish to outbound bus so the originating channel receives the error
+            if (bus)
+            {
+                ionclaw::bus::OutboundMessage outbound;
+                outbound.channel = channel;
+                outbound.chatId = message.chatId;
+                outbound.content = errorText;
+                outbound.metadata = {{"task_id", turnHandle->taskId}, {"agent_name", targetAgent}};
+
+                if (message.metadata.contains("reply_to_message_id"))
+                {
+                    outbound.metadata["reply_to_message_id"] = message.metadata["reply_to_message_id"];
+                }
+
+                bus->publishOutbound(outbound);
+            }
         }
         catch (const std::exception &broadcastErr)
         {
@@ -783,9 +821,11 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
 
         try
         {
+            auto errorText = std::string("I encountered an unexpected internal error.");
+
             dispatcher->broadcast("chat:message", {
                                                       {"chat_id", sessionKey},
-                                                      {"content", nlohmann::json::array({{{"type", "text"}, {"text", "I encountered an unexpected internal error."}}})},
+                                                      {"content", nlohmann::json::array({{{"type", "text"}, {"text", errorText}}})},
                                                       {"error", "non-standard exception"},
                                                       {"agent_name", targetAgent},
                                                       {"task_id", turnHandle->taskId},
@@ -795,6 +835,23 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
                                                          {"agent_name", targetAgent},
                                                          {"task_id", turnHandle->taskId},
                                                      });
+
+            // publish to outbound bus so the originating channel receives the error
+            if (bus)
+            {
+                ionclaw::bus::OutboundMessage outbound;
+                outbound.channel = channel;
+                outbound.chatId = message.chatId;
+                outbound.content = errorText;
+                outbound.metadata = {{"task_id", turnHandle->taskId}, {"agent_name", targetAgent}};
+
+                if (message.metadata.contains("reply_to_message_id"))
+                {
+                    outbound.metadata["reply_to_message_id"] = message.metadata["reply_to_message_id"];
+                }
+
+                bus->publishOutbound(outbound);
+            }
         }
         catch (const std::exception &broadcastErr)
         {

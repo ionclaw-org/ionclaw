@@ -188,7 +188,8 @@ function statusSeverity(status) {
 .schedule-code {
   font-family: 'SF Mono', ui-monospace, monospace;
   font-size: 0.8rem;
-  background: var(--p-surface-100);
+  background: var(--p-content-hover-background);
+  color: var(--p-text-color);
   padding: 0.2rem 0.5rem;
   border-radius: 0.25rem;
 }
