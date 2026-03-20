@@ -729,7 +729,7 @@ async function toggleMcp(running) {
           <!-- Advanced -->
           <TabPanel value="advanced" :pt="{ root: { style: { minHeight: '100%' } } }">
             <div class="tab-content tab-content-wide">
-              <Message severity="warn" :closable="false" class="tab-message">Edit raw config with care. Invalid changes may break the application.</Message>
+              <Message severity="warn" :closable="false" class="tab-message">Edit raw config with care. Invalid changes may break the application. Valide before save.</Message>
               <div class="advanced-toolbar">
                 <div class="toolbar-group">
                   <Button label="Reload" icon="pi pi-refresh" size="small" severity="secondary" :loading="yamlLoading" @click="loadYaml" />

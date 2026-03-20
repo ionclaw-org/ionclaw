@@ -14,6 +14,22 @@ namespace ionclaw
 namespace provider
 {
 
+// normalize anthropic stop_reason to standard finish_reason values
+std::string AnthropicProvider::normalizeStopReason(const std::string &stopReason)
+{
+    if (stopReason == "max_tokens")
+    {
+        return "length";
+    }
+
+    if (stopReason == "end_turn" || stopReason == "stop_sequence")
+    {
+        return "stop";
+    }
+
+    return stopReason;
+}
+
 // sanitize messages before sending to Anthropic API
 void AnthropicProvider::sanitizeMessages(nlohmann::json &messages)
 {
@@ -508,7 +524,7 @@ ChatCompletionResponse AnthropicProvider::parseResponse(const nlohmann::json &re
 
     // finish_reason with fallback to "stop"
     auto fr = response.value("stop_reason", "");
-    result.finishReason = fr.empty() ? "stop" : fr;
+    result.finishReason = fr.empty() ? "stop" : normalizeStopReason(fr);
 
     // extract usage data
     if (response.contains("usage"))
@@ -599,7 +615,7 @@ void AnthropicProvider::parseStreamEvent(const std::string &eventType, const nlo
             {
                 StreamChunk chunk;
                 chunk.type = "done";
-                chunk.finishReason = stopReason;
+                chunk.finishReason = normalizeStopReason(stopReason);
                 callback(chunk);
             }
         }

@@ -306,9 +306,24 @@ void Orchestrator::run()
                             taskIdStr = message.metadata["task_id"].get<std::string>();
                         }
 
+                        // mark task as error so it doesn't stay stuck in DOING
+                        if (!taskIdStr.empty())
+                        {
+                            try
+                            {
+                                taskManager->updateState(taskIdStr, ionclaw::task::TaskState::Error, e.what());
+                            }
+                            catch (const std::exception &taskErr)
+                            {
+                                spdlog::error("[Orchestrator] Failed to mark task as error: {}", taskErr.what());
+                            }
+                        }
+
+                        auto errorText = std::string("I encountered an error: ") + e.what();
+
                         nlohmann::json msgData = {
                             {"chat_id", sessionKey},
-                            {"content", nlohmann::json::array({{{"type", "text"}, {"text", std::string("I encountered an error: ") + e.what()}}})},
+                            {"content", nlohmann::json::array({{{"type", "text"}, {"text", errorText}}})},
                             {"error", e.what()},
                         };
                         if (!taskIdStr.empty())
@@ -319,6 +334,23 @@ void Orchestrator::run()
                         if (!taskIdStr.empty())
                             endData["task_id"] = taskIdStr;
                         dispatcher->broadcast("chat:stream_end", endData);
+
+                        // publish to outbound bus so the originating channel receives the error
+                        if (bus)
+                        {
+                            ionclaw::bus::OutboundMessage outbound;
+                            outbound.channel = message.channel.empty() ? "web" : message.channel;
+                            outbound.chatId = message.chatId;
+                            outbound.content = errorText;
+                            outbound.metadata = {};
+
+                            if (!taskIdStr.empty())
+                                outbound.metadata["task_id"] = taskIdStr;
+                            if (message.metadata.contains("reply_to_message_id"))
+                                outbound.metadata["reply_to_message_id"] = message.metadata["reply_to_message_id"];
+
+                            bus->publishOutbound(outbound);
+                        }
                     }
                     catch (const std::exception &broadcastErr)
                     {
@@ -707,12 +739,27 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
             handleSubagentCompletion(subagentRunId, std::string("Error: ") + ex.what(), true);
         }
 
-        // broadcast error to client with full context (task_id, agent) so the UI can display it
+        // mark task as error so it doesn't stay stuck in DOING
+        if (!turnHandle->taskId.empty())
+        {
+            try
+            {
+                taskManager->updateState(turnHandle->taskId, ionclaw::task::TaskState::Error, ex.what());
+            }
+            catch (const std::exception &taskErr)
+            {
+                spdlog::error("[Orchestrator] Failed to mark task as error: {}", taskErr.what());
+            }
+        }
+
+        // broadcast error to web client
         try
         {
+            auto errorText = std::string("I encountered an error: ") + ex.what();
+
             dispatcher->broadcast("chat:message", {
                                                       {"chat_id", sessionKey},
-                                                      {"content", nlohmann::json::array({{{"type", "text"}, {"text", std::string("I encountered an error: ") + ex.what()}}})},
+                                                      {"content", nlohmann::json::array({{{"type", "text"}, {"text", errorText}}})},
                                                       {"error", ex.what()},
                                                       {"agent_name", targetAgent},
                                                       {"task_id", turnHandle->taskId},
@@ -722,6 +769,23 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
                                                          {"agent_name", targetAgent},
                                                          {"task_id", turnHandle->taskId},
                                                      });
+
+            // publish to outbound bus so the originating channel receives the error
+            if (bus)
+            {
+                ionclaw::bus::OutboundMessage outbound;
+                outbound.channel = channel;
+                outbound.chatId = message.chatId;
+                outbound.content = errorText;
+                outbound.metadata = {{"task_id", turnHandle->taskId}, {"agent_name", targetAgent}};
+
+                if (message.metadata.contains("reply_to_message_id"))
+                {
+                    outbound.metadata["reply_to_message_id"] = message.metadata["reply_to_message_id"];
+                }
+
+                bus->publishOutbound(outbound);
+            }
         }
         catch (const std::exception &broadcastErr)
         {
@@ -742,11 +806,26 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
             handleSubagentCompletion(subagentRunId, "Error: non-standard exception", true);
         }
 
+        // mark task as error so it doesn't stay stuck in DOING
+        if (!turnHandle->taskId.empty())
+        {
+            try
+            {
+                taskManager->updateState(turnHandle->taskId, ionclaw::task::TaskState::Error, "non-standard exception");
+            }
+            catch (const std::exception &taskErr)
+            {
+                spdlog::error("[Orchestrator] Failed to mark task as error: {}", taskErr.what());
+            }
+        }
+
         try
         {
+            auto errorText = std::string("I encountered an unexpected internal error.");
+
             dispatcher->broadcast("chat:message", {
                                                       {"chat_id", sessionKey},
-                                                      {"content", nlohmann::json::array({{{"type", "text"}, {"text", "I encountered an unexpected internal error."}}})},
+                                                      {"content", nlohmann::json::array({{{"type", "text"}, {"text", errorText}}})},
                                                       {"error", "non-standard exception"},
                                                       {"agent_name", targetAgent},
                                                       {"task_id", turnHandle->taskId},
@@ -756,6 +835,23 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
                                                          {"agent_name", targetAgent},
                                                          {"task_id", turnHandle->taskId},
                                                      });
+
+            // publish to outbound bus so the originating channel receives the error
+            if (bus)
+            {
+                ionclaw::bus::OutboundMessage outbound;
+                outbound.channel = channel;
+                outbound.chatId = message.chatId;
+                outbound.content = errorText;
+                outbound.metadata = {{"task_id", turnHandle->taskId}, {"agent_name", targetAgent}};
+
+                if (message.metadata.contains("reply_to_message_id"))
+                {
+                    outbound.metadata["reply_to_message_id"] = message.metadata["reply_to_message_id"];
+                }
+
+                bus->publishOutbound(outbound);
+            }
         }
         catch (const std::exception &broadcastErr)
         {

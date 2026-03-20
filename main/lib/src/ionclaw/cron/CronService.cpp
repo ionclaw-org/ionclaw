@@ -176,7 +176,11 @@ void CronService::tick()
         // publish inbound message to trigger agent processing
         try
         {
-            auto chatId = "cron_" + job.id + "_" + ionclaw::util::UniqueId::shortId();
+            // route through the originating channel so the response reaches the right place
+            auto effectiveChannel = job.payload.channel.empty() ? "web" : job.payload.channel;
+            auto effectiveChatId = job.payload.to.empty()
+                                       ? "cron_" + job.id + "_" + ionclaw::util::UniqueId::shortId()
+                                       : job.payload.to;
 
             // create task for board tracking
             std::string taskId;
@@ -184,14 +188,14 @@ void CronService::tick()
             if (taskManager)
             {
                 auto taskTitle = "[cron] " + ionclaw::util::StringHelper::utf8SafeTruncate(job.name, 80);
-                auto task = taskManager->createTask(taskTitle, job.payload.message, "cron", chatId);
+                auto task = taskManager->createTask(taskTitle, job.payload.message, effectiveChannel, effectiveChatId);
                 taskId = task.id;
             }
 
             ionclaw::bus::InboundMessage msg;
-            msg.channel = "cron";
+            msg.channel = effectiveChannel;
             msg.senderId = "cron";
-            msg.chatId = chatId;
+            msg.chatId = effectiveChatId;
             msg.content = job.payload.message;
             msg.metadata = {{"cron_job_id", job.id}, {"cron_job_name", job.name}};
 

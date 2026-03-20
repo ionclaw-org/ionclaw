@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ionclaw_1.0.4'
+const CACHE_NAME = 'ionclaw_1.0.5'
 const PRECACHE_URLS = ['/app/']
 
 self.addEventListener('install', (event) => {

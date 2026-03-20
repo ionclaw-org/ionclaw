@@ -182,6 +182,8 @@ Profiles are tried in priority order. IonClaw applies exponential backoff betwee
 
 Each profile can define its own `model_params` that override the agent-level defaults. In this example, the Ollama profile uses `temperature: 0.3` instead of `0.5`, while the MiniMax profile adds `max_tokens: 8192`. The Together AI profile inherits the agent-level params as-is.
 
+Failover is triggered by these error categories: `rate_limit`, `auth`, `model_not_found`, `host_not_found`, `timeout`, and `transient`. Non-failoverable errors (`context_overflow`, `billing`, `thinking_constraint`) are handled locally without switching providers. See [architecture.md](architecture.md#error-classification) for the full error classification table.
+
 ---
 
 ## Provider Options
