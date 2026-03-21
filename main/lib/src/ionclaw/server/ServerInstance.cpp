@@ -234,7 +234,7 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
 
         // create and start heartbeat service
         heartbeatService = std::make_shared<ionclaw::heartbeat::HeartbeatService>(
-            bus, defaultWorkspace, cfg.heartbeat.interval, cfg.heartbeat.enabled);
+            bus, sessionManager, defaultWorkspace, cfg.heartbeat.interval, cfg.heartbeat.enabled, cfg.heartbeat.agent);
         heartbeatService->start();
 
         // create and start cron service
@@ -247,7 +247,7 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
         // create routes and http server
         routes = std::make_shared<Routes>(
             config, auth, orchestrator, channelManager, heartbeatService, cronService, sessionManager, taskManager,
-            bus, dispatcher, wsManager, webDir, publicDir, defaultWorkspace, resolvedPath);
+            bus, dispatcher, wsManager, webDir, resolvedPath, publicDir, defaultWorkspace);
 
         httpServer = std::make_shared<HttpServer>(
             routes, auth, wsManager, mcpDispatcher, cfg.server, webDir, publicDir);

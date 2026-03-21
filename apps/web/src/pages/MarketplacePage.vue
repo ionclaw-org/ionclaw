@@ -6,17 +6,27 @@ import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
-import { MdPreview } from 'md-editor-v3'
-import 'md-editor-v3/lib/style.css'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import { useApi } from '../composables/useApi'
 import { useToast } from 'primevue/usetoast'
-import { useDark } from '../composables/useDark'
 
 const MARKETPLACE_URL = 'https://ionclaw.com/marketplace-data.json'
 
 const api = useApi()
 const toast = useToast()
-const isDark = useDark()
+
+const renderer = new marked.Renderer()
+const defaultLinkRenderer = renderer.link.bind(renderer)
+renderer.link = function (args) {
+  const html = defaultLinkRenderer(args)
+  return html.replace('<a ', '<a target="_blank" rel="noopener noreferrer" ')
+}
+
+function renderMarkdown(text) {
+  if (!text) return ''
+  return DOMPurify.sanitize(marked(text, { breaks: true, renderer }))
+}
 
 const allSkills = ref([])
 const search = ref('')
@@ -297,7 +307,7 @@ async function doInstall(skill) {
       <div v-if="!readContent" class="dialog-loading">
         <i class="pi pi-spin pi-spinner" style="font-size: 1.5rem"></i>
       </div>
-      <MdPreview v-else :modelValue="readContent" :theme="isDark ? 'dark' : 'light'" codeTheme="github" :codeStyleReverse="false" language="en-US" class="readme-content" />
+      <div v-else class="skill-content" v-html="renderMarkdown(readContent)"></div>
     </Dialog>
 
     <Dialog
@@ -492,22 +502,122 @@ async function doInstall(skill) {
   color: var(--p-text-muted-color);
 }
 
-.readme-content {
+.skill-content {
   line-height: 1.7;
+  font-size: 0.88rem;
+  color: var(--p-text-muted-color);
 }
 
-.readme-content :deep(pre) {
-  background: var(--p-content-hover-background);
+.skill-content :deep(h1),
+.skill-content :deep(h2),
+.skill-content :deep(h3),
+.skill-content :deep(h4),
+.skill-content :deep(h5),
+.skill-content :deep(h6) {
   color: var(--p-text-color);
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  overflow-x: auto;
-  font-size: 0.85rem;
+  font-weight: 700;
+  margin: 1.5rem 0 0.75rem 0;
 }
 
-.readme-content :deep(code) {
-  font-family: ui-monospace, monospace;
-  font-size: 0.85em;
+.skill-content :deep(h1:first-child),
+.skill-content :deep(h2:first-child),
+.skill-content :deep(h3:first-child) {
+  margin-top: 0;
+}
+
+.skill-content :deep(h1) { font-size: 1.4rem; }
+.skill-content :deep(h2) { font-size: 1.2rem; }
+.skill-content :deep(h3) { font-size: 1.05rem; }
+
+.skill-content :deep(p) {
+  margin-bottom: 0.85rem;
+}
+
+.skill-content :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.skill-content :deep(a) {
+  color: var(--p-primary-color);
+  text-decoration: none;
+}
+
+.skill-content :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.skill-content :deep(code) {
+  font-family: 'SF Mono', ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+  background: var(--p-surface-950, #09090b);
+  color: var(--p-primary-color);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.84em;
+}
+
+.skill-content :deep(pre) {
+  background: var(--p-surface-950, #09090b);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  margin-bottom: 0.85rem;
+  line-height: 1.55;
+}
+
+.skill-content :deep(pre code) {
+  background: none;
+  padding: 0;
+  color: var(--p-text-muted-color);
+  font-size: 0.82rem;
+}
+
+.skill-content :deep(ul),
+.skill-content :deep(ol) {
+  padding-left: 1.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.skill-content :deep(li) {
+  margin-bottom: 0.3rem;
+}
+
+.skill-content :deep(blockquote) {
+  border-left: 3px solid var(--p-primary-color);
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-bottom: 0.85rem;
+  color: var(--p-text-muted-color);
+}
+
+.skill-content :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.85rem;
+}
+
+.skill-content :deep(th),
+.skill-content :deep(td) {
+  border: 1px solid var(--p-content-border-color);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.84rem;
+}
+
+.skill-content :deep(th) {
+  background: var(--p-surface-950, #09090b);
+  color: var(--p-text-color);
+  font-weight: 600;
+}
+
+.skill-content :deep(img) {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.skill-content :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--p-content-border-color);
+  margin: 1.25rem 0;
 }
 
 .license-text {

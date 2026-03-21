@@ -5,8 +5,10 @@
 #include <fstream>
 #include <regex>
 #include <sstream>
+#include <stdexcept>
 
 #include "ionclaw/tool/Platform.hpp"
+#include "ionclaw/tool/builtin/ToolHelper.hpp"
 #include "ionclaw/util/EmbeddedResources.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 #include "spdlog/spdlog.h"
@@ -23,9 +25,14 @@ namespace agent
 const std::string SkillsLoader::SKILL_FILENAME = "SKILL.md";
 
 SkillsLoader::SkillsLoader(const std::string &projectPath, const std::string &workspacePath)
-    : projectSkillsDir(projectPath.empty() ? "" : projectPath + "/skills")
+    : projectRoot(projectPath)
+    , projectSkillsDir(projectPath + "/skills")
     , workspaceSkillsDir(workspacePath.empty() ? "" : workspacePath + "/skills")
 {
+    if (projectPath.empty())
+    {
+        throw std::invalid_argument("SkillsLoader: projectPath is required");
+    }
 }
 
 // scan a directory for skill folders containing SKILL.md
@@ -288,7 +295,7 @@ std::vector<SkillInfo> SkillsLoader::listSkills() const
             info.always = metadata.value("always", false);
             info.available = true;
             info.source = resolveSource(path);
-            info.location = path;
+            info.location = ionclaw::tool::builtin::ToolHelper::toRelativePath(path, projectRoot);
 
             // extract publisher from key prefix
             auto slashPos = key.find('/');

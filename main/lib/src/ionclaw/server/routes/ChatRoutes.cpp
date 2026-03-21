@@ -6,10 +6,12 @@
 #include <fstream>
 #include <iomanip>
 #include <sstream>
+#include <unordered_map>
 
 #include "Poco/Net/HTMLForm.h"
 #include "Poco/Net/PartHandler.h"
 
+#include "ionclaw/session/SessionKeyUtils.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 #include "spdlog/spdlog.h"
 
@@ -74,22 +76,24 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
             return;
         }
 
-        // strip channel prefix from session_id to avoid double prefix
-        // client sends "web:{uuid}", InboundMessage::sessionKey() will add "web:" back
-        auto chatId = sessionId;
-        auto colonPos = chatId.find(':');
+        // extract channel and chatId from session_id (supports agent-scoped keys)
+        std::string channel = "web";
+        std::string chatId = sessionId;
 
-        if (colonPos != std::string::npos)
+        if (sessionId.find(':') != std::string::npos)
         {
-            chatId = chatId.substr(colonPos + 1);
+            channel = ionclaw::session::SessionKeyUtils::extractChannel(sessionId);
+            chatId = ionclaw::session::SessionKeyUtils::extractChatId(sessionId);
         }
 
         // create task for tracking
         auto taskTitle = message.empty() ? "[media]" : ionclaw::util::StringHelper::utf8SafeTruncate(message, 100);
 
+        // base key for queue coordination and event routing
+        auto sessionKey = channel + ":" + chatId;
+
         // persist the user message immediately so the session exists on disk
         // before the async agent loop picks it up (page refresh always shows it)
-        auto sessionKey = "web:" + chatId;
         sessionManager->ensureSession(sessionKey);
 
         auto task = taskManager->createTask(
@@ -267,16 +271,37 @@ void Routes::handleChatUpload(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
 void Routes::handleChatSessions(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp)
 {
     auto sessions = sessionManager->listSessions();
-    nlohmann::json result = nlohmann::json::array();
+
+    // deduplicate by base key — agent-scoped sessions take priority
+    std::unordered_map<std::string, size_t> baseKeyIndex;
+    std::vector<const ionclaw::session::SessionInfo *> deduped;
 
     for (const auto &info : sessions)
     {
+        auto baseKey = ionclaw::session::SessionKeyUtils::extractBaseKey(info.key);
+        auto it = baseKeyIndex.find(baseKey);
+
+        if (it == baseKeyIndex.end())
+        {
+            baseKeyIndex[baseKey] = deduped.size();
+            deduped.push_back(&info);
+        }
+        else if (ionclaw::session::SessionKeyUtils::isAgentScoped(info.key))
+        {
+            deduped[it->second] = &info;
+        }
+    }
+
+    nlohmann::json result = nlohmann::json::array();
+
+    for (const auto *info : deduped)
+    {
         result.push_back({
-            {"key", info.key},
-            {"created_at", info.createdAt},
-            {"updated_at", info.updatedAt},
-            {"display_name", info.displayName},
-            {"channel", info.channel},
+            {"key", ionclaw::session::SessionKeyUtils::extractBaseKey(info->key)},
+            {"created_at", info->createdAt},
+            {"updated_at", info->updatedAt},
+            {"display_name", info->displayName},
+            {"channel", ionclaw::session::SessionKeyUtils::extractChannel(info->key)},
         });
     }
 
@@ -288,19 +313,32 @@ void Routes::handleChatSession(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSe
     try
     {
         auto sessionKey = resolveSessionKey(sessionId);
+
+        // resolve to agent-scoped key when a base key is provided
+        if (!ionclaw::session::SessionKeyUtils::isAgentScoped(sessionKey))
+        {
+            for (const auto &info : sessionManager->listSessions())
+            {
+                if (ionclaw::session::SessionKeyUtils::isAgentScoped(info.key) &&
+                    ionclaw::session::SessionKeyUtils::extractBaseKey(info.key) == sessionKey)
+                {
+                    sessionKey = info.key;
+                    break;
+                }
+            }
+        }
+
         auto messages = sessionManager->getHistory(sessionKey);
 
-        // getHistory loads from disk if the session file exists;
-        // if messages are empty, check whether the session actually exists
-        // before calling getOrCreate (which would create it as a side effect)
         if (messages.empty())
         {
-            auto sessions = sessionManager->listSessions();
+            // check if session exists but has no messages
             bool found = false;
 
-            for (const auto &info : sessions)
+            for (const auto &info : sessionManager->listSessions())
             {
-                if (info.key == sessionKey)
+                if (info.key == sessionKey ||
+                    ionclaw::session::SessionKeyUtils::extractBaseKey(info.key) == sessionKey)
                 {
                     found = true;
                     break;
@@ -315,6 +353,7 @@ void Routes::handleChatSession(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSe
         }
 
         auto session = sessionManager->getOrCreate(sessionKey);
+        auto baseKey = ionclaw::session::SessionKeyUtils::extractBaseKey(sessionKey);
 
         nlohmann::json msgArray = nlohmann::json::array();
 
@@ -324,7 +363,7 @@ void Routes::handleChatSession(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSe
         }
 
         sendJson(resp, {
-                           {"key", sessionKey},
+                           {"key", baseKey},
                            {"messages", msgArray},
                            {"live_state", session.liveState},
                            {"created_at", session.createdAt},
@@ -342,8 +381,19 @@ void Routes::handleChatSessionDelete(Poco::Net::HTTPServerRequest &, Poco::Net::
     try
     {
         auto sessionKey = resolveSessionKey(sessionId);
-        sessionManager->deleteSession(sessionKey);
-        dispatcher->broadcast("sessions:updated", {});
+        auto baseKey = ionclaw::session::SessionKeyUtils::extractBaseKey(sessionKey);
+
+        // delete both agent-scoped and base key sessions
+        for (const auto &info : sessionManager->listSessions())
+        {
+            if (info.key == sessionKey || info.key == baseKey ||
+                ionclaw::session::SessionKeyUtils::extractBaseKey(info.key) == baseKey)
+            {
+                sessionManager->deleteSession(info.key);
+            }
+        }
+
+        dispatcher->broadcast("sessions:updated", nlohmann::json::object());
         sendJson(resp, {{"status", "deleted"}});
     }
     catch (const std::exception &e)

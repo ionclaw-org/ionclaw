@@ -75,6 +75,24 @@ function formatDuration(ms) {
   const rm = m % 60
   return `${h}h ${rm}m`
 }
+
+function formatTokens(n) {
+  if (!n) return '0'
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
+  return String(n)
+}
+
+const tokenSummary = computed(() => {
+  const u = props.task.usage
+  if (!u || !u.total_tokens) return null
+  return {
+    total: u.total_tokens,
+    prompt: u.prompt_tokens || 0,
+    completion: u.completion_tokens || 0,
+    cacheRead: u.cache_read_tokens || 0,
+  }
+})
 </script>
 
 <template>
@@ -121,6 +139,9 @@ function formatDuration(ms) {
         </span>
       </div>
       <div class="task-meta-right">
+        <span v-if="tokenSummary" class="metric-badge" :title="`Prompt: ${formatTokens(tokenSummary.prompt)} | Completion: ${formatTokens(tokenSummary.completion)}${tokenSummary.cacheRead ? ' | Cache: ' + formatTokens(tokenSummary.cacheRead) : ''}`">
+          <i class="pi pi-bolt"></i> {{ formatTokens(tokenSummary.total) }}
+        </span>
         <span v-if="task.tool_count" class="metric-badge" title="Tool calls">
           <i class="pi pi-wrench"></i> {{ task.tool_count }}
         </span>

@@ -8,15 +8,10 @@ namespace ionclaw
 namespace platform
 {
 
-namespace
-{
-
-std::string platformName()
+std::string PlatformBridge::platformName()
 {
     return tool::Platform::current();
 }
-
-} // namespace
 
 PlatformBridge::PlatformBridge()
     : handler([](const std::string &function, const nlohmann::json & /*params*/) -> std::string

@@ -67,8 +67,10 @@ agents:
       max_history: 500           # int  -- Maximum messages before trimming. 0 = no limit.
       context_tokens: 0          # int  -- Context window cap in tokens. 0 = use model limit.
       channel_history_limits:    # dict -- Per-channel override for max_history.
-        # telegram: 200          #         Key = channel prefix, value = max messages.
-        # web: 1000              #         Channels not listed use max_history.
+        # telegram: 100          #         Default: 100. Persistent per-user sessions.
+        # mcp: 100               #         Default: 100. Persistent per-client sessions.
+        # heartbeat: 4            #         Default: 4. Cleared before each tick.
+        # web: 500               #         Channels not listed use max_history.
     model_params:                # dict -- Model parameters passed to the LLM provider.
       # temperature: 0.7         # float -- Sampling temperature.
       # max_tokens: 4096         # int  -- Maximum response tokens.
@@ -165,6 +167,8 @@ storage:
 heartbeat:
   enabled: false                # bool -- Enable periodic heartbeat.
   # interval: 1800              # int  -- Seconds between checks. Default: 1800.
+  # agent: ""                   # str  -- Agent to handle heartbeats. Use a dedicated agent
+                                #         with a cheaper model for token savings.
 
 # ---------------------------------------------------------------------------
 # Transcription
@@ -205,7 +209,10 @@ Each agent's workspace path is resolved at startup relative to the project root 
 File-related tools are restricted to (restriction is always enforced by the backend):
 
 1. The agent's own workspace directory.
-2. The shared `public/` directory at the project root.
+2. The project root directory.
+3. The shared `public/` directory at the project root.
+
+For relative paths, the tool resolves against the workspace first, then the project root. This allows agents to read project-level files (e.g., skills in `skills/`) without requiring the workspace to contain them.
 
 File tools (`read_file`, `write_file`, `edit_file`, `list_dir`), HTTP client `download_path`/`upload_file`, and the exec working directory respect these boundaries. Paths outside them raise an error.
 
@@ -220,14 +227,25 @@ The `tools` field on each agent is a list of tool names. When set, only tools wh
 
 ### Per-channel history limits
 
-The `channel_history_limits` map under `agent_params` allows overriding `max_history` per channel. The key is the channel prefix (the part before `:` in the session key, e.g. `web`, `telegram`). Sessions whose channel prefix matches a key use that limit; all others fall back to the global `max_history`.
+The `channel_history_limits` map under `agent_params` allows overriding `max_history` per channel. The key is the channel name extracted from the session key (e.g. `web`, `telegram`, `mcp`). This works with both base keys (`web:chatId`) and agent-scoped keys (`agent:main:web:chatId`) via `SessionKeyUtils::extractChannel()`. Sessions whose channel matches a key use that limit; all others use the global `max_history`.
+
+Default limits are applied automatically for channels with persistent sessions:
+
+| Channel | Default | Reason |
+|---------|---------|--------|
+| `heartbeat` | 4 | Session cleared before each tick; safety net only |
+| `telegram` | 100 | Persistent per-user sessions |
+| `mcp` | 100 | Persistent per-client sessions |
+| `web` | 500 | Uses global `max_history` |
+
+You can override any default in config:
 
 ```yaml
 agent_params:
   max_history: 500
   channel_history_limits:
-    telegram: 200   # Telegram sessions keep at most 200 messages
-    web: 1000       # Web sessions keep at most 1000 messages
+    telegram: 50    # More aggressive for Telegram
+    mcp: 200        # More context for MCP clients
 ```
 
 ### Tool policy

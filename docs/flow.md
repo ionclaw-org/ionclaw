@@ -270,7 +270,7 @@ In all cases, the message becomes an `InboundMessage`:
 | `metadata` | Extra data (`task_id`, `message_saved`, etc.) |
 | `queueMode` | Optional override for queue mode resolution |
 
-The session key is derived as `channel:chatId` (e.g., `web:direct`).
+The base session key is derived as `channel:chatId` (e.g., `web:direct`). After the Orchestrator resolves the target agent, it builds the agent-scoped key: `agent:{agentId}:{channel}:{chatId}` (e.g., `agent:main:web:direct`). Each agent maintains its own conversation history under its scoped key.
 
 ---
 
@@ -350,7 +350,7 @@ The 500ms timeout ensures the stop flag is checked regularly for graceful shutdo
 
 ### Routing Steps
 
-1. **Extract session key**: `message.sessionKey()` → `"web:direct"`
+1. **Extract base key**: `message.sessionKey()` → `"web:direct"`
 2. **Fire hook**: `MessageReceived`
 3. **Resolve queue settings**: inline → per-channel → global
 4. **Check if session is active**: maintained in `activeTurns_` map
@@ -361,7 +361,7 @@ The 500ms timeout ensures the stop flag is checked regularly for graceful shutdo
 
 When multiple agents are configured, the `Classifier` uses an LLM call to determine the best agent. It analyzes the user's message plus recent conversation history and returns the target agent name. For single-agent setups, messages go directly to the default agent with no classification overhead.
 
-**Session affinity**: Once an agent handles a session, the affinity is stored in `session.liveState["agentAffinity"]`. Subsequent messages to the same session go to the same agent — the classifier is not called again for sessions that already have affinity.
+**Session affinity**: Once an agent handles a session, the affinity is stored in the base key's `session.liveState["agentAffinity"]`. The classifier always re-evaluates on each message (affinity is not sticky), but the previous affinity provides context for history lookup.
 
 ### Per-Agent Concurrency
 
@@ -371,18 +371,21 @@ Each agent has a configurable `maxConcurrent` limit (default: 1). If the agent i
 
 `processMessageDirect()` executes the following sequence:
 
-1. Drain announce queue (collect subagent completion results)
-2. Resolve target agent (affinity → classify → fallback to first)
-3. Enforce per-agent concurrency limits
-4. Create `ActiveTurnHandle` (tracks agent name, task ID, start time, abort flag)
-5. Fire `AgentTurnStart` hook
-6. Fire `BeforePromptBuild` hook
-7. Build system prompt via `ContextBuilder`
-8. Call `AgentLoop::processMessage()` with event broadcast callback
-9. Clear active turn
-10. Fire `MessageSent` and `AgentTurnEnd` hooks
-11. Handle subagent completion (if this was a subagent turn)
-12. Drain session queue (process followup/collect items)
+1. Drain announce queue (collect subagent completion results, keyed by base key)
+2. Resolve target agent (override → classify → affinity → default)
+3. **Build agent-scoped session key**: `agent:{agentId}:{channel}:{chatId}`
+4. Mark subagent session (if applicable)
+5. Enforce per-agent concurrency limits
+6. Create `ActiveTurnHandle` (keyed by base key for queue coordination)
+7. Fire `AgentTurnStart` hook (with agent-scoped key)
+8. Fire `BeforePromptBuild` hook
+9. Build system prompt via `ContextBuilder`
+10. Pass `agent_session_key` in message metadata to AgentLoop
+11. Call `AgentLoop::processMessage()` with event broadcast callback
+12. Clear active turn (base key)
+13. Fire `MessageSent` and `AgentTurnEnd` hooks (agent-scoped key)
+14. Handle subagent completion (if this was a subagent turn)
+15. Drain session queue (base key)
 
 ---
 
@@ -853,7 +856,7 @@ Step 2: SpawnTool executes (for each spawn call)
       │
       ├── 1. Validate limits (depth < MAX_DEPTH, children < MAX_CHILDREN)
       ├── 2. Fire SubagentSpawning hook (can block the spawn)
-      ├── 3. Generate child session key: "web:{new-uuid}"
+      ├── 3. Generate agent-scoped child session key: "agent:{agentId}:{channel}:{new-uuid}"
       ├── 4. Create task in TaskManager (status=DOING)
       ├── 5. Register run in SubagentRegistry (status=Pending)
       │       └── resolve timeout: spawn param > config default > 300s
@@ -1109,7 +1112,13 @@ The `SessionManager` provides JSONL-based conversation persistence.
 
 ### Session Key Format
 
-Sessions are identified by `channel:chatId` (e.g., `web:direct`, `telegram:12345`).
+Sessions use agent-scoped keys: `agent:{agentId}:{channel}:{chatId}` (e.g., `agent:main:web:direct`, `agent:ops:telegram:12345`). This gives each agent its own conversation history per chat.
+
+**Key types:**
+- **Base key** (`channel:chatId`) — used for queue coordination, active turn tracking, and web client event routing
+- **Agent-scoped key** (`agent:{agentId}:{channel}:{chatId}`) — used for session storage, history, and hooks
+
+The `SessionKeyUtils` class provides utilities: `build()`, `parse()`, `extractChannel()`, `extractChatId()`, `extractBaseKey()`, `isAgentScoped()`.
 
 ### Persistence
 
@@ -1121,6 +1130,15 @@ Each session is stored as a `.jsonl` file (one JSON message per line). On load, 
 - **Per-session mutex** protects individual session read/write operations
 - `getOrCreate()` returns sessions by **value** (copy), not reference — prevents use-after-free from concurrent cache eviction
 - `ensureSession()` is available for callers that only need creation (no copy overhead)
+
+### Message Persistence
+
+User messages are persisted at two levels:
+
+1. **Channel pre-save** (ChatRoutes, McpDispatcher, TelegramRunner) — saves the user message under the **base key** immediately, so the session exists on disk before the async agent loop picks it up. This ensures page refreshes show the message.
+2. **AgentLoop save** — saves the user message under the **agent-scoped key**, giving each agent its own conversation history. Synthetic messages (steer injections, wake prompts) are skipped.
+
+The session listing deduplicates by base key, preferring agent-scoped sessions.
 
 ### Session Features
 

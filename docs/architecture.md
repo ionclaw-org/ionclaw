@@ -393,6 +393,7 @@ This is separate from the `tools` field (which controls tool registration). Tool
 
 ### Sessions
 
+- **SessionKeyUtils** (`session/SessionKeyUtils.hpp`) — Utility for building and parsing agent-scoped session keys. The key format is `agent:{agentId}:{channel}:{chatId}`, which gives each agent its own conversation history per chat. Provides `build()`, `parse()`, `extractChannel()`, `extractChatId()`, `extractBaseKey()`, and `isAgentScoped()`.
 - **SessionManager** (`session/SessionManager.hpp`) — Manages conversation sessions with JSONL-based persistence. Includes JSONL repair on load: corrupt lines are skipped with a `.bak` backup created automatically. Supports abort cutoff marking for recovery after crashes.
 - **SessionSweeper** (`session/SessionSweeper.hpp`) — Manages session disk budget enforcement based on configurable high-water ratios.
 
@@ -483,6 +484,8 @@ Project initialization is a separate step (`ionclaw_project_init` or `ionclaw-se
 - **Abandoned tool call flush** — When the agent loop is stopped or aborted mid-batch, synthetic error results are injected for any tool calls that didn't execute, preventing orphaned tool call entries in the transcript.
 - **Transcript repair** — After history trimming, `repairToolUseResultPairing()` fixes orphaned tool calls, duplicate results, and missing synthetic responses to maintain a valid message sequence. AnthropicProvider additionally merges consecutive tool result messages into a single user message (Anthropic requires all tool_results in one message immediately after the assistant's tool_use).
 - **Error message redaction** — API keys, tokens, and bearer credentials are automatically redacted from error messages before they reach the user or logs.
+- **Tool result redaction** — Sensitive tokens (API keys, bearer tokens, env-style secrets, PEM keys, platform-specific tokens) are automatically redacted from tool output before adding to the conversation context. 14 regex patterns cover OpenAI, GitHub, Slack, Google, Perplexity, npm, Telegram, and generic credential formats.
+- **Lightweight channel context** — Heartbeat and cron channels skip bootstrap files, memory, and skills sections in the system prompt, saving ~15K tokens per execution. Only identity, tools, and channel-specific guidance are included.
 - **Tool loop detection** — Four-strategy detector prevents infinite loops: generic repeat, ping-pong, poll-no-progress, and global-no-progress. Circuit breaker stops execution after 30 identical calls.
 - **Spawn-wake loop prevention** — System prompt instructs parent agents with `spawn` tool to use a push-based model (wait for completion events, no polling), track expected children, and reply `[SILENT]` for late arrivals. AgentLoop detects `[SILENT]` and suppresses delivery, falling back to previously sent content.
 - **Hook-based blocking** — BeforeToolCall and SubagentSpawning hooks can block execution, providing a policy enforcement layer for tool access control and subagent governance.

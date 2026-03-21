@@ -113,10 +113,10 @@ std::string ImageGeneratorHelper::extractModelId(const std::string &model)
 }
 
 std::vector<std::string> ImageGeneratorHelper::resolveReferencePaths(const nlohmann::json &params,
+                                                                     const std::string &projectPath,
                                                                      const std::string &workspacePath,
                                                                      const std::string &publicPath,
-                                                                     bool restrictToWorkspace,
-                                                                     const std::string &projectPath)
+                                                                     bool restrictToWorkspace)
 {
     std::vector<std::string> resolved;
 
@@ -141,7 +141,7 @@ std::vector<std::string> ImageGeneratorHelper::resolveReferencePaths(const nlohm
 
         try
         {
-            auto full = tool::builtin::ToolHelper::validateAndResolvePath(workspacePath, refPath, publicPath, restrictToWorkspace, projectPath);
+            auto full = tool::builtin::ToolHelper::validateAndResolvePath(projectPath, workspacePath, refPath, publicPath, restrictToWorkspace);
             resolved.push_back(full);
         }
         catch (const std::exception &e)

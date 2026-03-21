@@ -26,9 +26,9 @@ Routes::Routes(
     std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher,
     std::shared_ptr<WebSocketManager> wsManager,
     const std::string &webDir,
+    const std::string &projectRoot,
     const std::string &publicDir,
-    const std::string &workspaceDir,
-    const std::string &projectRoot)
+    const std::string &workspaceDir)
     : config(std::move(config))
     , auth(std::move(auth))
     , orchestrator(std::move(orchestrator))
@@ -41,9 +41,9 @@ Routes::Routes(
     , dispatcher(std::move(dispatcher))
     , wsManager(std::move(wsManager))
     , webDir(webDir)
+    , projectRoot(projectRoot)
     , publicDir(publicDir)
     , workspaceDir(workspaceDir)
-    , projectRoot(projectRoot)
 {
 }
 

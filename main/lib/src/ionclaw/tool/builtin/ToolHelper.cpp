@@ -50,9 +50,9 @@ bool ToolHelper::isPathWithinWorkspace(const std::string &workspacePath, const s
     return target == workspace.substr(0, workspace.size() - 1) || target.rfind(workspace, 0) == 0;
 }
 
-std::string ToolHelper::validateAndResolvePath(const std::string &workspacePath, const std::string &rawPath,
-                                               const std::string &publicPath, bool restrictToWorkspace,
-                                               const std::string &projectPath)
+std::string ToolHelper::validateAndResolvePath(const std::string &projectPath, const std::string &workspacePath,
+                                               const std::string &rawPath, const std::string &publicPath,
+                                               bool restrictToWorkspace)
 {
     if (workspacePath.empty())
     {
@@ -65,9 +65,19 @@ std::string ToolHelper::validateAndResolvePath(const std::string &workspacePath,
     {
         resolved = normalizePath(publicPath, rawPath.substr(7));
     }
-    else
+    else if (fs::path(rawPath).is_absolute())
     {
         resolved = normalizePath(workspacePath, rawPath);
+    }
+    else
+    {
+        // relative path: search workspace first, then project root
+        resolved = normalizePath(workspacePath, rawPath);
+
+        if (!fs::exists(resolved) && !projectPath.empty() && projectPath != workspacePath)
+        {
+            resolved = normalizePath(projectPath, rawPath);
+        }
     }
 
     if (restrictToWorkspace)
@@ -83,6 +93,28 @@ std::string ToolHelper::validateAndResolvePath(const std::string &workspacePath,
     }
 
     return resolved;
+}
+
+std::string ToolHelper::toRelativePath(const std::string &absolutePath, const std::string &rootPath)
+{
+    if (rootPath.empty() || absolutePath.empty())
+    {
+        return absolutePath;
+    }
+
+    auto root = fs::weakly_canonical(fs::path(rootPath)).string();
+
+    if (root.back() != '/')
+    {
+        root += '/';
+    }
+
+    if (absolutePath.rfind(root, 0) == 0)
+    {
+        return absolutePath.substr(root.size());
+    }
+
+    return absolutePath;
 }
 
 std::string ToolHelper::truncateOutput(const std::string &output, int contextWindowTokens)

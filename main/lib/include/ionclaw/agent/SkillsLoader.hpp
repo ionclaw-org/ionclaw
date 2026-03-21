@@ -42,6 +42,7 @@ public:
     std::map<std::string, std::string> discoverSkills() const;
 
 private:
+    std::string projectRoot;
     std::string projectSkillsDir;
     std::string workspaceSkillsDir;
 

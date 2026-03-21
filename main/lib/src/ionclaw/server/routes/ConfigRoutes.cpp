@@ -5,6 +5,7 @@
 #include "spdlog/spdlog.h"
 
 #include "ionclaw/config/ConfigLoader.hpp"
+#include "ionclaw/tool/builtin/ToolHelper.hpp"
 
 namespace ionclaw
 {
@@ -27,11 +28,14 @@ void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
 
     for (const auto &[name, agent] : config->agents)
     {
+        // convert absolute workspace to relative for display
+        auto relativeWorkspace = ionclaw::tool::builtin::ToolHelper::toRelativePath(agent.workspace, config->projectPath);
+
         agents[name] = {
             {"model", agent.model},
             {"description", agent.description},
             {"instructions", agent.instructions},
-            {"workspace", agent.workspace},
+            {"workspace", relativeWorkspace},
             {"tools", agent.tools},
             {"agent_params", {
                                  {"max_iterations", agent.agentParams.maxIterations},
@@ -117,7 +121,7 @@ void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
     result["image"] = {{"model", config->image.model}, {"aspect_ratio", config->image.aspectRatio}, {"size", config->image.size}};
     result["transcription"] = {{"model", config->transcription.model}};
     result["classifier"] = {{"model", config->classifier.model}};
-    result["heartbeat"] = {{"enabled", config->heartbeat.enabled}, {"interval", config->heartbeat.interval}};
+    result["heartbeat"] = {{"enabled", config->heartbeat.enabled}, {"interval", config->heartbeat.interval}, {"agent", config->heartbeat.agent}};
 
     // tools section with sub-sections
     result["tools"] = {
@@ -331,7 +335,12 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
 
                 if (exec.contains("timeout"))
                 {
-                    config->tools.execTimeout = exec["timeout"].get<int>();
+                    auto timeout = exec["timeout"].get<int>();
+
+                    if (timeout > 0)
+                    {
+                        config->tools.execTimeout = timeout;
+                    }
                 }
             }
 
@@ -351,7 +360,12 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
 
                 if (ws.contains("max_results"))
                 {
-                    config->tools.webSearchMaxResults = ws["max_results"].get<int>();
+                    auto maxResults = ws["max_results"].get<int>();
+
+                    if (maxResults >= 1 && maxResults <= 20)
+                    {
+                        config->tools.webSearchMaxResults = maxResults;
+                    }
                 }
             }
         }
@@ -585,6 +599,11 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
             {
                 config->heartbeat.interval = data["interval"].get<int>();
             }
+
+            if (data.contains("agent"))
+            {
+                config->heartbeat.agent = data["agent"].get<std::string>();
+            }
         }
         else if (section == "advanced")
         {
@@ -736,7 +755,7 @@ void Routes::handleConfigRestart(Poco::Net::HTTPServerRequest &, Poco::Net::HTTP
         orchestrator->restart(*config);
 
         // restart heartbeat service with updated config
-        heartbeatService->restart(config->heartbeat.interval, config->heartbeat.enabled);
+        heartbeatService->restart(config->heartbeat.interval, config->heartbeat.enabled, config->heartbeat.agent);
 
         // restart cron service (jobs persist to cron_jobs.json, independent of config)
         cronService->stop();
@@ -773,6 +792,44 @@ void Routes::handleConfigRestart(Poco::Net::HTTPServerRequest &, Poco::Net::HTTP
     catch (const std::exception &e)
     {
         spdlog::error("[Restart] Failed: {}", e.what());
+        sendError(resp, e.what(), 500);
+    }
+}
+
+void Routes::handleConfigDeleteItem(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp, const std::string &section, const std::string &name)
+{
+    try
+    {
+        std::lock_guard<std::mutex> lock(configMutex_);
+
+        bool found = false;
+
+        if (section == "agents")
+        {
+            found = config->agents.erase(name) > 0;
+        }
+        else if (section == "credentials")
+        {
+            found = config->credentials.erase(name) > 0;
+        }
+        else if (section == "providers")
+        {
+            found = config->providers.erase(name) > 0;
+        }
+
+        if (!found)
+        {
+            sendError(resp, "Not found: " + name, 404);
+            return;
+        }
+
+        auto configPath = config->projectPath + "/config.yml";
+        ionclaw::config::ConfigLoader::save(*config, configPath);
+
+        sendJson(resp, {{"status", "deleted"}, {"section", section}, {"name", name}});
+    }
+    catch (const std::exception &e)
+    {
         sendError(resp, e.what(), 500);
     }
 }

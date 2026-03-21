@@ -6,6 +6,7 @@
 #include <sstream>
 
 #include "ionclaw/bus/Events.hpp"
+#include "ionclaw/session/SessionKeyUtils.hpp"
 #include "spdlog/spdlog.h"
 
 namespace ionclaw
@@ -20,13 +21,17 @@ const char *HeartbeatService::HEARTBEAT_PROMPT =
 
 HeartbeatService::HeartbeatService(
     std::shared_ptr<ionclaw::bus::MessageBus> bus,
+    std::shared_ptr<ionclaw::session::SessionManager> sessionManager,
     const std::string &workspacePath,
     int interval,
-    bool enabled)
+    bool enabled,
+    const std::string &agent)
     : bus(std::move(bus))
+    , sessionManager(std::move(sessionManager))
     , heartbeatFilePath(workspacePath + "/HEARTBEAT.md")
     , interval(interval)
     , enabled(enabled)
+    , agent(agent)
 {
 }
 
@@ -62,11 +67,15 @@ void HeartbeatService::stop()
     spdlog::info("[Heartbeat] stopped");
 }
 
-void HeartbeatService::restart(int newInterval, bool newEnabled)
+void HeartbeatService::restart(int newInterval, bool newEnabled, const std::string &newAgent)
 {
     stop();
     interval = newInterval;
     enabled = newEnabled;
+    {
+        std::lock_guard<std::mutex> lock(agentMutex);
+        agent = newAgent;
+    }
     start();
 }
 
@@ -109,6 +118,15 @@ void HeartbeatService::tick()
         return;
     }
 
+    // single lock scope for agent name access
+    std::lock_guard<std::mutex> lock(agentMutex);
+
+    auto agentName = agent.empty() ? "main" : agent;
+
+    // clear previous heartbeat session for isolated execution
+    auto agentSessionKey = ionclaw::session::SessionKeyUtils::build(agentName, "heartbeat", "heartbeat");
+    sessionManager->clearSession(agentSessionKey);
+
     // publish inbound message to trigger agent processing
     spdlog::info("[Heartbeat] sending tasks to agent");
 
@@ -117,6 +135,11 @@ void HeartbeatService::tick()
     msg.senderId = "heartbeat";
     msg.chatId = "heartbeat";
     msg.content = HEARTBEAT_PROMPT;
+
+    if (!agent.empty())
+    {
+        msg.metadata["agent_override"] = agent;
+    }
 
     bus->publishInbound(msg);
 }
@@ -135,12 +158,12 @@ std::string HeartbeatService::readHeartbeatFile() const
         return "";
     }
 
-    std::ostringstream content;
-    content << file.rdbuf();
-    return content.str();
+    std::ostringstream buf;
+    buf << file.rdbuf();
+    return buf.str();
 }
 
-bool HeartbeatService::isHeartbeatEmpty(const std::string &content) const
+bool HeartbeatService::isHeartbeatEmpty(const std::string &content)
 {
     if (content.empty())
     {

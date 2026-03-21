@@ -16,14 +16,8 @@ namespace ionclaw
 namespace agent
 {
 
-namespace
-{
-
-const double COMPACT_RATIO = 0.4;
-const int MAX_TOOL_RESULT_IN_SUMMARY = 2000;
-
 // build summary prompt with dynamic preserve instructions
-std::string buildSummaryPrompt(const CompactionConfig &config)
+std::string Compaction::buildSummaryPrompt(const CompactionConfig &config)
 {
     std::ostringstream prompt;
     prompt << "Summarize the conversation below into a concise recap. Preserve:\n";
@@ -68,7 +62,7 @@ std::string buildSummaryPrompt(const CompactionConfig &config)
 }
 
 // convert messages to flat text for summarization
-std::string messagesToText(const std::vector<ionclaw::provider::Message> &messages)
+std::string Compaction::messagesToText(const std::vector<ionclaw::provider::Message> &messages)
 {
     std::ostringstream parts;
 
@@ -92,13 +86,8 @@ std::string messagesToText(const std::vector<ionclaw::provider::Message> &messag
     return parts.str();
 }
 
-const int SUMMARY_MAX_RETRIES = 3;
-const int SUMMARY_RETRY_BASE_MS = 500;
-const int SUMMARY_RETRY_MAX_MS = 5000;
-const double SUMMARY_RETRY_JITTER = 0.2;
-
 // compute retry delay with exponential backoff and jitter
-int computeRetryDelay(int attempt)
+int Compaction::computeRetryDelay(int attempt)
 {
     static thread_local std::mt19937 rng(std::random_device{}());
 
@@ -109,7 +98,7 @@ int computeRetryDelay(int attempt)
 }
 
 // generate a conversation summary via llm with retry and fallback
-std::string generateSummary(
+std::string Compaction::generateSummary(
     const std::vector<ionclaw::provider::Message> &messages,
     std::shared_ptr<ionclaw::provider::LlmProvider> provider,
     const std::string &model,
@@ -215,13 +204,7 @@ std::string generateSummary(
     return "[summary unavailable after " + std::to_string(SUMMARY_MAX_RETRIES) + " attempts]";
 }
 
-// adaptive chunk ratio: adjust based on message density vs context window
-const double MIN_CHUNK_RATIO = 0.15;
-const double BASE_CHUNK_RATIO = 0.4;
-const int SUMMARIZATION_OVERHEAD_TOKENS = 4096;
-const double SAFETY_MARGIN = 1.2;
-
-int computeAdaptiveChunkSize(
+int Compaction::computeAdaptiveChunkSize(
     const std::vector<ionclaw::provider::Message> &messages,
     const std::string &model,
     const nlohmann::json &modelParams)
@@ -254,7 +237,7 @@ int computeAdaptiveChunkSize(
 }
 
 // chunked summarization: split into token-aware chunks, summarize each, then merge
-std::string generateChunkedSummary(
+std::string Compaction::generateChunkedSummary(
     const std::vector<ionclaw::provider::Message> &messages,
     std::shared_ptr<ionclaw::provider::LlmProvider> provider,
     const std::string &model,
@@ -325,7 +308,7 @@ std::string generateChunkedSummary(
 }
 
 // simple truncation fallback when summarization fails or times out
-std::string truncationFallback(const std::vector<ionclaw::provider::Message> &messages)
+std::string Compaction::truncationFallback(const std::vector<ionclaw::provider::Message> &messages)
 {
     std::ostringstream text;
     text << "[Conversation truncated due to summarization timeout]\n";
@@ -352,7 +335,7 @@ std::string truncationFallback(const std::vector<ionclaw::provider::Message> &me
 }
 
 // check if conversation has real content worth compacting
-bool hasRealConversationContent(const std::vector<ionclaw::provider::Message> &conversation)
+bool Compaction::hasRealConversationContent(const std::vector<ionclaw::provider::Message> &conversation)
 {
     for (const auto &msg : conversation)
     {
@@ -364,8 +347,6 @@ bool hasRealConversationContent(const std::vector<ionclaw::provider::Message> &c
 
     return false;
 }
-
-} // namespace
 
 // compact conversation by summarizing older messages
 std::vector<ionclaw::provider::Message> Compaction::compact(

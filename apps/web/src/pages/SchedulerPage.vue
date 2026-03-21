@@ -12,7 +12,10 @@ import DynamicForm from '../components/common/DynamicForm.vue'
 const api = useApi()
 const toast = useToast()
 const jobs = ref([])
-const showDialog = ref(false)
+const showCreateDialog = ref(false)
+const showEditDialog = ref(false)
+const showDeleteConfirm = ref(false)
+const deleteJobId = ref('')
 const loading = ref(true)
 
 const jobSchema = [
@@ -33,7 +36,7 @@ const jobSchema = [
   { name: 'at', type: 'datetime', label: 'Date/Time', visible_when: { type: 'at' } },
 ]
 
-const newJob = ref({
+const emptyJob = () => ({
   name: '',
   message: '',
   type: 'every',
@@ -42,9 +45,19 @@ const newJob = ref({
   at: null,
 })
 
+const newJob = ref(emptyJob())
+const editJob = ref(emptyJob())
+const editJobId = ref('')
+
 watch(() => newJob.value.type, (val) => {
   if (val === 'at' && !newJob.value.at) {
     newJob.value.at = new Date(Date.now() + 30 * 60 * 1000)
+  }
+})
+
+watch(() => editJob.value.type, (val) => {
+  if (val === 'at' && !editJob.value.at) {
+    editJob.value.at = new Date(Date.now() + 30 * 60 * 1000)
   }
 })
 
@@ -64,35 +77,73 @@ async function loadJobs() {
   }
 }
 
+function buildScheduleBody(form) {
+  const body = {
+    name: form.name,
+    message: form.message,
+  }
+  if (form.type === 'every') body.every_seconds = form.every_seconds
+  if (form.type === 'cron') body.cron_expr = form.cron_expr
+  if (form.type === 'at' && form.at) body.at = toUtcISO(form.at)
+  return body
+}
+
 async function createJob() {
   if (!newJob.value.message?.trim()) {
     toast.add({ severity: 'warn', summary: 'Validation', detail: 'Message is required', life: 3000 })
     return
   }
 
-  const body = {
-    name: newJob.value.name,
-    message: newJob.value.message,
-  }
-  if (newJob.value.type === 'every') body.every_seconds = newJob.value.every_seconds
-  if (newJob.value.type === 'cron') body.cron_expr = newJob.value.cron_expr
-  if (newJob.value.type === 'at' && newJob.value.at) body.at = toUtcISO(newJob.value.at)
-
   try {
-    await api.post('/scheduler/jobs', body)
+    await api.post('/scheduler/jobs', buildScheduleBody(newJob.value))
     toast.add({ severity: 'success', summary: 'Created', detail: 'Job created', life: 2000 })
-    showDialog.value = false
-    newJob.value = { name: '', message: '', type: 'every', every_seconds: 3600, cron_expr: '', at: null }
+    showCreateDialog.value = false
+    newJob.value = emptyJob()
     await loadJobs()
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
   }
 }
 
-async function removeJob(id) {
+function openEditDialog(job) {
+  editJobId.value = job.id
+  editJob.value = {
+    name: job.name || '',
+    message: job.payload?.message || '',
+    type: job.schedule.kind || 'every',
+    every_seconds: job.schedule.kind === 'every' ? Math.round(job.schedule.every_ms / 1000) : 3600,
+    cron_expr: job.schedule.kind === 'cron' ? job.schedule.expr : '',
+    at: job.schedule.kind === 'at' ? new Date(job.schedule.at_ms) : null,
+  }
+  showEditDialog.value = true
+}
+
+async function updateJob() {
+  if (!editJob.value.message?.trim()) {
+    toast.add({ severity: 'warn', summary: 'Validation', detail: 'Message is required', life: 3000 })
+    return
+  }
+
   try {
-    await api.del(`/scheduler/jobs/${id}`)
-    toast.add({ severity: 'info', summary: 'Removed', detail: 'Job deleted', life: 2000 })
+    await api.put(`/scheduler/jobs/${editJobId.value}`, buildScheduleBody(editJob.value))
+    toast.add({ severity: 'success', summary: 'Updated', detail: 'Job updated', life: 2000 })
+    showEditDialog.value = false
+    await loadJobs()
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
+  }
+}
+
+function promptDeleteJob(id) {
+  deleteJobId.value = id
+  showDeleteConfirm.value = true
+}
+
+async function confirmDeleteJob() {
+  showDeleteConfirm.value = false
+  try {
+    await api.del(`/scheduler/jobs/${deleteJobId.value}`)
+    toast.add({ severity: 'success', summary: 'Deleted', detail: 'Job deleted', life: 2000 })
     await loadJobs()
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
@@ -116,7 +167,7 @@ function statusSeverity(status) {
   <div class="scheduler-page">
     <div class="page-header">
       <h2>Scheduler</h2>
-      <Button label="Add Job" icon="pi pi-plus" size="small" @click="showDialog = true" />
+      <Button label="Add Job" icon="pi pi-plus" size="small" @click="showCreateDialog = true" />
     </div>
 
     <div v-if="loading" class="page-loading">
@@ -144,20 +195,39 @@ function statusSeverity(status) {
           </template>
         </Column>
         <Column field="state.run_count" header="Runs" sortable />
-        <Column header="Actions" style="width: 5rem">
+        <Column header="Actions" style="width: 7rem">
           <template #body="{ data }">
-            <Button icon="pi pi-trash" severity="danger" text size="small" @click="removeJob(data.id)" />
+            <div class="action-buttons">
+              <Button icon="pi pi-pencil" severity="secondary" text size="small" @click="openEditDialog(data)" />
+              <Button icon="pi pi-trash" severity="danger" text size="small" @click="promptDeleteJob(data.id)" />
+            </div>
           </template>
         </Column>
       </DataTable>
     </div>
 
-    <Dialog v-model:visible="showDialog" header="New Job" modal :style="{ width: '500px' }" :breakpoints="{ '768px': '95vw' }">
+    <Dialog v-model:visible="showCreateDialog" header="New Job" modal :style="{ width: '500px' }" :breakpoints="{ '768px': '95vw' }">
       <DynamicForm :schema="jobSchema" v-model="newJob" />
       <div class="dialog-footer">
-        <Button label="Cancel" severity="secondary" text @click="showDialog = false" />
+        <Button label="Cancel" severity="secondary" text @click="showCreateDialog = false" />
         <Button label="Create" icon="pi pi-check" @click="createJob" />
       </div>
+    </Dialog>
+
+    <Dialog v-model:visible="showEditDialog" header="Edit Job" modal :style="{ width: '500px' }" :breakpoints="{ '768px': '95vw' }">
+      <DynamicForm :schema="jobSchema" v-model="editJob" />
+      <div class="dialog-footer">
+        <Button label="Cancel" severity="secondary" text @click="showEditDialog = false" />
+        <Button label="Save" icon="pi pi-save" @click="updateJob" />
+      </div>
+    </Dialog>
+
+    <Dialog v-model:visible="showDeleteConfirm" header="Confirm Delete" :modal="true" :style="{ width: '24rem' }" :breakpoints="{ '768px': '90vw' }">
+      <p>Delete this scheduled job?</p>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text size="small" @click="showDeleteConfirm = false" />
+        <Button label="Delete" icon="pi pi-trash" severity="danger" size="small" @click="confirmDeleteJob" />
+      </template>
     </Dialog>
   </div>
 </template>
@@ -210,6 +280,11 @@ function statusSeverity(status) {
   padding: 3rem 1rem;
   color: var(--p-text-muted-color);
   gap: 0.75rem;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.25rem;
 }
 
 .dialog-footer {

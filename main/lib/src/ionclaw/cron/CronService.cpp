@@ -110,6 +110,42 @@ bool CronService::removeJob(const std::string &jobId)
     return true;
 }
 
+bool CronService::updateJob(const std::string &jobId, const CronJob &patch)
+{
+    std::lock_guard<std::mutex> lock(mutex);
+
+    auto it = std::find_if(jobs.begin(), jobs.end(),
+                           [&jobId](const CronJob &j)
+                           { return j.id == jobId; });
+
+    if (it == jobs.end())
+    {
+        return false;
+    }
+
+    // apply patch fields (non-empty values override)
+    if (!patch.name.empty())
+    {
+        it->name = patch.name;
+    }
+
+    if (!patch.payload.message.empty())
+    {
+        it->payload.message = patch.payload.message;
+    }
+
+    // update schedule if kind is set
+    if (!patch.schedule.kind.empty())
+    {
+        it->schedule = patch.schedule;
+        it->state.nextRunMs = computeNextRunMs(it->schedule);
+    }
+
+    persist();
+    spdlog::info("[CronService] job updated: {}", jobId);
+    return true;
+}
+
 std::vector<CronJob> CronService::listJobs() const
 {
     std::lock_guard<std::mutex> lock(mutex);

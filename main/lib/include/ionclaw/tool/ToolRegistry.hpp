@@ -34,6 +34,7 @@ public:
     std::vector<nlohmann::json> getOpenAiDefinitions() const;
     std::vector<nlohmann::json> getOpenAiDefinitions(const std::vector<std::string> &allowed) const;
     std::vector<nlohmann::json> getFlatDefinitions() const;
+    std::map<std::string, std::string> getToolDescriptions() const;
 
     static std::vector<std::string> applyToolPolicy(
         const std::vector<std::string> &toolNames,

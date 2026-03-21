@@ -39,6 +39,7 @@ public:
         bool deleteAfterRun);
 
     bool removeJob(const std::string &jobId);
+    bool updateJob(const std::string &jobId, const CronJob &patch);
     std::vector<CronJob> listJobs() const;
 
     static constexpr int TICK_INTERVAL_MS = 5000;

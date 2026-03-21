@@ -16,9 +16,8 @@ class ToolHelper
 public:
     static std::string normalizePath(const std::string &workspacePath, const std::string &rawPath);
     static bool isPathWithinWorkspace(const std::string &workspacePath, const std::string &resolvedPath);
-    static std::string validateAndResolvePath(const std::string &workspacePath, const std::string &rawPath,
-                                              const std::string &publicPath, bool restrictToWorkspace,
-                                              const std::string &projectPath);
+    static std::string validateAndResolvePath(const std::string &projectPath, const std::string &workspacePath, const std::string &rawPath, const std::string &publicPath, bool restrictToWorkspace);
+    static std::string toRelativePath(const std::string &absolutePath, const std::string &rootPath);
     static std::string truncateOutput(const std::string &output, int contextWindowTokens = 0);
     static std::string shellEscape(const std::string &input);
     static std::string escapeForJs(const std::string &input);

@@ -50,13 +50,9 @@ export const useChatStore = defineStore('chat', () => {
   const api = useApi()
   const messages = ref([])
   const sessions = ref([])
-  let stored = storage.getItem('chat_session')
-  // migrate bare UUIDs from older versions to full session keys
-  if (stored && !stored.includes(':')) {
-    stored = `web:${stored}`
-    storage.setItem('chat_session', stored)
-  }
-  const currentSessionId = ref(stored || `web:${uuidv4()}`)
+  const DEFAULT_SESSION = 'web:main'
+  const stored = storage.getItem('chat_session')
+  const currentSessionId = ref(stored || DEFAULT_SESSION)
   if (!stored) storage.setItem('chat_session', currentSessionId.value)
 
   const liveMessage = ref(null)

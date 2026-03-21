@@ -17,6 +17,7 @@
 #include "ionclaw/agent/Orchestrator.hpp"
 #include "ionclaw/agent/ToolLoopDetector.hpp"
 #include "ionclaw/provider/ProviderHelper.hpp"
+#include "ionclaw/session/SessionKeyUtils.hpp"
 #include "ionclaw/tool/builtin/MemorySaveTool.hpp"
 #include "ionclaw/transcription/TranscriptionProviderRegistry.hpp"
 #include "ionclaw/util/StringHelper.hpp"
@@ -29,21 +30,22 @@ namespace ionclaw
 namespace agent
 {
 
-namespace
+// graduated thinking level downgrade: high->medium->low->(empty = remove)
+std::string AgentLoop::pickFallbackThinkingLevel(const std::string &current)
 {
-
-// graduated thinking level downgrade: high→medium→low→(empty = remove)
-std::string pickFallbackThinkingLevel(const std::string &current)
-{
-    if (current == "high")
+    if (current == "high") {
         return "medium";
-    if (current == "medium")
+    }
+
+    if (current == "medium") {
         return "low";
+    }
+
     return "";
 }
 
 // flush synthetic error results for tool calls that were not completed (e.g. abort/stop mid-batch)
-void flushAbandonedToolCalls(
+void AgentLoop::flushAbandonedToolCalls(
     std::vector<ionclaw::provider::Message> &messages,
     const std::vector<ionclaw::provider::ToolCall> &toolCalls)
 {
@@ -60,14 +62,10 @@ void flushAbandonedToolCalls(
         }
         if (!hasResult)
         {
-            ContextBuilder::addToolResult(messages, toolCalls[ti].id,
-                                          toolCalls[ti].name,
-                                          "[tool call was not completed]");
+            ContextBuilder::addToolResult(messages, toolCalls[ti].id, toolCalls[ti].name, "[tool call was not completed]");
         }
     }
 }
-
-} // anonymous namespace
 
 // send a response for built-in commands (/new, /reset, /help) to all channels
 void AgentLoop::sendCommandResponse(const ionclaw::bus::InboundMessage &message, const std::string &sessionKey, const std::string &taskId, const std::string &agentName, const std::string &responseText, AgentEventCallback &callback)
@@ -270,6 +268,10 @@ std::string AgentLoop::formatToolSummary(const std::string &name, const nlohmann
     {
         return "Cron: " + truncateText(str("action"), maxSummary - 7);
     }
+    if (name == "agents_list")
+    {
+        return "List agents";
+    }
 
     // fallback: first key-value or empty
     if (args.is_object() && !args.empty())
@@ -456,7 +458,11 @@ void AgentLoop::processMessage(
     const std::string &systemPrompt,
     AgentEventCallback callback)
 {
-    auto sessionKey = message.sessionKey();
+    // use agent-scoped session key for storage, base key for event routing
+    auto sessionKey = (message.metadata.contains("agent_session_key") && message.metadata["agent_session_key"].is_string())
+                          ? message.metadata["agent_session_key"].get<std::string>()
+                          : message.sessionKey();
+    auto baseKey = message.sessionKey();
 
     // per-turn state lives on the stack, safe for concurrent calls on shared AgentLoop
     TurnState turnState;
@@ -513,14 +519,14 @@ void AgentLoop::processMessage(
     {
         sessionManager->clearSession(sessionKey);
         dispatcher->broadcast("sessions:updated", nlohmann::json::object());
-        sendCommandResponse(message, sessionKey, taskId, agentName, "Conversation cleared. How can I help you?", callback);
+        sendCommandResponse(message, baseKey, taskId, agentName, "Conversation cleared. How can I help you?", callback);
         return;
     }
 
     // handle /help command
     if (content == "/help")
     {
-        sendCommandResponse(message, sessionKey, taskId, agentName,
+        sendCommandResponse(message, baseKey, taskId, agentName,
                             "Available commands:\n  /new - Start a new session\n  /reset - Reset the current session\n  /help - Show this help message\n",
                             callback);
         return;
@@ -530,6 +536,7 @@ void AgentLoop::processMessage(
     ionclaw::tool::ToolContext toolContext;
     toolContext.agentName = agentName;
     toolContext.sessionKey = sessionKey;
+    toolContext.projectPath = configPtr ? configPtr->projectPath : "";
 
     if (!agentConfig.workspace.empty())
     {
@@ -537,7 +544,6 @@ void AgentLoop::processMessage(
     }
 
     toolContext.publicPath = publicPath;
-    toolContext.projectPath = configPtr ? configPtr->projectPath : "";
 
     // wrap messageSender to capture content delivered via message tool
     // (used as response fallback when model returns empty after tool execution)
@@ -616,8 +622,15 @@ void AgentLoop::processMessage(
             }
         }
 
-        // save user message to session (skip if already persisted by channel)
-        if (!messageSaved)
+        // save user message to the agent-scoped session
+        // channels pre-save under base key for immediate persistence; we also persist
+        // under the agent-scoped key so each agent has its own conversation history
+        // skip synthetic messages (steer injections, wake prompts) — not real user input
+        bool isSynthetic = message.metadata.contains("synthetic") &&
+                           message.metadata["synthetic"].is_boolean() &&
+                           message.metadata["synthetic"].get<bool>();
+
+        if (!isSynthetic)
         {
             ionclaw::session::SessionMessage userSessionMsg;
             userSessionMsg.role = "user";
@@ -631,14 +644,11 @@ void AgentLoop::processMessage(
             }
 
             sessionManager->addMessage(sessionKey, userSessionMsg);
-            dispatcher->broadcast("sessions:updated", nlohmann::json::object());
-        }
-        else if (effectiveContent != content)
-        {
-            // web channel: message was already saved by ChatRoutes with raw content;
-            // update the last message in session to include transcription text
-            sessionManager->updateLastMessageContent(sessionKey, effectiveContent);
-            sessionManager->save(sessionKey);
+
+            if (!messageSaved)
+            {
+                dispatcher->broadcast("sessions:updated", nlohmann::json::object());
+            }
         }
 
         // build messages from session history + current user message
@@ -712,7 +722,7 @@ void AgentLoop::processMessage(
         }
 
         // run agent loop
-        auto [responseText, responseBlocks] = runAgentLoop(messages, taskId, sessionKey, sessionKey, agentName, toolContext, callback, turnState);
+        auto [responseText, responseBlocks] = runAgentLoop(messages, taskId, baseKey, sessionKey, agentName, toolContext, callback, turnState);
 
         // resolve empty/silent responses: prefer message-tool content from this turn,
         // then fall back to last sent content from a previous turn
@@ -781,7 +791,7 @@ void AgentLoop::processMessage(
         AgentEvent endEvent;
         endEvent.type = "chat:message";
         endEvent.data = {
-            {"chat_id", sessionKey},
+            {"chat_id", baseKey},
             {"content", nlohmann::json::array({{{"type", "text"}, {"text", responseText}}})},
             {"agent_name", agentName},
         };
@@ -797,7 +807,7 @@ void AgentLoop::processMessage(
         AgentEvent streamEndEvent;
         streamEndEvent.type = "chat:stream_end";
         streamEndEvent.data = {
-            {"chat_id", sessionKey},
+            {"chat_id", baseKey},
             {"agent_name", agentName},
         };
 
@@ -865,7 +875,7 @@ void AgentLoop::processMessage(
         AgentEvent errorEvent;
         errorEvent.type = "chat:message";
         errorEvent.data = {
-            {"chat_id", sessionKey},
+            {"chat_id", baseKey},
             {"content", nlohmann::json::array({{{"type", "text"}, {"text", errorText}}})},
             {"error", e.what()},
             {"agent_name", agentName},
@@ -881,7 +891,7 @@ void AgentLoop::processMessage(
         AgentEvent streamEndEvent;
         streamEndEvent.type = "chat:stream_end";
         streamEndEvent.data = {
-            {"chat_id", sessionKey},
+            {"chat_id", baseKey},
             {"agent_name", agentName},
         };
 
@@ -906,18 +916,14 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
 {
     auto maxIterations = agentConfig.agentParams.maxIterations;
 
-    // resolve per-channel history limit (session key format: "channel:chatId")
+    // resolve per-channel history limit (supports agent-scoped keys)
     auto maxHistory = agentConfig.agentParams.maxHistory;
     {
-        auto colonPos = sessionKey.find(':');
-        if (colonPos != std::string::npos)
+        auto channelPrefix = ionclaw::session::SessionKeyUtils::extractChannel(sessionKey);
+        auto it = agentConfig.agentParams.channelHistoryLimits.find(channelPrefix);
+        if (it != agentConfig.agentParams.channelHistoryLimits.end())
         {
-            auto channelPrefix = sessionKey.substr(0, colonPos);
-            auto it = agentConfig.agentParams.channelHistoryLimits.find(channelPrefix);
-            if (it != agentConfig.agentParams.channelHistoryLimits.end())
-            {
-                maxHistory = it->second;
-            }
+            maxHistory = it->second;
         }
     }
 
@@ -950,13 +956,14 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
         }
 
         // poll for steer messages and inject as user messages between iterations
+        // queue is keyed by base key (chatId parameter), not agent-scoped sessionKey
         if (turnState.sessionQueuePtr && iteration > 0)
         {
-            auto steerItems = turnState.sessionQueuePtr->drainSteer(sessionKey);
+            auto steerItems = turnState.sessionQueuePtr->drainSteer(chatId);
 
             for (const auto &item : steerItems)
             {
-                spdlog::info("[AgentLoop] Injecting steer message into turn (session: {})", sessionKey);
+                spdlog::info("[AgentLoop] Injecting steer message into turn (session: {})", chatId);
 
                 ionclaw::provider::Message steerMsg;
                 steerMsg.role = "user";
@@ -1326,8 +1333,11 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
                     {"description", toolSummary},
                 });
 
+                // redact sensitive tokens from tool output before adding to conversation
+                auto redactedText = ionclaw::util::StringHelper::redactSensitive(result.text);
+
                 // add tool result to messages (with optional media blocks)
-                ContextBuilder::addToolResult(messages, tc.id, tc.name, result.text, result.media);
+                ContextBuilder::addToolResult(messages, tc.id, tc.name, redactedText, result.media);
             }
 
             // flush synthetic error results for any tool calls that didn't get executed (abort mid-batch)

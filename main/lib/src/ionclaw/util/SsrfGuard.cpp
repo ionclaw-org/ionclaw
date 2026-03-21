@@ -12,11 +12,8 @@ namespace ionclaw
 namespace util
 {
 
-namespace
-{
-
 // check if address is private/reserved (works for both IPv4 and IPv6)
-bool isPrivateIp(const Poco::Net::IPAddress &addr, bool allowLoopback)
+bool SsrfGuard::isPrivateIp(const Poco::Net::IPAddress &addr, bool allowLoopback)
 {
     if (addr.isLoopback())
     {
@@ -43,8 +40,6 @@ bool isPrivateIp(const Poco::Net::IPAddress &addr, bool allowLoopback)
 
     return false;
 }
-
-} // namespace
 
 void SsrfGuard::validateUrl(const std::string &url)
 {
