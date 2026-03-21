@@ -34,11 +34,8 @@ void Routes::handleMarketplaceTargets(Poco::Net::HTTPServerRequest &, Poco::Net:
     sendJson(resp, arr);
 }
 
-namespace
-{
-
 // validate marketplace path segments contain only safe characters
-bool isValidMarketplaceSegment(const std::string &s)
+bool Routes::isValidMarketplaceSegment(const std::string &s)
 {
     if (s.empty())
     {
@@ -56,8 +53,6 @@ bool isValidMarketplaceSegment(const std::string &s)
     // reject hidden names and parent traversal
     return s[0] != '.' && s.find("..") == std::string::npos;
 }
-
-} // namespace
 
 void Routes::handleMarketplaceCheck(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp,
                                     const std::string &source, const std::string &name)

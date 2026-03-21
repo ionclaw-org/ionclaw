@@ -24,6 +24,9 @@ public:
 private:
     PlatformBridge();
 
+    // returns the current platform name for error messages
+    static std::string platformName();
+
     Handler handler;
     mutable std::mutex mutex;
 };

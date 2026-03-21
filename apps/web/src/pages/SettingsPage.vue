@@ -7,6 +7,7 @@ import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
+import ToggleSwitch from 'primevue/toggleswitch'
 import Dialog from 'primevue/dialog'
 import Message from 'primevue/message'
 import Tag from 'primevue/tag'
@@ -63,6 +64,8 @@ const showAddProvider = ref(false)
 const newAgentName = ref('')
 const newCredentialName = ref('')
 const newProviderName = ref('')
+const availableTools = ref([])
+const toolsSearch = ref('')
 
 function humanize(name) {
   return name.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
@@ -90,6 +93,46 @@ async function loadFormSchemas() {
   } catch {
     formSchemas.value = {}
   }
+}
+
+async function loadAvailableTools() {
+  try {
+    const tools = await api.get('/tools')
+    availableTools.value = tools.map(t => t.name).sort()
+  } catch {
+    availableTools.value = []
+  }
+}
+
+const filteredTools = computed(() => {
+  const q = toolsSearch.value.trim().toLowerCase()
+  if (!q) return availableTools.value
+  return availableTools.value.filter(name => name.toLowerCase().includes(q))
+})
+
+function isToolEnabled(agent, toolName) {
+  if (!agent.enabledTools || agent.enabledTools.length === 0) return true
+  return agent.enabledTools.includes(toolName)
+}
+
+function toggleTool(agent, toolName) {
+  // first toggle: initialize from current state
+  if (!agent.enabledTools || agent.enabledTools.length === 0) {
+    // all enabled -> disable this one = all except this one
+    agent.enabledTools = availableTools.value.filter(t => t !== toolName)
+  } else if (agent.enabledTools.includes(toolName)) {
+    agent.enabledTools = agent.enabledTools.filter(t => t !== toolName)
+  } else {
+    agent.enabledTools = [...agent.enabledTools, toolName]
+  }
+  // if all tools enabled, clear the list (empty = all)
+  if (agent.enabledTools.length >= availableTools.value.length) {
+    agent.enabledTools = []
+  }
+}
+
+function selectAllTools(agent) {
+  agent.enabledTools = []
 }
 
 function mapConfigToLocal() {
@@ -158,7 +201,7 @@ function mapConfigToLocal() {
       description: agent.description || '',
       model: agent.model || '',
       instructions: agent.instructions || '',
-      toolsStr: (agent.tools || []).join(', '),
+      enabledTools: agent.tools || [],
     }
   }
   agentsConfig.value = parsedAgents
@@ -187,6 +230,7 @@ onMounted(async () => {
     loadYaml(),
     loadSystemInfo(),
     loadFormSchemas(),
+    loadAvailableTools(),
   ])
   mapConfigToLocal()
 })
@@ -306,7 +350,7 @@ function confirmAddAgent() {
     toast.add({ severity: 'warn', summary: 'Exists', detail: `Agent "${name}" already exists`, life: 2000 })
     return
   }
-  agentsConfig.value[name] = { workspace: '', description: '', model: '', instructions: '', toolsStr: '' }
+  agentsConfig.value[name] = { workspace: '', description: '', model: '', instructions: '', enabledTools: [] }
   showAddAgent.value = false
 }
 
@@ -324,7 +368,7 @@ async function saveAgents() {
       description: agent.description,
       model: agent.model,
       instructions: agent.instructions,
-      tools: agent.toolsStr ? agent.toolsStr.split(',').map((s) => s.trim()).filter(Boolean) : [],
+      tools: agent.enabledTools || [],
     }
   }
   await saveSection('agents', data)
@@ -565,8 +609,21 @@ async function toggleMcp(running) {
                 </div>
                 <DynamicForm v-if="formSchemas.agent" :schema="formSchemas.agent" :model-value="agent" @update:model-value="agentsConfig[name] = $event" :references="references" />
                 <div class="form-group">
-                  <label>Tools (comma-separated, empty for all)</label>
-                  <InputText v-model="agent.toolsStr" class="w-full" placeholder="tool_a, tool_b, tool_c, ..." />
+                  <div class="tools-header">
+                    <label>Tools</label>
+                    <span class="tools-count">{{ !agent.enabledTools || agent.enabledTools.length === 0 ? availableTools.length : agent.enabledTools.filter(t => availableTools.includes(t)).length }}/{{ availableTools.length }}</span>
+                    <Button label="All" size="small" text severity="secondary" @click="selectAllTools(agent)" />
+                  </div>
+                  <InputText v-model="toolsSearch" class="w-full tools-search" placeholder="Filter tools..." />
+                  <div class="tools-toggle-list">
+                    <div v-for="toolName in filteredTools" :key="toolName" class="tool-toggle-item" @click="toggleTool(agent, toolName)">
+                      <ToggleSwitch :modelValue="isToolEnabled(agent, toolName)" @update:modelValue="toggleTool(agent, toolName)" />
+                      <span class="tool-toggle-name">{{ toolName }}</span>
+                    </div>
+                    <div v-if="availableTools.length === 0" class="tools-empty">
+                      <i class="pi pi-spin pi-spinner"></i>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="button-row">
@@ -953,6 +1010,61 @@ async function toggleMcp(running) {
 
 .info-value {
   font-weight: 600;
+}
+
+.tools-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.tools-header label {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.tools-count {
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
+}
+
+.tools-search {
+  margin-bottom: 0.5rem;
+}
+
+.tools-toggle-list {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--p-content-border-radius);
+  padding: 0.25rem 0;
+}
+
+.tool-toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tool-toggle-item:hover {
+  background: var(--p-content-hover-background);
+}
+
+.tool-toggle-name {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 0.8rem;
+}
+
+.tools-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  color: var(--p-text-muted-color);
 }
 
 @media (max-width: 768px) {

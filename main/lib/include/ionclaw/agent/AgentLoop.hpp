@@ -129,6 +129,8 @@ private:
     HookRunner *hookRunnerPtr = nullptr;
     std::atomic<bool> stopped{false};
 
+    static std::string pickFallbackThinkingLevel(const std::string &current);
+    static void flushAbandonedToolCalls(std::vector<ionclaw::provider::Message> &messages, const std::vector<ionclaw::provider::ToolCall> &toolCalls);
     static std::string truncateText(const std::string &s, size_t maxLen);
     static std::string formatToolSummary(const std::string &name, const nlohmann::json &args);
     static std::string stripTrailingDirectives(const std::string &text);
@@ -153,6 +155,7 @@ private:
         const ionclaw::tool::ToolContext &toolContext,
         const nlohmann::json &modelParams,
         TurnState &turnState);
+
     void compactWithHooks(
         std::vector<ionclaw::provider::Message> &messages,
         const std::string &sessionKey,

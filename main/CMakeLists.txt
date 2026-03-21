@@ -63,6 +63,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/SpawnTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/SubagentsTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/CronTool.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/AgentsListTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/BrowserTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/VisionTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/ContextBuilder.cpp

@@ -16,11 +16,8 @@ namespace tool
 namespace builtin
 {
 
-namespace
-{
-
 // find the closest matching section when old_text is not found
-std::string findClosestMatch(const std::string &content, const std::string &query)
+std::string EditFileTool::findClosestMatch(const std::string &content, const std::string &query)
 {
     if (query.empty() || content.empty())
     {
@@ -74,15 +71,13 @@ std::string findClosestMatch(const std::string &content, const std::string &quer
     return context;
 }
 
-} // namespace
-
 ToolResult EditFileTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto rawPath = params.at("path").get<std::string>();
     auto oldText = params.at("old_text").get<std::string>();
     auto newText = params.at("new_text").get<std::string>();
     bool restrict = !context.config || context.config->tools.restrictToWorkspace;
-    auto resolvedPath = ToolHelper::validateAndResolvePath(context.workspacePath, rawPath, context.publicPath, restrict, context.projectPath);
+    auto resolvedPath = ToolHelper::validateAndResolvePath(context.projectPath, context.workspacePath, rawPath, context.publicPath, restrict);
 
     if (!std::filesystem::exists(resolvedPath) || !std::filesystem::is_regular_file(resolvedPath))
     {

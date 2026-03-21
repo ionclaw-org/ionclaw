@@ -360,6 +360,7 @@ Config ConfigLoader::loadFromNode(const YAML::Node &root)
     {
         config.heartbeat.enabled = expandBool(heartbeat["enabled"], config.heartbeat.enabled);
         config.heartbeat.interval = expandInt(heartbeat["interval"], config.heartbeat.interval);
+        config.heartbeat.agent = expandStr(heartbeat["agent"], config.heartbeat.agent);
     }
 
     // session budget
@@ -454,6 +455,24 @@ Config ConfigLoader::loadFromNode(const YAML::Node &root)
                         }
                     }
                 }
+            }
+
+            // default channel history limits for channels with persistent sessions
+            auto &chl = agent.agentParams.channelHistoryLimits;
+
+            if (chl.find("heartbeat") == chl.end())
+            {
+                chl["heartbeat"] = 4;
+            }
+
+            if (chl.find("telegram") == chl.end())
+            {
+                chl["telegram"] = 100;
+            }
+
+            if (chl.find("mcp") == chl.end())
+            {
+                chl["mcp"] = 100;
             }
 
             agent.modelParams = yamlToJson(node["model_params"]);
@@ -626,6 +645,10 @@ std::string ConfigLoader::toYaml(const Config &config)
     out << YAML::Key << "heartbeat" << YAML::Value << YAML::BeginMap;
     out << YAML::Key << "enabled" << YAML::Value << config.heartbeat.enabled;
     out << YAML::Key << "interval" << YAML::Value << config.heartbeat.interval;
+    if (!config.heartbeat.agent.empty())
+    {
+        out << YAML::Key << "agent" << YAML::Value << config.heartbeat.agent;
+    }
     out << YAML::EndMap;
 
     // session budget

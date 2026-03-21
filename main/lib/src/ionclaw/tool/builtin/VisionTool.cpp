@@ -214,7 +214,7 @@ ToolResult VisionTool::execute(const nlohmann::json &params, const ToolContext &
         try
         {
             bool restrict = !context.config || context.config->tools.restrictToWorkspace;
-            path = ToolHelper::validateAndResolvePath(context.workspacePath, path, context.publicPath, restrict, context.projectPath);
+            path = ToolHelper::validateAndResolvePath(context.projectPath, context.workspacePath, path, context.publicPath, restrict);
             spdlog::info("vision: resolved path to: {}", path);
         }
         catch (const std::exception &e)

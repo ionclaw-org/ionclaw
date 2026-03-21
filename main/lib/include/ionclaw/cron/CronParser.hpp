@@ -23,6 +23,27 @@ public:
     static bool isValidExpression(const std::string &expr);
 
 private:
+    // raii guard for TZ environment variable restoration
+    class TzGuard
+    {
+    public:
+        TzGuard(const std::string &tz, std::mutex &mtx);
+        ~TzGuard();
+
+        TzGuard(const TzGuard &) = delete;
+        TzGuard &operator=(const TzGuard &) = delete;
+
+        bool isOverridden() const { return overridden; }
+
+    private:
+        std::unique_lock<std::mutex> lock;
+        std::string savedTz;
+        bool overridden;
+    };
+
+    // safe integer parse with fallback
+    static int safeStoi(const std::string &s, int fallback);
+
     static std::vector<int> expandField(const std::string &field, int min, int max);
     static bool matchesField(int value, const std::vector<int> &allowed);
 

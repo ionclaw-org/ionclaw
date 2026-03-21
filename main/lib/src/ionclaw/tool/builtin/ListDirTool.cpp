@@ -17,7 +17,7 @@ ToolResult ListDirTool::execute(const nlohmann::json &params, const ToolContext 
 {
     auto rawPath = params.at("path").get<std::string>();
     bool restrict = !context.config || context.config->tools.restrictToWorkspace;
-    auto resolvedPath = ToolHelper::validateAndResolvePath(context.workspacePath, rawPath, context.publicPath, restrict, context.projectPath);
+    auto resolvedPath = ToolHelper::validateAndResolvePath(context.projectPath, context.workspacePath, rawPath, context.publicPath, restrict);
 
     if (!std::filesystem::exists(resolvedPath))
     {

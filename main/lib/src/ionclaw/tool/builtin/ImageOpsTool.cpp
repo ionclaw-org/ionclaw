@@ -90,7 +90,7 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
         try
         {
             bool restrict = !context.config || context.config->tools.restrictToWorkspace;
-            return ToolHelper::validateAndResolvePath(context.workspacePath, path, context.publicPath, restrict, context.projectPath);
+            return ToolHelper::validateAndResolvePath(context.projectPath, context.workspacePath, path, context.publicPath, restrict);
         }
         catch (const std::exception &)
         {

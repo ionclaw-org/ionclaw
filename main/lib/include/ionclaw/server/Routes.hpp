@@ -44,9 +44,9 @@ public:
         std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher,
         std::shared_ptr<WebSocketManager> wsManager,
         const std::string &webDir,
+        const std::string &projectRoot,
         const std::string &publicDir,
-        const std::string &workspaceDir,
-        const std::string &projectRoot);
+        const std::string &workspaceDir);
 
     // auth
     void handleAuthLogin(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
@@ -120,6 +120,7 @@ public:
     // scheduler
     void handleSchedulerList(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
     void handleSchedulerCreate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
+    void handleSchedulerUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &id);
     void handleSchedulerDelete(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &id);
 
 private:
@@ -135,9 +136,9 @@ private:
     std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher;
     std::shared_ptr<WebSocketManager> wsManager;
     std::string webDir;
+    std::string projectRoot;  // directory where server was started; file tree and paths are relative to this
     std::string publicDir;    // project_root + "/public"
     std::string workspaceDir; // default agent workspace; each agent can have its own folder under project_root
-    std::string projectRoot;  // directory where server was started; file tree and paths are relative to this
 
     // protects concurrent config mutations and disk writes
     std::mutex configMutex_;
@@ -169,6 +170,9 @@ private:
     static bool isProtectedFile(const std::string &path);
     static bool isHiddenPath(const std::string &path);
     static bool isSystemFile(const std::string &name);
+
+    // validate marketplace path segments contain only safe characters
+    static bool isValidMarketplaceSegment(const std::string &s);
 
     // resolves a relative file path to a canonical absolute path within projectRoot;
     // returns empty string if the path escapes the root or is invalid

@@ -29,21 +29,22 @@ namespace ionclaw
 namespace agent
 {
 
-namespace
+// graduated thinking level downgrade: high->medium->low->(empty = remove)
+std::string AgentLoop::pickFallbackThinkingLevel(const std::string &current)
 {
-
-// graduated thinking level downgrade: high→medium→low→(empty = remove)
-std::string pickFallbackThinkingLevel(const std::string &current)
-{
-    if (current == "high")
+    if (current == "high") {
         return "medium";
-    if (current == "medium")
+    }
+
+    if (current == "medium") {
         return "low";
+    }
+
     return "";
 }
 
 // flush synthetic error results for tool calls that were not completed (e.g. abort/stop mid-batch)
-void flushAbandonedToolCalls(
+void AgentLoop::flushAbandonedToolCalls(
     std::vector<ionclaw::provider::Message> &messages,
     const std::vector<ionclaw::provider::ToolCall> &toolCalls)
 {
@@ -60,14 +61,10 @@ void flushAbandonedToolCalls(
         }
         if (!hasResult)
         {
-            ContextBuilder::addToolResult(messages, toolCalls[ti].id,
-                                          toolCalls[ti].name,
-                                          "[tool call was not completed]");
+            ContextBuilder::addToolResult(messages, toolCalls[ti].id, toolCalls[ti].name, "[tool call was not completed]");
         }
     }
 }
-
-} // anonymous namespace
 
 // send a response for built-in commands (/new, /reset, /help) to all channels
 void AgentLoop::sendCommandResponse(const ionclaw::bus::InboundMessage &message, const std::string &sessionKey, const std::string &taskId, const std::string &agentName, const std::string &responseText, AgentEventCallback &callback)
@@ -269,6 +266,10 @@ std::string AgentLoop::formatToolSummary(const std::string &name, const nlohmann
     if (name == "cron")
     {
         return "Cron: " + truncateText(str("action"), maxSummary - 7);
+    }
+    if (name == "agents_list")
+    {
+        return "List agents";
     }
 
     // fallback: first key-value or empty
@@ -530,6 +531,7 @@ void AgentLoop::processMessage(
     ionclaw::tool::ToolContext toolContext;
     toolContext.agentName = agentName;
     toolContext.sessionKey = sessionKey;
+    toolContext.projectPath = configPtr ? configPtr->projectPath : "";
 
     if (!agentConfig.workspace.empty())
     {
@@ -537,7 +539,6 @@ void AgentLoop::processMessage(
     }
 
     toolContext.publicPath = publicPath;
-    toolContext.projectPath = configPtr ? configPtr->projectPath : "";
 
     // wrap messageSender to capture content delivered via message tool
     // (used as response fallback when model returns empty after tool execution)

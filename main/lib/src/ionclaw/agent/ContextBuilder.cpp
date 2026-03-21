@@ -43,6 +43,13 @@ std::string ContextBuilder::getChannelGuidance(const std::string &channel)
                "Use Markdown (bold, italic, code). Split long responses using the message tool.";
     }
 
+    if (channel == "heartbeat")
+    {
+        return "Channel: heartbeat. This is a periodic check-in.\n"
+               "Read HEARTBEAT.md in your workspace (if it exists) and follow any instructions there.\n"
+               "If nothing needs attention, reply with just: HEARTBEAT_OK";
+    }
+
     return "Channel: web. Use Markdown formatting freely including images, code blocks, and tables.";
 }
 
@@ -133,6 +140,7 @@ std::string ContextBuilder::buildSystemPrompt(
     const std::string &agentInstructions,
     const std::string &channel,
     const std::vector<std::string> &toolNames,
+    const std::map<std::string, std::string> &toolDescriptions,
     PromptMode mode,
     const std::string &userLanguage) const
 {
@@ -235,7 +243,7 @@ std::string ContextBuilder::buildSystemPrompt(
                << RESPONSE_GUIDELINES;
     }
 
-    // 10. available tools (already filtered by platform and agent config)
+    // 10. available tools with descriptions (already filtered by platform and agent config)
     if (!toolNames.empty())
     {
         prompt << "\n\n# Available Tools\n"
@@ -243,7 +251,16 @@ std::string ContextBuilder::buildSystemPrompt(
 
         for (const auto &name : toolNames)
         {
-            prompt << "- " << name << "\n";
+            auto it = toolDescriptions.find(name);
+
+            if (it != toolDescriptions.end() && !it->second.empty())
+            {
+                prompt << "- " << name << ": " << it->second << "\n";
+            }
+            else
+            {
+                prompt << "- " << name << "\n";
+            }
         }
     }
 
@@ -399,6 +416,16 @@ std::string ContextBuilder::buildSystemPrompt(
     {
         prompt << "\n\n# Agent Instructions\n"
                << agentInstructions;
+    }
+
+    // 16. silent replies (full mode only)
+    if (full)
+    {
+        prompt << "\n\n# Silent Replies\n"
+               << "When you have nothing useful to say (e.g. a notification with no action needed, "
+               << "or a subagent result that already arrived after your final answer), "
+               << "reply with exactly [SILENT] as your entire message. "
+               << "Do not wrap it in markdown or add any other text.";
     }
 
     return prompt.str();
@@ -662,19 +689,40 @@ void ContextBuilder::addAssistantMessage(
 std::string ContextBuilder::buildSubagentContext(int depth, int maxDepth)
 {
     std::ostringstream ctx;
-    ctx << "\n\n# Subagent Context\n";
-    ctx << "You are running as a subagent at depth " << depth << "/" << maxDepth << ".\n";
-    ctx << "- Focus on completing your assigned task efficiently.\n";
-    ctx << "- Your result will be automatically delivered to the parent agent.\n";
-    ctx << "- Do not ask clarifying questions; work with the information provided.\n";
+
+    // clang-format off
+    ctx << "\n\n# Subagent Context\n"
+        << "You are a subagent spawned by the parent agent for a specific task.\n"
+        << "Depth: " << depth << "/" << maxDepth << ".\n"
+        << "\n## Rules\n"
+        << "1. Stay focused on your assigned task, nothing else.\n"
+        << "2. Complete the task. Your final message is auto-delivered to the parent.\n"
+        << "3. Do not ask clarifying questions; work with the information provided.\n"
+        << "4. Do not initiate conversations, heartbeats, or proactive actions.\n"
+        << "5. Do not pretend to be the parent agent.\n"
+        << "\n## Output Format\n"
+        << "Your final message should include:\n"
+        << "- What you accomplished or found\n"
+        << "- Relevant details the parent agent needs to know\n"
+        << "- Keep it concise but informative\n"
+        << "\n## Prohibitions\n"
+        << "- Do NOT send messages to the user directly (parent agent's responsibility).\n"
+        << "- Do NOT create cron jobs or persistent state.\n"
+        << "- Do NOT use the message tool unless explicitly instructed in the task.\n";
+    // clang-format on
 
     if (depth >= maxDepth)
     {
-        ctx << "- You are at maximum depth and cannot spawn further subagents.\n";
+        ctx << "\n## Spawning\n"
+            << "You are at maximum depth and CANNOT spawn further subagents.\n";
     }
     else
     {
-        ctx << "- You may spawn subagents up to depth " << maxDepth << " if needed.\n";
+        ctx << "\n## Spawning\n"
+            << "You CAN spawn subagents if the task benefits from parallelization.\n"
+            << "- Subagent results are auto-announced to you as user messages.\n"
+            << "- Wait for all completion events before composing your final answer.\n"
+            << "- Do NOT poll with subagents list in a loop.\n";
     }
 
     return ctx.str();

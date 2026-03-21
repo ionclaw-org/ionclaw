@@ -36,6 +36,7 @@ public:
         const std::string &agentInstructions = "",
         const std::string &channel = "web",
         const std::vector<std::string> &toolNames = {},
+        const std::map<std::string, std::string> &toolDescriptions = {},
         PromptMode mode = PromptMode::Full,
         const std::string &userLanguage = "") const;
 

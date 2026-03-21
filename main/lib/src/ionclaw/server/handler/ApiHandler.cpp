@@ -435,6 +435,12 @@ void ApiHandler::routeRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
 
     auto schedulerId = HttpHelper::extractPathParam(path, "/api/scheduler/jobs/");
 
+    if (!schedulerId.empty() && method == "PUT")
+    {
+        routes->handleSchedulerUpdate(req, resp, schedulerId);
+        return;
+    }
+
     if (!schedulerId.empty() && method == "DELETE")
     {
         routes->handleSchedulerDelete(req, resp, schedulerId);

@@ -117,7 +117,7 @@ void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
     result["image"] = {{"model", config->image.model}, {"aspect_ratio", config->image.aspectRatio}, {"size", config->image.size}};
     result["transcription"] = {{"model", config->transcription.model}};
     result["classifier"] = {{"model", config->classifier.model}};
-    result["heartbeat"] = {{"enabled", config->heartbeat.enabled}, {"interval", config->heartbeat.interval}};
+    result["heartbeat"] = {{"enabled", config->heartbeat.enabled}, {"interval", config->heartbeat.interval}, {"agent", config->heartbeat.agent}};
 
     // tools section with sub-sections
     result["tools"] = {
@@ -331,7 +331,12 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
 
                 if (exec.contains("timeout"))
                 {
-                    config->tools.execTimeout = exec["timeout"].get<int>();
+                    auto timeout = exec["timeout"].get<int>();
+
+                    if (timeout > 0)
+                    {
+                        config->tools.execTimeout = timeout;
+                    }
                 }
             }
 
@@ -351,7 +356,12 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
 
                 if (ws.contains("max_results"))
                 {
-                    config->tools.webSearchMaxResults = ws["max_results"].get<int>();
+                    auto maxResults = ws["max_results"].get<int>();
+
+                    if (maxResults >= 1 && maxResults <= 20)
+                    {
+                        config->tools.webSearchMaxResults = maxResults;
+                    }
                 }
             }
         }
@@ -585,6 +595,11 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
             {
                 config->heartbeat.interval = data["interval"].get<int>();
             }
+
+            if (data.contains("agent"))
+            {
+                config->heartbeat.agent = data["agent"].get<std::string>();
+            }
         }
         else if (section == "advanced")
         {
@@ -736,7 +751,7 @@ void Routes::handleConfigRestart(Poco::Net::HTTPServerRequest &, Poco::Net::HTTP
         orchestrator->restart(*config);
 
         // restart heartbeat service with updated config
-        heartbeatService->restart(config->heartbeat.interval, config->heartbeat.enabled);
+        heartbeatService->restart(config->heartbeat.interval, config->heartbeat.enabled, config->heartbeat.agent);
 
         // restart cron service (jobs persist to cron_jobs.json, independent of config)
         cronService->stop();

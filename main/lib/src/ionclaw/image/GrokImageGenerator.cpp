@@ -142,7 +142,7 @@ std::string GrokImageGenerator::editImage(const std::string &prompt,
 {
     bool restrict = !context.config || context.config->tools.restrictToWorkspace;
     auto resolvedRefs = ImageGeneratorHelper::resolveReferencePaths(
-        params, context.workspacePath, context.publicPath, restrict, context.projectPath);
+        params, context.projectPath, context.workspacePath, context.publicPath, restrict);
 
     if (resolvedRefs.empty())
     {

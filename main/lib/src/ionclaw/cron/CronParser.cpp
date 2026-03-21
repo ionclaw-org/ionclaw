@@ -15,69 +15,51 @@ namespace cron
 
 std::mutex CronParser::tzMutex;
 
-namespace
+CronParser::TzGuard::TzGuard(const std::string &tz, std::mutex &mtx)
+    : lock(mtx)
+    , overridden(false)
 {
-
-// raii guard for TZ environment variable restoration
-class TzGuard
-{
-public:
-    TzGuard(const std::string &tz, std::mutex &mtx)
-        : lock(mtx)
-        , overridden(false)
+    // always lock to prevent concurrent TZ mutation by other threads
+    // even when tz is empty, mktime/localtime_r reads the global TZ
+    if (tz.empty())
     {
-        // always lock to prevent concurrent TZ mutation by other threads
-        // even when tz is empty, mktime/localtime_r reads the global TZ
-        if (tz.empty())
-        {
-            return;
-        }
-
-#if !defined(_WIN32)
-        const char *oldTz = getenv("TZ");
-        savedTz = oldTz ? oldTz : "";
-        overridden = true;
-
-        setenv("TZ", tz.c_str(), 1);
-        tzset();
-#endif
+        return;
     }
 
-    ~TzGuard()
-    {
-        if (!overridden)
-        {
-            return;
-        }
-
 #if !defined(_WIN32)
-        if (savedTz.empty())
-        {
-            unsetenv("TZ");
-        }
-        else
-        {
-            setenv("TZ", savedTz.c_str(), 1);
-        }
+    const char *oldTz = getenv("TZ");
+    savedTz = oldTz ? oldTz : "";
+    overridden = true;
 
-        tzset();
-        // lock is released automatically by unique_lock destructor
+    setenv("TZ", tz.c_str(), 1);
+    tzset();
 #endif
+}
+
+CronParser::TzGuard::~TzGuard()
+{
+    if (!overridden)
+    {
+        return;
     }
 
-    TzGuard(const TzGuard &) = delete;
-    TzGuard &operator=(const TzGuard &) = delete;
+#if !defined(_WIN32)
+    if (savedTz.empty())
+    {
+        unsetenv("TZ");
+    }
+    else
+    {
+        setenv("TZ", savedTz.c_str(), 1);
+    }
 
-    bool isOverridden() const { return overridden; }
-
-private:
-    std::unique_lock<std::mutex> lock;
-    std::string savedTz;
-    bool overridden;
-};
+    tzset();
+    // lock is released automatically by unique_lock destructor
+#endif
+}
 
 // safe integer parse with fallback
-int safeStoi(const std::string &s, int fallback)
+int CronParser::safeStoi(const std::string &s, int fallback)
 {
     try
     {
@@ -88,8 +70,6 @@ int safeStoi(const std::string &s, int fallback)
         return fallback;
     }
 }
-
-} // namespace
 
 // parses a single cron field and returns all matching values in [min, max]
 std::vector<int> CronParser::expandField(const std::string &field, int min, int max)

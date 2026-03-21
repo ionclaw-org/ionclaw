@@ -146,6 +146,7 @@ struct HeartbeatConfig
 {
     bool enabled = false;
     int interval = 1800;
+    std::string agent; // optional agent override (use a dedicated agent with cheaper model)
 };
 
 struct MessageQueueConfig

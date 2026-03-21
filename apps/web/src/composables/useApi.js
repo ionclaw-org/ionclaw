@@ -46,13 +46,10 @@ export function useApi() {
       return res.json()
     }
 
+    // non-json response: return raw text or empty object for 204/no-content
     const text = await res.text()
     if (!text) return {}
-    try {
-      return JSON.parse(text)
-    } catch {
-      return {}
-    }
+    return { text }
   }
 
   function get(path) {

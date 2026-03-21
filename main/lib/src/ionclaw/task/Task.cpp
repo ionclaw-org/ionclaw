@@ -13,10 +13,7 @@ namespace ionclaw
 namespace task
 {
 
-namespace
-{
-
-std::string jsonString(const nlohmann::json &j, const std::string &key)
+std::string Task::jsonString(const nlohmann::json &j, const std::string &key)
 {
     auto it = j.find(key);
 
@@ -28,7 +25,7 @@ std::string jsonString(const nlohmann::json &j, const std::string &key)
     return it->get<std::string>();
 }
 
-int jsonInt(const nlohmann::json &j, const std::string &key)
+int Task::jsonInt(const nlohmann::json &j, const std::string &key)
 {
     auto it = j.find(key);
 
@@ -40,7 +37,7 @@ int jsonInt(const nlohmann::json &j, const std::string &key)
     return it->get<int>();
 }
 
-std::chrono::system_clock::time_point parseIso8601(const std::string &str)
+std::chrono::system_clock::time_point Task::parseIso8601(const std::string &str)
 {
     std::tm tm{};
     std::istringstream iss(str);
@@ -59,8 +56,6 @@ std::chrono::system_clock::time_point parseIso8601(const std::string &str)
 
     return std::chrono::system_clock::from_time_t(time);
 }
-
-} // namespace
 
 std::string Task::stateToString(TaskState state)
 {

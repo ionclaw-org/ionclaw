@@ -371,7 +371,7 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
     {
         auto downloadPath = params["download_path"].get<std::string>();
         bool restrict = !context.config || context.config->tools.restrictToWorkspace;
-        auto resolvedPath = ToolHelper::validateAndResolvePath(context.workspacePath, downloadPath, context.publicPath, restrict, context.projectPath);
+        auto resolvedPath = ToolHelper::validateAndResolvePath(context.projectPath, context.workspacePath, downloadPath, context.publicPath, restrict);
 
         try
         {
@@ -422,7 +422,7 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
     {
         auto uploadFile = params["upload_file"].get<std::string>();
         bool restrict = !context.config || context.config->tools.restrictToWorkspace;
-        auto resolvedUpload = ToolHelper::validateAndResolvePath(context.workspacePath, uploadFile, context.publicPath, restrict, context.projectPath);
+        auto resolvedUpload = ToolHelper::validateAndResolvePath(context.projectPath, context.workspacePath, uploadFile, context.publicPath, restrict);
 
         if (!std::filesystem::exists(resolvedUpload))
         {

@@ -637,6 +637,7 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
         auto effectiveTools = ionclaw::tool::ToolRegistry::applyToolPolicy(baseTools, agentToolPolicy);
 
         auto toolNames = toolRegistry->getToolNames(effectiveTools);
+        auto toolDescriptions = toolRegistry->getToolDescriptions();
 
         std::string agentInstructions;
 
@@ -664,7 +665,7 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
         }
 
         auto promptMode = subagentRunId.empty() ? PromptMode::Full : PromptMode::Minimal;
-        auto systemPrompt = builder->buildSystemPrompt(targetAgent, agentInstructions, channel, toolNames, promptMode, userLanguage);
+        auto systemPrompt = builder->buildSystemPrompt(targetAgent, agentInstructions, channel, toolNames, toolDescriptions, promptMode, userLanguage);
 
         // append subagent context if this is a subagent session
         if (!subagentRunId.empty() && subagentRegistry)

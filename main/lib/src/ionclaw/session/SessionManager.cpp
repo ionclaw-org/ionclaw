@@ -554,6 +554,7 @@ void SessionManager::clearSession(const std::string &sessionKey)
             it->second.messages.clear();
             it->second.updatedAt = util::TimeHelper::now();
             it->second.liveState = nullptr;
+            it->second.displayName.clear();
 
             key = it->second.key;
             createdAt = it->second.createdAt;

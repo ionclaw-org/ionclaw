@@ -6,6 +6,7 @@
 
 #include "ionclaw/util/StringHelper.hpp"
 
+#include "ionclaw/tool/builtin/AgentsListTool.hpp"
 #include "ionclaw/tool/builtin/BrowserTool.hpp"
 #include "ionclaw/tool/builtin/CronTool.hpp"
 #include "ionclaw/tool/builtin/EditFileTool.hpp"
@@ -92,6 +93,9 @@ void ToolRegistry::registerBuiltinTools()
 
     // platform invocation (all platforms)
     registerTool(std::make_shared<builtin::InvokePlatformTool>());
+
+    // orchestration tools (all platforms)
+    registerTool(std::make_shared<builtin::AgentsListTool>());
 
     // desktop-only tools
     registerTool(std::make_shared<builtin::SpawnTool>());
@@ -302,6 +306,19 @@ std::vector<nlohmann::json> ToolRegistry::getFlatDefinitions() const
     }
 
     return definitions;
+}
+
+std::map<std::string, std::string> ToolRegistry::getToolDescriptions() const
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    std::map<std::string, std::string> descriptions;
+
+    for (const auto &[name, tool] : tools)
+    {
+        descriptions[name] = tool->schema().description;
+    }
+
+    return descriptions;
 }
 
 std::vector<std::string> ToolRegistry::applyToolPolicy(

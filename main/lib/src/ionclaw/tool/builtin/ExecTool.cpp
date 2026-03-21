@@ -100,7 +100,7 @@ ToolResult ExecTool::execute(const nlohmann::json &params, const ToolContext &co
     {
         auto dir = params["working_dir"].get<std::string>();
         bool restrict = !context.config || context.config->tools.restrictToWorkspace;
-        workDir = ToolHelper::validateAndResolvePath(context.workspacePath, dir, context.publicPath, restrict, context.projectPath);
+        workDir = ToolHelper::validateAndResolvePath(context.projectPath, context.workspacePath, dir, context.publicPath, restrict);
     }
 
     // build shell command with working directory prefix
