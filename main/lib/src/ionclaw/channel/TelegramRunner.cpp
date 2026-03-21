@@ -176,7 +176,7 @@ void TelegramRunner::registerTypingHandler()
 {
     dispatcher->addNamedHandler("telegram-typing", [this](const std::string &eventType, const nlohmann::json &data)
                                 {
-        if (!running.load())
+        if (!running.load() || !data.is_object())
         {
             return;
         }

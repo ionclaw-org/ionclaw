@@ -166,20 +166,23 @@ Response:
 
 Session key resolution:
 
-- If the id contains `:`, it is used as the session key (e.g. `web:abc123`)
+- If the id contains `:`, it is used as-is (e.g. `web:abc123`)
 - Otherwise it is prefixed with `web:` (standard user sessions)
+- Sessions are stored internally with agent-scoped keys (`agent:{agentId}:{channel}:{chatId}`). The API resolves base keys to agent-scoped keys automatically.
 
 Response:
 
 ```json
 {
-  "key": "string",
+  "key": "web:abc123",
   "messages": [],
   "live_state": {},
   "created_at": "string",
   "updated_at": "string"
 }
 ```
+
+The `key` field always returns the base key format (`channel:chatId`).
 
 **DELETE /api/chat/sessions/{session_id}**
 

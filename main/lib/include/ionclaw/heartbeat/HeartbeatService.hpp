@@ -30,7 +30,6 @@ public:
 
 private:
     static const char *HEARTBEAT_PROMPT;
-    static const char *HEARTBEAT_SESSION_KEY;
 
     void runLoop();
     void tick();

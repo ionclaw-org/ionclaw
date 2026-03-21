@@ -6,6 +6,7 @@
 #include <sstream>
 
 #include "ionclaw/bus/Events.hpp"
+#include "ionclaw/session/SessionKeyUtils.hpp"
 #include "spdlog/spdlog.h"
 
 namespace ionclaw
@@ -17,8 +18,6 @@ const char *HeartbeatService::HEARTBEAT_PROMPT =
     "Read HEARTBEAT.md in your workspace (if it exists).\n"
     "Follow any instructions or tasks listed there.\n"
     "If nothing needs attention, reply with just: HEARTBEAT_OK";
-
-const char *HeartbeatService::HEARTBEAT_SESSION_KEY = "heartbeat:heartbeat";
 
 HeartbeatService::HeartbeatService(
     std::shared_ptr<ionclaw::bus::MessageBus> bus,
@@ -119,8 +118,14 @@ void HeartbeatService::tick()
         return;
     }
 
-    // clear previous heartbeat session for isolated execution (no history accumulation)
-    sessionManager->clearSession(HEARTBEAT_SESSION_KEY);
+    // single lock scope for agent name access
+    std::lock_guard<std::mutex> lock(agentMutex);
+
+    auto agentName = agent.empty() ? "main" : agent;
+
+    // clear previous heartbeat session for isolated execution
+    auto agentSessionKey = ionclaw::session::SessionKeyUtils::build(agentName, "heartbeat", "heartbeat");
+    sessionManager->clearSession(agentSessionKey);
 
     // publish inbound message to trigger agent processing
     spdlog::info("[Heartbeat] sending tasks to agent");
@@ -130,9 +135,6 @@ void HeartbeatService::tick()
     msg.senderId = "heartbeat";
     msg.chatId = "heartbeat";
     msg.content = HEARTBEAT_PROMPT;
-
-    // route to dedicated agent if configured
-    std::lock_guard<std::mutex> lock(agentMutex);
 
     if (!agent.empty())
     {

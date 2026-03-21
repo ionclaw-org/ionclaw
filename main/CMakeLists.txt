@@ -24,6 +24,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/ProviderFactory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/ProviderHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/session/SessionManager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/session/SessionKeyUtils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/task/Task.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/task/TaskManager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/Tool.cpp

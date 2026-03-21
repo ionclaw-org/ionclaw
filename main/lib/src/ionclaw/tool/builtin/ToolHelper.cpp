@@ -65,9 +65,19 @@ std::string ToolHelper::validateAndResolvePath(const std::string &projectPath, c
     {
         resolved = normalizePath(publicPath, rawPath.substr(7));
     }
-    else
+    else if (fs::path(rawPath).is_absolute())
     {
         resolved = normalizePath(workspacePath, rawPath);
+    }
+    else
+    {
+        // relative path: search workspace first, then project root
+        resolved = normalizePath(workspacePath, rawPath);
+
+        if (!fs::exists(resolved) && !projectPath.empty() && projectPath != workspacePath)
+        {
+            resolved = normalizePath(projectPath, rawPath);
+        }
     }
 
     if (restrictToWorkspace)

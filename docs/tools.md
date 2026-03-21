@@ -14,9 +14,10 @@ All file-based tools (`read_file`, `write_file`, `edit_file`, `list_dir`, `http_
 
 **Behavior:**
 
-1. Relative paths are resolved against the agent's workspace directory.
-2. Paths under the project's `public/` directory are also allowed (e.g. `public/media/out.png`).
-3. Any path outside the workspace or `public/` raises an error. Workspace restriction is always enforced.
+1. Relative paths are resolved against the agent's workspace directory first, then the project root. This allows agents to read project-level files (e.g., skills in `skills/`) without requiring them to exist in the workspace.
+2. Paths prefixed with `public/` are resolved against the project's public directory.
+3. Absolute paths are resolved directly.
+4. Any resolved path outside the workspace, project root, or public directory raises an error.
 
 The exec tool's working directory is the agent's workspace.
 

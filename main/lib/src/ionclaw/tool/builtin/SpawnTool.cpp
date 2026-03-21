@@ -5,6 +5,7 @@
 #include "ionclaw/bus/Events.hpp"
 #include "ionclaw/bus/MessageBus.hpp"
 #include "ionclaw/config/Config.hpp"
+#include "ionclaw/session/SessionKeyUtils.hpp"
 #include "ionclaw/session/SessionManager.hpp"
 #include "ionclaw/task/TaskManager.hpp"
 #include "ionclaw/util/StringHelper.hpp"
@@ -125,21 +126,20 @@ ToolResult SpawnTool::execute(const nlohmann::json &params, const ToolContext &c
         }
     }
 
-    // parse channel and chatId from session key
-    std::string channel = "web";
-    std::string chatId = context.sessionKey;
+    // extract channel from session key (supports agent-scoped format)
+    auto channel = ionclaw::session::SessionKeyUtils::extractChannel(context.sessionKey);
 
-    auto colonPos = context.sessionKey.find(':');
-
-    if (colonPos != std::string::npos)
+    if (channel.empty())
     {
-        channel = context.sessionKey.substr(0, colonPos);
-        chatId = context.sessionKey.substr(colonPos + 1);
+        channel = "web";
     }
 
-    // create new session key for child
+    // extract chatId for task creation
+    auto chatId = ionclaw::session::SessionKeyUtils::extractChatId(context.sessionKey);
+
+    // create new agent-scoped session key for child
     auto childChatId = ionclaw::util::UniqueId::uuid();
-    auto childSessionKey = channel + ":" + childChatId;
+    auto childSessionKey = ionclaw::session::SessionKeyUtils::build(context.agentName, channel, childChatId);
 
     // create task
     auto createdTask = context.taskManager->createTask(label, task, channel, chatId);

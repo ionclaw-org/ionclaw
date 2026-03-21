@@ -376,7 +376,7 @@ If `require_auth` is `false`, omit the `headers` block.
 
 ## Chat Session Mapping
 
-Each MCP connection gets its own chat session. The session key in IonClaw follows the pattern `mcp:<uuid>` where `<uuid>` is the `MCP-Session-Id` value. Sessions appear in the web app alongside web and Telegram sessions and share the same history, memory, and agent context.
+Each MCP connection gets its own chat session. The session key follows the agent-scoped pattern `agent:{agentId}:mcp:{uuid}` where `{uuid}` is the `MCP-Session-Id` value. The API exposes sessions using the base key format (`mcp:{uuid}`). Sessions appear in the web app alongside web and Telegram sessions and share the same memory and agent context.
 
 ### Display Names
 

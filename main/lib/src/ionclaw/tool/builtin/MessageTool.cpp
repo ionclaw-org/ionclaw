@@ -1,5 +1,7 @@
 #include "ionclaw/tool/builtin/MessageTool.hpp"
 
+#include "ionclaw/session/SessionKeyUtils.hpp"
+
 namespace ionclaw
 {
 namespace tool
@@ -17,8 +19,14 @@ ToolResult MessageTool::execute(const nlohmann::json &params, const ToolContext 
     }
 
     // resolve channel and chat_id from params or context
-    std::string channel = context.agentName;
-    std::string chatId = context.sessionKey;
+    std::string channel = ionclaw::session::SessionKeyUtils::extractChannel(context.sessionKey);
+
+    if (channel.empty())
+    {
+        channel = context.agentName;
+    }
+
+    std::string chatId = ionclaw::session::SessionKeyUtils::extractChatId(context.sessionKey);
 
     if (params.contains("channel") && params["channel"].is_string())
     {

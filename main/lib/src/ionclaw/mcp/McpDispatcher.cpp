@@ -12,6 +12,7 @@
 #include "ionclaw/bus/EventDispatcher.hpp"
 #include "ionclaw/bus/Events.hpp"
 #include "ionclaw/bus/MessageBus.hpp"
+#include "ionclaw/session/SessionKeyUtils.hpp"
 #include "ionclaw/session/SessionManager.hpp"
 #include "ionclaw/task/TaskManager.hpp"
 #include "ionclaw/util/StringHelper.hpp"
@@ -474,6 +475,11 @@ nlohmann::json McpDispatcher::toolChat(
     dispatcher->addNamedHandler(handlerId,
                                 [stream, sessionKey, taskId](const std::string &eventType, const nlohmann::json &data)
                                 {
+                                    if (!data.is_object())
+                                    {
+                                        return;
+                                    }
+
                                     if (eventType == "chat:stream")
                                     {
                                         if (data.value("chat_id", "") == sessionKey)
@@ -712,28 +718,33 @@ nlohmann::json McpDispatcher::toolGetSession(const nlohmann::json &args)
         throw std::runtime_error("session_id is required");
     }
 
-    // find session metadata without creating a ghost session
+    // find session by key or base key match, prefer agent-scoped
     auto infos = sessionManager->listSessions();
+    std::string sessionKey;
     std::string createdAt, updatedAt;
-    bool found = false;
 
     for (const auto &info : infos)
     {
-        if (info.key == rawId)
+        if (info.key == rawId ||
+            ionclaw::session::SessionKeyUtils::extractBaseKey(info.key) == rawId)
         {
+            sessionKey = info.key;
             createdAt = info.createdAt;
             updatedAt = info.updatedAt;
-            found = true;
-            break;
+
+            if (ionclaw::session::SessionKeyUtils::isAgentScoped(info.key))
+            {
+                break;
+            }
         }
     }
 
-    if (!found)
+    if (sessionKey.empty())
     {
         throw std::runtime_error("Session not found: " + rawId);
     }
 
-    auto messages = sessionManager->getHistory(rawId);
+    auto messages = sessionManager->getHistory(sessionKey);
     auto msgArray = nlohmann::json::array();
     for (const auto &msg : messages)
     {
@@ -741,7 +752,7 @@ nlohmann::json McpDispatcher::toolGetSession(const nlohmann::json &args)
     }
 
     return {
-        {"key", rawId},
+        {"key", ionclaw::session::SessionKeyUtils::extractBaseKey(sessionKey)},
         {"messages", msgArray},
         {"created_at", createdAt},
         {"updated_at", updatedAt}};
@@ -755,7 +766,18 @@ nlohmann::json McpDispatcher::toolDeleteSession(const nlohmann::json &args)
         throw std::runtime_error("session_id is required");
     }
 
-    sessionManager->deleteSession(rawId);
+    // delete both agent-scoped and base key sessions
+    auto baseKey = ionclaw::session::SessionKeyUtils::extractBaseKey(rawId);
+
+    for (const auto &info : sessionManager->listSessions())
+    {
+        if (info.key == rawId || info.key == baseKey ||
+            ionclaw::session::SessionKeyUtils::extractBaseKey(info.key) == baseKey)
+        {
+            sessionManager->deleteSession(info.key);
+        }
+    }
+
     dispatcher->broadcast("sessions:updated", nlohmann::json::object());
     return {{"status", "deleted"}, {"session_id", rawId}};
 }
@@ -863,8 +885,8 @@ nlohmann::json McpDispatcher::resourceSessions()
 
     for (const auto &info : infos)
     {
-        result.push_back({{"key", info.key},
-                          {"channel", info.channel},
+        result.push_back({{"key", ionclaw::session::SessionKeyUtils::extractBaseKey(info.key)},
+                          {"channel", ionclaw::session::SessionKeyUtils::extractChannel(info.key)},
                           {"display_name", info.displayName},
                           {"created_at", info.createdAt},
                           {"updated_at", info.updatedAt}});
@@ -880,13 +902,20 @@ nlohmann::json McpDispatcher::resourceSession(const std::string &chatId)
     std::string sessionKey, createdAt, updatedAt;
     for (const auto &info : infos)
     {
-        auto colonPos = info.key.find(':');
-        if (colonPos != std::string::npos && info.key.substr(colonPos + 1) == chatId)
+        // match by chatId against full key, base key, or extracted chatId
+        auto extractedChatId = ionclaw::session::SessionKeyUtils::extractChatId(info.key);
+
+        if (extractedChatId == chatId || info.key == chatId ||
+            ionclaw::session::SessionKeyUtils::extractBaseKey(info.key) == chatId)
         {
             sessionKey = info.key;
             createdAt = info.createdAt;
             updatedAt = info.updatedAt;
-            break;
+
+            if (ionclaw::session::SessionKeyUtils::isAgentScoped(info.key))
+            {
+                break;
+            }
         }
     }
 

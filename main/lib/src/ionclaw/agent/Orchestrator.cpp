@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "ionclaw/provider/ProviderFactory.hpp"
+#include "ionclaw/session/SessionKeyUtils.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
 #include "ionclaw/util/UniqueId.hpp"
@@ -447,7 +448,7 @@ void Orchestrator::handleMessage(const ionclaw::bus::InboundMessage &message)
 // process a message directly (no queueing) — the main agent turn
 void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &message)
 {
-    auto sessionKey = message.sessionKey();
+    auto baseKey = message.sessionKey();
     auto channel = message.channel.empty() ? "web" : message.channel;
 
     // check if this is a subagent message and update registry
@@ -462,24 +463,21 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
             subagentRegistry->updateStatus(subagentRunId, SubagentStatus::Active);
         }
 
-        // mark this session as a subagent session (hidden from session list)
-        sessionManager->ensureSession(sessionKey);
-        sessionManager->updateLiveStateField(sessionKey, "subagent", true);
-
         // broadcast typing indicator to parent chat so web client shows loading
         if (message.metadata.contains("parent_session_key") && message.metadata["parent_session_key"].is_string())
         {
             auto parentKey = message.metadata["parent_session_key"].get<std::string>();
-            dispatcher->broadcast("chat:typing", {{"chat_id", parentKey}});
+            auto parentBaseKey = ionclaw::session::SessionKeyUtils::extractBaseKey(parentKey);
+            dispatcher->broadcast("chat:typing", {{"chat_id", parentBaseKey}});
         }
     }
 
-    // drain pending announces for this session
+    // drain pending announces (keyed by base key for queue coordination)
     std::string announceText;
 
     if (announceQueue)
     {
-        auto announces = announceQueue->drain(sessionKey);
+        auto announces = announceQueue->drain(baseKey);
 
         for (const auto &entry : announces)
         {
@@ -500,9 +498,6 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
         effectiveContent = "[Subagent results]:\n" + announceText + "\n\n" + effectiveContent;
     }
 
-    // get session history for classifier context
-    auto history = sessionManager->getHistory(sessionKey, 20);
-
     // resolve target agent: check metadata override, then session affinity, then classify
     std::string targetAgent;
 
@@ -513,44 +508,76 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
         if (!requestedAgent.empty() && agentLoops.find(requestedAgent) != agentLoops.end())
         {
             targetAgent = requestedAgent;
-            spdlog::debug("[Orchestrator] Using metadata agent override: {} (session: {})", targetAgent, sessionKey);
+            spdlog::debug("[Orchestrator] Using metadata agent override: {} (session: {})", targetAgent, baseKey);
         }
     }
 
-    // session agent affinity: reuse last agent for multi-agent setups
+    // resolve previous agent affinity for context
+    std::string previousAffinity;
+
     if (targetAgent.empty() && agentLoops.size() > 1)
     {
-        auto session = sessionManager->getOrCreate(sessionKey);
+        auto session = sessionManager->getOrCreate(baseKey);
 
         if (session.liveState.contains("agentAffinity") && session.liveState["agentAffinity"].is_string())
         {
-            auto affinity = session.liveState["agentAffinity"].get<std::string>();
-
-            if (agentLoops.find(affinity) != agentLoops.end())
-            {
-                targetAgent = affinity;
-                spdlog::debug("[Orchestrator] Using session agent affinity: {} (session: {})", targetAgent, sessionKey);
-            }
+            previousAffinity = session.liveState["agentAffinity"].get<std::string>();
         }
     }
 
-    // classify only when no affinity exists (new session or affinity agent removed)
+    // get session history for classifier context from agent-scoped session
+    std::vector<ionclaw::session::SessionMessage> history;
+    {
+        auto historyAgent = !previousAffinity.empty() ? previousAffinity
+                            : !targetAgent.empty()    ? targetAgent
+                                                      : (agentLoops.count("main") ? "main" : agentLoops.begin()->first);
+        auto historyKey = ionclaw::session::SessionKeyUtils::build(historyAgent, channel, message.chatId);
+        history = sessionManager->getHistory(historyKey, 20);
+    }
+
+    // always classify when multiple agents are configured (affinity is not sticky)
     if (targetAgent.empty() && classifier && agentLoops.size() > 1)
     {
-        targetAgent = classifier->classify(effectiveContent, sessionKey, history);
+        targetAgent = classifier->classify(effectiveContent, baseKey, history);
+    }
+
+    // use previous affinity if classifier returned empty
+    if (targetAgent.empty() && !previousAffinity.empty() && agentLoops.find(previousAffinity) != agentLoops.end())
+    {
+        targetAgent = previousAffinity;
+        spdlog::debug("[Orchestrator] Using previous agent affinity: {} (session: {})", targetAgent, baseKey);
     }
 
     if (targetAgent.empty() || agentLoops.find(targetAgent) == agentLoops.end())
     {
-        // prefer "main" agent, fallback to first configured
         targetAgent = agentLoops.count("main") ? "main" : agentLoops.begin()->first;
         spdlog::debug("[Orchestrator] Falling back to default agent: {}", targetAgent);
     }
 
-    // persist agent affinity for this session
+    // build agent-scoped session key: "agent:{agentId}:{channel}:{chatId}"
+    auto sessionKey = ionclaw::session::SessionKeyUtils::build(targetAgent, channel, message.chatId);
+
+    // mark subagent session after agent is resolved (hidden from listing)
+    if (!subagentRunId.empty())
+    {
+        sessionManager->ensureSession(sessionKey);
+        sessionManager->updateLiveStateField(sessionKey, "subagent", true);
+    }
+
+    // clear previous agent session when agent changes
+    if (agentLoops.size() > 1 && !previousAffinity.empty() && previousAffinity != targetAgent)
+    {
+        auto previousSessionKey = ionclaw::session::SessionKeyUtils::build(previousAffinity, channel, message.chatId);
+        spdlog::info("[Orchestrator] Agent changed from '{}' to '{}', clearing previous session ({})",
+                     previousAffinity, targetAgent, previousSessionKey);
+        sessionManager->clearSession(previousSessionKey);
+        dispatcher->broadcast("sessions:updated", nlohmann::json::object());
+    }
+
+    // persist agent affinity on base key (for lookup before agent is resolved)
     if (agentLoops.size() > 1)
     {
-        sessionManager->updateLiveStateField(sessionKey, "agentAffinity", targetAgent);
+        sessionManager->updateLiveStateField(baseKey, "agentAffinity", targetAgent);
     }
 
     spdlog::info("[Orchestrator] Routing message to agent '{}' (session: {})", targetAgent, sessionKey);
@@ -570,12 +597,12 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
     {
         spdlog::warn("[Orchestrator] Agent '{}' at concurrency limit ({}/{}), queueing as followup",
                      targetAgent, activeTurns, maxConcurrent);
-        sessionQueue_->enqueue(sessionKey, message, ionclaw::bus::QueueMode::Followup,
+        sessionQueue_->enqueue(baseKey, message, ionclaw::bus::QueueMode::Followup,
                                ionclaw::bus::resolveQueueSettings(config, channel));
         return;
     }
 
-    // create active turn handle
+    // create active turn handle (keyed by base key for queue coordination)
     auto turnHandle = std::make_shared<ActiveTurnHandle>();
     turnHandle->agentName = targetAgent;
     turnHandle->startedAt = std::chrono::steady_clock::now();
@@ -585,7 +612,7 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
         turnHandle->taskId = message.metadata["task_id"].get<std::string>();
     }
 
-    setActiveTurn(sessionKey, turnHandle);
+    setActiveTurn(baseKey, turnHandle);
 
     // get the agent loop
     auto &loop = agentLoops[targetAgent];
@@ -623,7 +650,7 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
         {
             spdlog::error("[Orchestrator] No context builder for agent '{}', aborting turn", targetAgent);
             loop->setActiveTurnHandle(nullptr);
-            clearActiveTurn(sessionKey);
+            clearActiveTurn(baseKey);
             return;
         }
 
@@ -694,13 +721,14 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
                             "- If you already have enough information to answer, do so immediately without spawning more.\n";
         }
 
-        // create a modified message with effective content
+        // create modified message with effective content and agent-scoped session key
         auto effectiveMessage = message;
         effectiveMessage.content = effectiveContent;
+        effectiveMessage.metadata["agent_session_key"] = sessionKey;
 
         // process message with event broadcasting
         // clang-format off
-        loop->processMessage(effectiveMessage, systemPrompt, [this, sessionKey, targetAgent, subagentRunId](const AgentEvent &event)
+        loop->processMessage(effectiveMessage, systemPrompt, [this, baseKey, targetAgent, subagentRunId](const AgentEvent &event)
         {
             try
             {
@@ -709,7 +737,7 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
 
                 if (!eventData.contains("chat_id"))
                 {
-                    eventData["chat_id"] = sessionKey;
+                    eventData["chat_id"] = baseKey;
                 }
 
                 dispatcher->broadcast(event.type, eventData);
@@ -731,7 +759,7 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
     catch (const std::exception &ex)
     {
         spdlog::error("[Orchestrator] Agent execution error (session: {}, agent: {}): {}", sessionKey, targetAgent, ex.what());
-        clearActiveTurn(sessionKey);
+        clearActiveTurn(baseKey);
         loop->setActiveTurnHandle(nullptr);
 
         // mark subagent as errored if this was a subagent run
@@ -759,14 +787,14 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
             auto errorText = std::string("I encountered an error: ") + ex.what();
 
             dispatcher->broadcast("chat:message", {
-                                                      {"chat_id", sessionKey},
+                                                      {"chat_id", baseKey},
                                                       {"content", nlohmann::json::array({{{"type", "text"}, {"text", errorText}}})},
                                                       {"error", ex.what()},
                                                       {"agent_name", targetAgent},
                                                       {"task_id", turnHandle->taskId},
                                                   });
             dispatcher->broadcast("chat:stream_end", {
-                                                         {"chat_id", sessionKey},
+                                                         {"chat_id", baseKey},
                                                          {"agent_name", targetAgent},
                                                          {"task_id", turnHandle->taskId},
                                                      });
@@ -798,7 +826,7 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
     catch (...)
     {
         spdlog::error("[Orchestrator] Agent execution non-standard exception (session: {}, agent: {})", sessionKey, targetAgent);
-        clearActiveTurn(sessionKey);
+        clearActiveTurn(baseKey);
         loop->setActiveTurnHandle(nullptr);
 
         // mark subagent as errored if this was a subagent run
@@ -825,14 +853,14 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
             auto errorText = std::string("I encountered an unexpected internal error.");
 
             dispatcher->broadcast("chat:message", {
-                                                      {"chat_id", sessionKey},
+                                                      {"chat_id", baseKey},
                                                       {"content", nlohmann::json::array({{{"type", "text"}, {"text", errorText}}})},
                                                       {"error", "non-standard exception"},
                                                       {"agent_name", targetAgent},
                                                       {"task_id", turnHandle->taskId},
                                                   });
             dispatcher->broadcast("chat:stream_end", {
-                                                         {"chat_id", sessionKey},
+                                                         {"chat_id", baseKey},
                                                          {"agent_name", targetAgent},
                                                          {"task_id", turnHandle->taskId},
                                                      });
@@ -862,13 +890,13 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
         return;
     }
 
-    // clear active turn
-    clearActiveTurn(sessionKey);
+    // clear active turn (keyed by base key)
+    clearActiveTurn(baseKey);
 
     // clear stale turn handle references
     loop->setActiveTurnHandle(nullptr);
 
-    // fire MessageSent + AgentTurnEnd hooks
+    // fire MessageSent + AgentTurnEnd hooks (agent-scoped key)
     if (hookRunner)
     {
         try
@@ -918,14 +946,14 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
         sessionManager->updateLiveStateField(sessionKey, "pendingParentTaskId", turnHandle->taskId);
 
         // keep typing indicator alive
-        dispatcher->broadcast("chat:typing", {{"chat_id", sessionKey}, {"agent_name", targetAgent}});
+        dispatcher->broadcast("chat:typing", {{"chat_id", baseKey}, {"agent_name", targetAgent}});
 
         spdlog::info("[Orchestrator] Parent task {} kept in Doing while {} children run (session: {})",
                      turnHandle->taskId, subagentRegistry->getActiveChildCount(sessionKey), sessionKey);
     }
 
-    // drain followup/collect queue after turn completes
-    drainSessionQueue(sessionKey);
+    // drain followup/collect queue after turn completes (base key)
+    drainSessionQueue(baseKey);
 }
 
 // handle interrupt: abort current turn, clear queue, re-publish message
@@ -1085,9 +1113,12 @@ void Orchestrator::handleSubagentCompletion(const std::string &runId, const std:
         auto announceMsg = "[" + statusStr + "] " + record.task + "\n" +
                            (outcome.empty() ? std::string("(no output)") : outcome);
 
+        // use base key for queue and active-turn coordination
+        auto requesterBaseKey = ionclaw::session::SessionKeyUtils::extractBaseKey(record.requesterSessionKey);
+
         // try steer: inject result into parent's active turn (between iterations)
         // fallback to announce queue if parent is not active (will be prepended to next turn)
-        if (isSessionActive(record.requesterSessionKey) && sessionQueue_)
+        if (isSessionActive(requesterBaseKey) && sessionQueue_)
         {
             ionclaw::bus::InboundMessage steerMsg;
             steerMsg.content = announceMsg;
@@ -1095,15 +1126,15 @@ void Orchestrator::handleSubagentCompletion(const std::string &runId, const std:
 
             auto settings = ionclaw::bus::QueueSettings{};
             settings.mode = ionclaw::bus::QueueMode::Steer;
-            sessionQueue_->enqueue(record.requesterSessionKey, steerMsg,
+            sessionQueue_->enqueue(requesterBaseKey, steerMsg,
                                    ionclaw::bus::QueueMode::Steer, settings);
 
-            spdlog::info("[Orchestrator] Steered subagent result into active turn (session: {})", record.requesterSessionKey);
+            spdlog::info("[Orchestrator] Steered subagent result into active turn (session: {})", requesterBaseKey);
         }
         else if (announceQueue)
         {
             auto announceId = AnnounceQueue::buildAnnounceId(record.childSessionKey, runId);
-            announceQueue->enqueue(runId, record.requesterSessionKey, announceMsg, announceId);
+            announceQueue->enqueue(runId, requesterBaseKey, announceMsg, announceId);
         }
     }
 
@@ -1124,10 +1155,11 @@ void Orchestrator::handleSubagentCompletion(const std::string &runId, const std:
     {
         // broadcast typing so the UI shows the parent is still waiting
         auto parentSession = sessionManager->getOrCreate(record.requesterSessionKey);
+        auto parentBaseKey = ionclaw::session::SessionKeyUtils::extractBaseKey(record.requesterSessionKey);
 
         if (parentSession.liveState.contains("pendingParentTaskId"))
         {
-            dispatcher->broadcast("chat:typing", {{"chat_id", record.requesterSessionKey}});
+            dispatcher->broadcast("chat:typing", {{"chat_id", parentBaseKey}});
         }
 
         return;
@@ -1137,15 +1169,9 @@ void Orchestrator::handleSubagentCompletion(const std::string &runId, const std:
     {
         spdlog::info("[Orchestrator] All children settled for session {}, waking parent", record.requesterSessionKey);
 
-        std::string channel = "web";
-        std::string chatId = record.requesterSessionKey;
-        auto colonPos = record.requesterSessionKey.find(':');
-
-        if (colonPos != std::string::npos)
-        {
-            channel = record.requesterSessionKey.substr(0, colonPos);
-            chatId = record.requesterSessionKey.substr(colonPos + 1);
-        }
+        // extract channel and chatId from agent-scoped or base key
+        auto channel = ionclaw::session::SessionKeyUtils::extractChannel(record.requesterSessionKey);
+        auto chatId = ionclaw::session::SessionKeyUtils::extractChatId(record.requesterSessionKey);
 
         // reuse the parent's original task id (stored when spawning children)
         // so the UI shows one continuous task from user message → final answer

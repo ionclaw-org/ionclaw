@@ -8,6 +8,7 @@
 #include "ionclaw/cron/CronParser.hpp"
 #include "ionclaw/cron/CronService.hpp"
 #include "ionclaw/cron/CronTypes.hpp"
+#include "ionclaw/session/SessionKeyUtils.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 
 namespace ionclaw
@@ -35,17 +36,15 @@ ToolResult CronTool::execute(const nlohmann::json &params, const ToolContext &co
 
         auto message = params["message"].get<std::string>();
 
-        // parse channel from session key
-        std::string channel = "web";
-        std::string to = context.sessionKey;
+        // extract channel and chatId from session key (supports agent-scoped format)
+        auto channel = ionclaw::session::SessionKeyUtils::extractChannel(context.sessionKey);
 
-        auto colonPos = context.sessionKey.find(':');
-
-        if (colonPos != std::string::npos)
+        if (channel.empty())
         {
-            channel = context.sessionKey.substr(0, colonPos);
-            to = context.sessionKey.substr(colonPos + 1);
+            channel = "web";
         }
+
+        auto to = ionclaw::session::SessionKeyUtils::extractChatId(context.sessionKey);
 
         if (channel.empty() || to.empty())
         {

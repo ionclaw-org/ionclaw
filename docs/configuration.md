@@ -209,7 +209,10 @@ Each agent's workspace path is resolved at startup relative to the project root 
 File-related tools are restricted to (restriction is always enforced by the backend):
 
 1. The agent's own workspace directory.
-2. The shared `public/` directory at the project root.
+2. The project root directory.
+3. The shared `public/` directory at the project root.
+
+For relative paths, the tool resolves against the workspace first, then the project root. This allows agents to read project-level files (e.g., skills in `skills/`) without requiring the workspace to contain them.
 
 File tools (`read_file`, `write_file`, `edit_file`, `list_dir`), HTTP client `download_path`/`upload_file`, and the exec working directory respect these boundaries. Paths outside them raise an error.
 
@@ -224,7 +227,7 @@ The `tools` field on each agent is a list of tool names. When set, only tools wh
 
 ### Per-channel history limits
 
-The `channel_history_limits` map under `agent_params` allows overriding `max_history` per channel. The key is the channel prefix (the part before `:` in the session key, e.g. `web`, `telegram`). Sessions whose channel prefix matches a key use that limit; all others fall back to the global `max_history`.
+The `channel_history_limits` map under `agent_params` allows overriding `max_history` per channel. The key is the channel name extracted from the session key (e.g. `web`, `telegram`, `mcp`). This works with both base keys (`web:chatId`) and agent-scoped keys (`agent:main:web:chatId`) via `SessionKeyUtils::extractChannel()`. Sessions whose channel matches a key use that limit; all others use the global `max_history`.
 
 Default limits are applied automatically for channels with persistent sessions:
 

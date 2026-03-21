@@ -393,6 +393,7 @@ This is separate from the `tools` field (which controls tool registration). Tool
 
 ### Sessions
 
+- **SessionKeyUtils** (`session/SessionKeyUtils.hpp`) — Utility for building and parsing agent-scoped session keys. The key format is `agent:{agentId}:{channel}:{chatId}`, which gives each agent its own conversation history per chat. Provides `build()`, `parse()`, `extractChannel()`, `extractChatId()`, `extractBaseKey()`, and `isAgentScoped()`.
 - **SessionManager** (`session/SessionManager.hpp`) — Manages conversation sessions with JSONL-based persistence. Includes JSONL repair on load: corrupt lines are skipped with a `.bak` backup created automatically. Supports abort cutoff marking for recovery after crashes.
 - **SessionSweeper** (`session/SessionSweeper.hpp`) — Manages session disk budget enforcement based on configurable high-water ratios.
 
