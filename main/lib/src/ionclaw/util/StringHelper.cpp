@@ -161,9 +161,106 @@ std::string StringHelper::sanitizeForPrompt(const std::string &str)
     return result;
 }
 
-// strip reasoning XML tags from LLM output:
+// find all code regions (fenced ``` blocks and inline `backticks`) in text
+// returns sorted vector of [start, end) pairs
+std::vector<std::pair<size_t, size_t>> StringHelper::findCodeRegions(const std::string &str)
+{
+    std::vector<std::pair<size_t, size_t>> regions;
+
+    // fenced code blocks: ```...```
+    size_t pos = 0;
+
+    while (pos < str.size())
+    {
+        auto fenceStart = str.find("```", pos);
+
+        if (fenceStart == std::string::npos)
+        {
+            break;
+        }
+
+        // skip to end of opening fence line
+        auto fenceEnd = str.find("```", fenceStart + 3);
+
+        if (fenceEnd == std::string::npos)
+        {
+            // unclosed fence: treat rest as code
+            regions.emplace_back(fenceStart, str.size());
+            break;
+        }
+
+        regions.emplace_back(fenceStart, fenceEnd + 3);
+        pos = fenceEnd + 3;
+    }
+
+    // inline backticks: `...`
+    pos = 0;
+
+    while (pos < str.size())
+    {
+        auto tickStart = str.find('`', pos);
+
+        if (tickStart == std::string::npos)
+        {
+            break;
+        }
+
+        // skip if inside a fenced block
+        bool inFenced = false;
+
+        for (const auto &[s, e] : regions)
+        {
+            if (tickStart >= s && tickStart < e)
+            {
+                inFenced = true;
+                pos = e;
+                break;
+            }
+        }
+
+        if (inFenced)
+        {
+            continue;
+        }
+
+        auto tickEnd = str.find('`', tickStart + 1);
+
+        if (tickEnd == std::string::npos)
+        {
+            break;
+        }
+
+        regions.emplace_back(tickStart, tickEnd + 1);
+        pos = tickEnd + 1;
+    }
+
+    std::sort(regions.begin(), regions.end());
+    return regions;
+}
+
+// check if a position falls inside any code region
+bool StringHelper::isInsideCode(const std::vector<std::pair<size_t, size_t>> &regions, size_t pos)
+{
+    for (const auto &[start, end] : regions)
+    {
+        if (pos >= start && pos < end)
+        {
+            return true;
+        }
+
+        if (start > pos)
+        {
+            break;
+        }
+    }
+
+    return false;
+}
+
+// strip reasoning XML tags from LLM output (code-aware):
 // - <think>, <thinking>, <thought>, <antthinking>: remove tags AND content
 // - <final>: remove tags but preserve content
+// - tags inside code blocks (``` or `) are preserved
 std::string StringHelper::stripReasoningTags(const std::string &str)
 {
     if (str.empty())
@@ -171,30 +268,62 @@ std::string StringHelper::stripReasoningTags(const std::string &str)
         return str;
     }
 
-    // quick check: skip regex if no angle brackets present
+    // quick check: skip if no angle brackets present
     if (str.find('<') == std::string::npos)
     {
         return str;
     }
 
+    auto codeRegions = findCodeRegions(str);
     std::string result = str;
 
-    // remove thinking tags and their content (case-insensitive)
-    // matches: <think>...</think>, <thinking>...</thinking>, <thought>...</thought>, <antthinking>...</antthinking>
+    // process thinking tags: remove matched pairs and their content
     static thread_local const std::regex thinkingRe(
         R"(<(?:think|thinking|thought|antthinking)(?:\s[^>]*)?>[\s\S]*?</(?:think|thinking|thought|antthinking)>)",
         std::regex::icase);
-    result = std::regex_replace(result, thinkingRe, "");
 
-    // remove unclosed thinking tags and trailing content (strict mode)
-    static thread_local const std::regex unclosedThinkingRe(
+    // iteratively remove non-code thinking blocks (positions shift after each removal)
+    for (;;)
+    {
+        auto regions = findCodeRegions(result);
+        std::smatch match;
+
+        if (!std::regex_search(result, match, thinkingRe))
+        {
+            break;
+        }
+
+        if (isInsideCode(regions, static_cast<size_t>(match.position())))
+        {
+            // tag is inside code block - stop (can't skip and continue easily with std::regex)
+            break;
+        }
+
+        result = result.substr(0, static_cast<size_t>(match.position())) +
+                 result.substr(static_cast<size_t>(match.position()) + match.length());
+    }
+
+    // remove unclosed thinking tags (only if not inside code)
+    static thread_local const std::regex unclosedRe(
         R"(<(?:think|thinking|thought|antthinking)(?:\s[^>]*)?>[\s\S]*$)",
         std::regex::icase);
-    result = std::regex_replace(result, unclosedThinkingRe, "");
 
-    // strip <final> tags but preserve their content
+    {
+        auto regions = findCodeRegions(result);
+        std::smatch match;
+
+        if (std::regex_search(result, match, unclosedRe) &&
+            !isInsideCode(regions, static_cast<size_t>(match.position())))
+        {
+            result = result.substr(0, static_cast<size_t>(match.position()));
+        }
+    }
+
+    // strip <final> tags but preserve content (only outside code)
     static thread_local const std::regex finalOpenRe(R"(<final(?:\s[^>]*)?>)", std::regex::icase);
     static thread_local const std::regex finalCloseRe(R"(</final>)", std::regex::icase);
+
+    // simple global replace is safe for <final> tags since they don't remove content
     result = std::regex_replace(result, finalOpenRe, "");
     result = std::regex_replace(result, finalCloseRe, "");
 
@@ -246,6 +375,94 @@ std::string StringHelper::urlEncode(const std::string &str)
     }
 
     return encoded.str();
+}
+
+// mask a token preserving prefix and suffix for identification
+std::string StringHelper::maskToken(const std::string &token)
+{
+    if (token.size() < 12)
+    {
+        return "***";
+    }
+
+    if (token.size() < 20)
+    {
+        return token.substr(0, 4) + "..." + token.substr(token.size() - 4);
+    }
+
+    return token.substr(0, 6) + "..." + token.substr(token.size() - 4);
+}
+
+// redact sensitive tokens in tool output
+std::string StringHelper::redactSensitive(const std::string &text)
+{
+    if (text.empty())
+    {
+        return text;
+    }
+
+    std::string result = text;
+
+    // clang-format off
+    static thread_local const std::vector<std::pair<std::regex, int>> patterns = {
+        // api key prefixes: sk-, key-, gsk_, ghp_, github_pat_, xox, xapp-, pplx-, npm_, AIza
+        {std::regex(R"(\b(sk-[A-Za-z0-9_\-]{10,})\b)"), 1},
+        {std::regex(R"(\b(key-[A-Za-z0-9_\-]{10,})\b)"), 1},
+        {std::regex(R"(\b(ghp_[A-Za-z0-9]{20,})\b)"), 1},
+        {std::regex(R"(\b(github_pat_[A-Za-z0-9_]{20,})\b)"), 1},
+        {std::regex(R"(\b(gsk_[A-Za-z0-9_\-]{10,})\b)"), 1},
+        {std::regex(R"(\b(xox[baprs]-[A-Za-z0-9\-]{10,})\b)"), 1},
+        {std::regex(R"(\b(xapp-[A-Za-z0-9\-]{10,})\b)"), 1},
+        {std::regex(R"(\b(AIza[0-9A-Za-z\-_]{20,})\b)"), 1},
+        {std::regex(R"(\b(pplx-[A-Za-z0-9_\-]{10,})\b)"), 1},
+        {std::regex(R"(\b(npm_[A-Za-z0-9]{10,})\b)"), 1},
+        // bearer tokens in headers or assignments
+        {std::regex(R"(Bearer\s+([A-Za-z0-9._\-+=]{18,}))"), 1},
+        // env-style assignments: KEY=value, TOKEN="value"
+        {std::regex(R"re(\b[A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD)\s*[=:]\s*["']?([^\s"']{8,})["']?)re"), 1},
+        // json fields: "apiKey": "value", "token": "value"
+        {std::regex(R"re("(?:apiKey|api_key|token|secret|password|passwd|access_token|refresh_token)"\s*:\s*"([^"]{8,})")re"), 1},
+        // telegram bot tokens
+        {std::regex(R"(\b(\d{8,}:[A-Za-z0-9_\-]{20,})\b)"), 1},
+    };
+    // clang-format on
+
+    for (const auto &[pattern, group] : patterns)
+    {
+        std::string processed;
+        auto begin = std::sregex_iterator(result.begin(), result.end(), pattern);
+        auto end = std::sregex_iterator();
+        size_t lastPos = 0;
+
+        for (auto it = begin; it != end; ++it)
+        {
+            auto &match = *it;
+            processed += result.substr(lastPos, static_cast<size_t>(match.position()) - lastPos);
+
+            // replace only the captured group within the full match
+            auto fullMatch = match.str();
+            auto captured = match.str(group);
+            auto capturedPos = fullMatch.find(captured);
+
+            if (capturedPos != std::string::npos)
+            {
+                processed += fullMatch.substr(0, capturedPos);
+                processed += maskToken(captured);
+                processed += fullMatch.substr(capturedPos + captured.size());
+            }
+
+            lastPos = static_cast<size_t>(match.position()) + fullMatch.size();
+        }
+
+        processed += result.substr(lastPos);
+        result = std::move(processed);
+    }
+
+    // pem private keys
+    static thread_local const std::regex pemPattern(R"(-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]+?-----END [A-Z ]*PRIVATE KEY-----)");
+    result = std::regex_replace(result, pemPattern, "[REDACTED PRIVATE KEY]");
+
+    return result;
 }
 
 } // namespace util

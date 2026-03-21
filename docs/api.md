@@ -396,6 +396,7 @@ If the skill already exists at the target, it is replaced. Response: `{}` on suc
 | POST | `/api/config/validate` | Validate a YAML configuration string |
 | PATCH | `/api/config` | Update multiple configuration sections in a single call |
 | PUT | `/api/config/{section}` | Update a single configuration section |
+| DELETE | `/api/config/{section}/{name}` | Delete a named item (agent, credential, or provider) |
 | POST | `/api/config/restart` | Reload configuration and restart services |
 
 **POST /api/config/validate**
@@ -432,6 +433,10 @@ Or on error:
 Valid sections: `bot`, `server`, `agents`, `image`, `web_client`, `tools`, `storage`, `credentials`, `providers`, `channels`, `advanced`.
 
 For the `advanced` section, the body can contain a `yaml` key with the full YAML string. When saving advanced YAML, masked placeholders (`****`) for sensitive fields are preserved (replaced with stored values before write).
+
+**DELETE /api/config/{section}/{name}**
+
+Delete a named item from a configuration section. Supported sections: `agents`, `credentials`, `providers`. The item is removed from both in-memory config and `config.yml`. Returns 404 if the item does not exist.
 
 ---
 
@@ -477,6 +482,7 @@ Returns form schema definitions used by the Settings UI. Each field has `name`, 
 |--------|----------|-------------|
 | GET | `/api/scheduler/jobs` | List scheduled jobs |
 | POST | `/api/scheduler/jobs` | Create a job |
+| PUT | `/api/scheduler/jobs/{job_id}` | Update a job (patch-style) |
 | DELETE | `/api/scheduler/jobs/{job_id}` | Delete a job |
 
 ---

@@ -14,6 +14,8 @@ const toast = useToast()
 const jobs = ref([])
 const showCreateDialog = ref(false)
 const showEditDialog = ref(false)
+const showDeleteConfirm = ref(false)
+const deleteJobId = ref('')
 const loading = ref(true)
 
 const jobSchema = [
@@ -132,10 +134,16 @@ async function updateJob() {
   }
 }
 
-async function removeJob(id) {
+function promptDeleteJob(id) {
+  deleteJobId.value = id
+  showDeleteConfirm.value = true
+}
+
+async function confirmDeleteJob() {
+  showDeleteConfirm.value = false
   try {
-    await api.del(`/scheduler/jobs/${id}`)
-    toast.add({ severity: 'info', summary: 'Removed', detail: 'Job deleted', life: 2000 })
+    await api.del(`/scheduler/jobs/${deleteJobId.value}`)
+    toast.add({ severity: 'success', summary: 'Deleted', detail: 'Job deleted', life: 2000 })
     await loadJobs()
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
@@ -191,7 +199,7 @@ function statusSeverity(status) {
           <template #body="{ data }">
             <div class="action-buttons">
               <Button icon="pi pi-pencil" severity="secondary" text size="small" @click="openEditDialog(data)" />
-              <Button icon="pi pi-trash" severity="danger" text size="small" @click="removeJob(data.id)" />
+              <Button icon="pi pi-trash" severity="danger" text size="small" @click="promptDeleteJob(data.id)" />
             </div>
           </template>
         </Column>
@@ -212,6 +220,14 @@ function statusSeverity(status) {
         <Button label="Cancel" severity="secondary" text @click="showEditDialog = false" />
         <Button label="Save" icon="pi pi-save" @click="updateJob" />
       </div>
+    </Dialog>
+
+    <Dialog v-model:visible="showDeleteConfirm" header="Confirm Delete" :modal="true" :style="{ width: '24rem' }" :breakpoints="{ '768px': '90vw' }">
+      <p>Delete this scheduled job?</p>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text size="small" @click="showDeleteConfirm = false" />
+        <Button label="Delete" icon="pi pi-trash" severity="danger" size="small" @click="confirmDeleteJob" />
+      </template>
     </Dialog>
   </div>
 </template>

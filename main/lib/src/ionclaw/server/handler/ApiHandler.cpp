@@ -219,6 +219,20 @@ void ApiHandler::routeRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
         return;
     }
 
+    // config item delete: DELETE /api/config/{section}/{name}
+    if (!configSection.empty() && method == "DELETE")
+    {
+        auto slashPos = configSection.find('/');
+
+        if (slashPos != std::string::npos)
+        {
+            auto section = configSection.substr(0, slashPos);
+            auto itemName = configSection.substr(slashPos + 1);
+            routes->handleConfigDeleteItem(req, resp, section, itemName);
+            return;
+        }
+    }
+
     // system
     if (path == "/api/system/info" && method == "GET")
     {

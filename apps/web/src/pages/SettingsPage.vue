@@ -64,8 +64,9 @@ const showAddProvider = ref(false)
 const newAgentName = ref('')
 const newCredentialName = ref('')
 const newProviderName = ref('')
+const showDeleteConfirm = ref(false)
+const deleteTarget = ref({ section: '', name: '' })
 const availableTools = ref([])
-const toolsSearch = ref('')
 
 function humanize(name) {
   return name.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
@@ -98,17 +99,19 @@ async function loadFormSchemas() {
 async function loadAvailableTools() {
   try {
     const tools = await api.get('/tools')
-    availableTools.value = tools.map(t => t.name).sort()
+    availableTools.value = tools.sort((a, b) => a.name.localeCompare(b.name))
   } catch {
     availableTools.value = []
   }
 }
 
-const filteredTools = computed(() => {
-  const q = toolsSearch.value.trim().toLowerCase()
+const toolNames = computed(() => availableTools.value.map(t => t.name))
+
+function filterTools(query) {
+  const q = (query || '').trim().toLowerCase()
   if (!q) return availableTools.value
-  return availableTools.value.filter(name => name.toLowerCase().includes(q))
-})
+  return availableTools.value.filter(t => t.name.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q))
+}
 
 function isToolEnabled(agent, toolName) {
   if (!agent.enabledTools || agent.enabledTools.length === 0) return true
@@ -118,21 +121,48 @@ function isToolEnabled(agent, toolName) {
 function toggleTool(agent, toolName) {
   // first toggle: initialize from current state
   if (!agent.enabledTools || agent.enabledTools.length === 0) {
-    // all enabled -> disable this one = all except this one
-    agent.enabledTools = availableTools.value.filter(t => t !== toolName)
+    agent.enabledTools = toolNames.value.filter(t => t !== toolName)
   } else if (agent.enabledTools.includes(toolName)) {
     agent.enabledTools = agent.enabledTools.filter(t => t !== toolName)
   } else {
     agent.enabledTools = [...agent.enabledTools, toolName]
   }
   // if all tools enabled, clear the list (empty = all)
-  if (agent.enabledTools.length >= availableTools.value.length) {
+  if (agent.enabledTools.length >= toolNames.value.length) {
     agent.enabledTools = []
   }
 }
 
 function selectAllTools(agent) {
   agent.enabledTools = []
+}
+
+async function confirmDeleteItem() {
+  const { section, name } = deleteTarget.value
+  showDeleteConfirm.value = false
+
+  try {
+    await api.del(`/config/${section}/${name}`)
+
+    if (section === 'agents') {
+      const updated = { ...agentsConfig.value }
+      delete updated[name]
+      agentsConfig.value = updated
+    } else if (section === 'credentials') {
+      const updated = { ...credentials.value }
+      delete updated[name]
+      credentials.value = updated
+    } else if (section === 'providers') {
+      const updated = { ...providers.value }
+      delete updated[name]
+      providers.value = updated
+    }
+
+    await configStore.loadConfig()
+    toast.add({ severity: 'success', summary: 'Deleted', detail: `${humanize(name)} removed`, life: 2000 })
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
+  }
 }
 
 function mapConfigToLocal() {
@@ -202,6 +232,7 @@ function mapConfigToLocal() {
       model: agent.model || '',
       instructions: agent.instructions || '',
       enabledTools: agent.tools || [],
+      toolsFilter: '',
     }
   }
   agentsConfig.value = parsedAgents
@@ -350,14 +381,13 @@ function confirmAddAgent() {
     toast.add({ severity: 'warn', summary: 'Exists', detail: `Agent "${name}" already exists`, life: 2000 })
     return
   }
-  agentsConfig.value[name] = { workspace: '', description: '', model: '', instructions: '', enabledTools: [] }
+  agentsConfig.value[name] = { workspace: '', description: '', model: '', instructions: '', enabledTools: [], toolsFilter: '' }
   showAddAgent.value = false
 }
 
 function removeAgent(name) {
-  const updated = { ...agentsConfig.value }
-  delete updated[name]
-  agentsConfig.value = updated
+  deleteTarget.value = { section: 'agents', name }
+  showDeleteConfirm.value = true
 }
 
 async function saveAgents() {
@@ -387,9 +417,8 @@ function confirmAddCredential() {
 }
 
 function removeCredential(name) {
-  const updated = { ...credentials.value }
-  delete updated[name]
-  credentials.value = updated
+  deleteTarget.value = { section: 'credentials', name }
+  showDeleteConfirm.value = true
 }
 
 async function saveCredentials() {
@@ -409,9 +438,8 @@ function confirmAddProvider() {
 }
 
 function removeProvider(name) {
-  const updated = { ...providers.value }
-  delete updated[name]
-  providers.value = updated
+  deleteTarget.value = { section: 'providers', name }
+  showDeleteConfirm.value = true
 }
 
 async function saveProviders() {
@@ -611,14 +639,17 @@ async function toggleMcp(running) {
                 <div class="form-group">
                   <div class="tools-header">
                     <label>Tools</label>
-                    <span class="tools-count">{{ !agent.enabledTools || agent.enabledTools.length === 0 ? availableTools.length : agent.enabledTools.filter(t => availableTools.includes(t)).length }}/{{ availableTools.length }}</span>
+                    <span class="tools-count">{{ !agent.enabledTools || agent.enabledTools.length === 0 ? toolNames.length : agent.enabledTools.filter(t => toolNames.includes(t)).length }}/{{ toolNames.length }}</span>
                     <Button label="All" size="small" text severity="secondary" @click="selectAllTools(agent)" />
                   </div>
-                  <InputText v-model="toolsSearch" class="w-full tools-search" placeholder="Filter tools..." />
+                  <InputText v-model="agent.toolsFilter" class="w-full tools-search" placeholder="Filter tools..." />
                   <div class="tools-toggle-list">
-                    <div v-for="toolName in filteredTools" :key="toolName" class="tool-toggle-item" @click="toggleTool(agent, toolName)">
-                      <ToggleSwitch :modelValue="isToolEnabled(agent, toolName)" @update:modelValue="toggleTool(agent, toolName)" />
-                      <span class="tool-toggle-name">{{ toolName }}</span>
+                    <div v-for="tool in filterTools(agent.toolsFilter)" :key="tool.name" class="tool-toggle-item" @click="toggleTool(agent, tool.name)">
+                      <ToggleSwitch :modelValue="isToolEnabled(agent, tool.name)" @update:modelValue="toggleTool(agent, tool.name)" @click.stop />
+                      <div class="tool-toggle-info">
+                        <span class="tool-toggle-name">{{ tool.name }}</span>
+                        <span v-if="tool.description" class="tool-toggle-desc">{{ tool.description }}</span>
+                      </div>
                     </div>
                     <div v-if="availableTools.length === 0" class="tools-empty">
                       <i class="pi pi-spin pi-spinner"></i>
@@ -856,6 +887,14 @@ async function toggleMcp(running) {
         <Button label="Add" icon="pi pi-plus" size="small" @click="confirmAddProvider" :disabled="!newProviderName.trim()" />
       </template>
     </Dialog>
+
+    <Dialog v-model:visible="showDeleteConfirm" header="Confirm Delete" :modal="true" :style="{ width: '24rem' }" :breakpoints="{ '768px': '90vw' }">
+      <p>Delete <strong>{{ deleteTarget.name }}</strong> from {{ deleteTarget.section }}?</p>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text size="small" @click="showDeleteConfirm = false" />
+        <Button label="Delete" icon="pi pi-trash" severity="danger" size="small" @click="confirmDeleteItem" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -1034,7 +1073,7 @@ async function toggleMcp(running) {
 }
 
 .tools-toggle-list {
-  max-height: 240px;
+  max-height: 320px;
   overflow-y: auto;
   border: 1px solid var(--p-content-border-color);
   border-radius: var(--p-content-border-radius);
@@ -1045,18 +1084,42 @@ async function toggleMcp(running) {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.3rem 0.75rem;
+  padding: 0.4rem 0.75rem;
   cursor: pointer;
   user-select: none;
+}
+
+.tool-toggle-item :deep(.p-toggleswitch) {
+  flex-shrink: 0;
 }
 
 .tool-toggle-item:hover {
   background: var(--p-content-hover-background);
 }
 
+.tool-toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1;
+}
+
 .tool-toggle-name {
   font-family: 'SF Mono', ui-monospace, monospace;
   font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.tool-toggle-desc {
+  font-size: 0.72rem;
+  color: var(--p-text-muted-color);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .tools-empty {

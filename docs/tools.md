@@ -146,6 +146,20 @@ Only available to the main agent (not subagents).
 
 ---
 
+### Agent discovery
+
+#### agents_list
+
+List all configured agents with their names, descriptions, and models. Useful for understanding which agents are available before spawning subagents.
+
+| Parameter | Type | Required | Description |
+|----------|------|----------|-------------|
+| *(none)* | — | — | No parameters required |
+
+Returns a formatted list of all agents defined in `config.yml`.
+
+---
+
 ### Subagent management
 
 #### subagents
@@ -192,13 +206,19 @@ Schedule reminders and recurring tasks.
 
 | Parameter | Type | Required | Description |
 |----------|------|----------|-------------|
-| `action` | string | Yes | `add`, `list`, or `remove` |
-| `message` | string | Conditional | Message or task description (required for `add`) |
+| `action` | string | Yes | `add`, `list`, `update`, or `remove` |
+| `message` | string | Conditional | Message or task description (for `add`/`update`) |
+| `name` | string | No | Job display name (for `add`/`update`) |
 | `every_seconds` | integer | Conditional | Interval in seconds for recurring tasks (min 5) |
 | `cron_expr` | string | Conditional | Cron expression (e.g. `0 9 * * *`) |
 | `at` | string | Conditional | ISO datetime for one-time execution |
-| `job_id` | string | Conditional | Job ID (required for `remove`) |
+| `job_id` | string | Conditional | Job ID (required for `update`/`remove`) |
 | `tz` | string | No | IANA timezone for cron expressions |
+
+- **add** — Create a new scheduled job with a schedule type (interval, cron, or one-time).
+- **list** — List all scheduled jobs with their IDs, names, and schedule types.
+- **update** — Modify an existing job's name, message, or schedule (patch-style, only provided fields are changed).
+- **remove** — Delete a job by ID.
 
 Only available to the main agent when scheduler is enabled.
 

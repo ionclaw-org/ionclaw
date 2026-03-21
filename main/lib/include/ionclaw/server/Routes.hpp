@@ -79,6 +79,7 @@ public:
     void handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &section);
     void handleConfigValidate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
     void handleConfigRestart(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
+    void handleConfigDeleteItem(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &section, const std::string &name);
 
     // system
     void handleHealth(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);

@@ -50,6 +50,12 @@ std::string ContextBuilder::getChannelGuidance(const std::string &channel)
                "If nothing needs attention, reply with just: HEARTBEAT_OK";
     }
 
+    if (channel == "cron")
+    {
+        return "Channel: cron. This is a scheduled task execution.\n"
+               "Focus on completing the requested task efficiently. Be concise in your response.";
+    }
+
     return "Channel: web. Use Markdown formatting freely including images, code blocks, and tables.";
 }
 
@@ -264,8 +270,11 @@ std::string ContextBuilder::buildSystemPrompt(
         }
     }
 
-    // 11. bootstrap files (full mode only, with truncation)
-    if (full)
+    // lightweight channels skip bootstrap, memory, and skills to save tokens
+    bool lightweight = (channel == "heartbeat" || channel == "cron");
+
+    // 11. bootstrap files (full mode only, skip for lightweight channels)
+    if (full && !lightweight)
     {
         try
         {
@@ -346,8 +355,8 @@ std::string ContextBuilder::buildSystemPrompt(
         }
     }
 
-    // 12. memory context with recall instructions (full mode only)
-    if (full && memory)
+    // 12. memory context with recall instructions (full mode only, skip for lightweight channels)
+    if (full && memory && !lightweight)
     {
         try
         {
@@ -368,8 +377,8 @@ std::string ContextBuilder::buildSystemPrompt(
         }
     }
 
-    // 13. always-on skills inline (full mode only)
-    if (full && skillsLoader)
+    // 13. always-on skills inline (full mode only, skip for lightweight channels)
+    if (full && skillsLoader && !lightweight)
     {
         try
         {
@@ -385,8 +394,8 @@ std::string ContextBuilder::buildSystemPrompt(
         }
     }
 
-    // 14. skills summary (full mode only)
-    if (full && skillsLoader)
+    // 14. skills summary (full mode only, skip for lightweight channels)
+    if (full && skillsLoader && !lightweight)
     {
         try
         {

@@ -1327,8 +1327,11 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(
                     {"description", toolSummary},
                 });
 
+                // redact sensitive tokens from tool output before adding to conversation
+                auto redactedText = ionclaw::util::StringHelper::redactSensitive(result.text);
+
                 // add tool result to messages (with optional media blocks)
-                ContextBuilder::addToolResult(messages, tc.id, tc.name, result.text, result.media);
+                ContextBuilder::addToolResult(messages, tc.id, tc.name, redactedText, result.media);
             }
 
             // flush synthetic error results for any tool calls that didn't get executed (abort mid-batch)

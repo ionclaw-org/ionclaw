@@ -5,6 +5,7 @@
 #include "spdlog/spdlog.h"
 
 #include "ionclaw/config/ConfigLoader.hpp"
+#include "ionclaw/tool/builtin/ToolHelper.hpp"
 
 namespace ionclaw
 {
@@ -27,11 +28,14 @@ void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
 
     for (const auto &[name, agent] : config->agents)
     {
+        // convert absolute workspace to relative for display
+        auto relativeWorkspace = ionclaw::tool::builtin::ToolHelper::toRelativePath(agent.workspace, config->projectPath);
+
         agents[name] = {
             {"model", agent.model},
             {"description", agent.description},
             {"instructions", agent.instructions},
-            {"workspace", agent.workspace},
+            {"workspace", relativeWorkspace},
             {"tools", agent.tools},
             {"agent_params", {
                                  {"max_iterations", agent.agentParams.maxIterations},
@@ -788,6 +792,44 @@ void Routes::handleConfigRestart(Poco::Net::HTTPServerRequest &, Poco::Net::HTTP
     catch (const std::exception &e)
     {
         spdlog::error("[Restart] Failed: {}", e.what());
+        sendError(resp, e.what(), 500);
+    }
+}
+
+void Routes::handleConfigDeleteItem(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp, const std::string &section, const std::string &name)
+{
+    try
+    {
+        std::lock_guard<std::mutex> lock(configMutex_);
+
+        bool found = false;
+
+        if (section == "agents")
+        {
+            found = config->agents.erase(name) > 0;
+        }
+        else if (section == "credentials")
+        {
+            found = config->credentials.erase(name) > 0;
+        }
+        else if (section == "providers")
+        {
+            found = config->providers.erase(name) > 0;
+        }
+
+        if (!found)
+        {
+            sendError(resp, "Not found: " + name, 404);
+            return;
+        }
+
+        auto configPath = config->projectPath + "/config.yml";
+        ionclaw::config::ConfigLoader::save(*config, configPath);
+
+        sendJson(resp, {{"status", "deleted"}, {"section", section}, {"name", name}});
+    }
+    catch (const std::exception &e)
+    {
         sendError(resp, e.what(), 500);
     }
 }
