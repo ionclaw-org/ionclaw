@@ -119,7 +119,7 @@ endif()
 
 CPMAddPackage(
     NAME openssl-cmake
-    URL https://github.com/jimmy-park/openssl-cmake/archive/prevent-rebuild-on-ci.tar.gz
+    URL https://github.com/jimmy-park/openssl-cmake/archive/main.tar.gz
     OPTIONS ${_ossl_cpm_options}
 )
 
