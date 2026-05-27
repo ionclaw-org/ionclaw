@@ -208,6 +208,19 @@ void ApiHandler::routeRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
         return;
     }
 
+    // environment variables (.env)
+    if (path == "/api/environment/variables" && method == "GET")
+    {
+        routes->handleEnvironmentVariablesList(req, resp);
+        return;
+    }
+
+    if (path == "/api/environment/variables" && method == "PUT")
+    {
+        routes->handleEnvironmentVariablesUpdate(req, resp);
+        return;
+    }
+
     // config section update: PUT /api/config/{section}
     auto configSection = HttpHelper::extractPathParam(path, "/api/config/");
 

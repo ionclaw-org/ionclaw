@@ -1,44 +1,18 @@
 #include "ionclaw/config/ConfigLoader.hpp"
 
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <regex>
 #include <set>
 #include <stdexcept>
 
 #include "spdlog/spdlog.h"
 
+#include "ionclaw/util/EnvironmentHelper.hpp"
+
 namespace ionclaw
 {
 namespace config
 {
-
-std::string ConfigLoader::expandEnvVars(const std::string &value)
-{
-    // pattern for ${VAR_NAME} environment variable references
-    static thread_local const std::regex envPattern(R"(\$\{([^}]+)\})");
-
-    std::string result = value;
-    std::smatch match;
-    int iterations = 0;
-    static constexpr int MAX_EXPANSION_ITERATIONS = 20;
-
-    while (std::regex_search(result, match, envPattern) && iterations < MAX_EXPANSION_ITERATIONS)
-    {
-        const char *envValue = std::getenv(match[1].str().c_str());
-        std::string replacement = envValue ? envValue : "";
-        result = match.prefix().str() + replacement + match.suffix().str();
-        ++iterations;
-    }
-
-    if (iterations >= MAX_EXPANSION_ITERATIONS)
-    {
-        spdlog::warn("[ConfigLoader] Environment variable expansion hit iteration limit for '{}'", value);
-    }
-
-    return result;
-}
 
 std::string ConfigLoader::expandStr(const YAML::Node &node, const std::string &defaultValue)
 {
@@ -47,7 +21,7 @@ std::string ConfigLoader::expandStr(const YAML::Node &node, const std::string &d
         return defaultValue;
     }
 
-    return expandEnvVars(node.as<std::string>());
+    return util::EnvironmentHelper::expandEnvVars(node.as<std::string>());
 }
 
 int ConfigLoader::expandInt(const YAML::Node &node, int defaultValue)
@@ -97,7 +71,7 @@ std::vector<std::string> ConfigLoader::expandStringList(const YAML::Node &node)
     {
         if (item.IsScalar())
         {
-            result.push_back(expandEnvVars(item.as<std::string>()));
+            result.push_back(util::EnvironmentHelper::expandEnvVars(item.as<std::string>()));
         }
     }
 
@@ -117,7 +91,7 @@ std::map<std::string, std::string> ConfigLoader::expandStringMap(const YAML::Nod
     {
         if (pair.second.IsScalar())
         {
-            result[pair.first.as<std::string>()] = expandEnvVars(pair.second.as<std::string>());
+            result[pair.first.as<std::string>()] = util::EnvironmentHelper::expandEnvVars(pair.second.as<std::string>());
         }
     }
 
@@ -158,7 +132,7 @@ nlohmann::json ConfigLoader::yamlToJson(const YAML::Node &node)
         {
         }
 
-        return expandEnvVars(node.as<std::string>());
+        return util::EnvironmentHelper::expandEnvVars(node.as<std::string>());
     }
 
     if (node.IsSequence())

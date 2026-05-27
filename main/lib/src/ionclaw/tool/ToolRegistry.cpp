@@ -10,6 +10,7 @@
 #include "ionclaw/tool/builtin/BrowserTool.hpp"
 #include "ionclaw/tool/builtin/CronTool.hpp"
 #include "ionclaw/tool/builtin/EditFileTool.hpp"
+#include "ionclaw/tool/builtin/EnvironmentTool.hpp"
 #include "ionclaw/tool/builtin/ExecTool.hpp"
 #include "ionclaw/tool/builtin/GenerateImageTool.hpp"
 #include "ionclaw/tool/builtin/HttpClientTool.hpp"
@@ -93,6 +94,9 @@ void ToolRegistry::registerBuiltinTools()
 
     // platform invocation (all platforms)
     registerTool(std::make_shared<builtin::InvokePlatformTool>());
+
+    // environment variable discovery (all platforms, names only)
+    registerTool(std::make_shared<builtin::EnvironmentTool>());
 
     // orchestration tools (all platforms)
     registerTool(std::make_shared<builtin::AgentsListTool>());

@@ -105,6 +105,8 @@ Fetch and extract content from a URL. Uses readability-style extraction when app
 | `url` | string | Yes | The URL to fetch |
 | `max_chars` | integer | No | Max characters to return (default 50000) |
 
+`${VAR}` placeholders in `url` are substituted from the project `.env` before the request (see [Environment](#environment)).
+
 ---
 
 ### HTTP client
@@ -128,6 +130,33 @@ Make HTTP requests with control over method, headers, body, and optional file do
 | `auth` | string | No | Auth profile name from config for authenticated requests |
 
 Response includes `status`, `headers`, and `body` (or file info when using `download_path`). Large bodies may be truncated.
+
+`${VAR}` placeholders in `url`, `headers` values, and `body` are substituted from the project `.env` before the request is sent (see [Environment](#environment)). This lets an agent use a secret (e.g. an API key) without the value ever entering the conversation — write `${GOOGLE_MAPS_API_KEY}` and the server fills in the real value at request time.
+
+---
+
+### Environment
+
+#### environment
+
+Inspect the project environment variables. Values are **never** returned — so secrets stay out of the conversation and the model's context.
+
+| Parameter | Type | Required | Description |
+|----------|------|----------|-------------|
+| `action` | string | No | `list` (default) or `has_var` |
+| `name` | string | Conditional | Variable name to check, required for `has_var` |
+
+- **list** — returns the names of the variables defined in the project `.env`.
+- **has_var** — reports whether the variable in `name` is set (e.g. `GOOGLE_MAPS_API_KEY is set.`), without revealing its value.
+
+Available on all platforms. This is the way an agent running on a platform without a shell (iOS, tvOS, watchOS — where the `exec` tool is unavailable) can discover which secrets exist or confirm one is configured.
+
+**Using a value:** reference it as `${NAME}` in `http_client` or `web_fetch` (url, headers, or body). The server substitutes the real value from `.env` at request time, so the secret is sent to the destination but never appears in the tool call or the conversation. Variables are managed in the panel under **Settings → Environment** and loaded from the project `.env` at startup (see [Configuration](configuration.md)).
+
+**Example flow:**
+
+1. `environment(action="has_var", name="GOOGLE_MAPS_API_KEY")` → `GOOGLE_MAPS_API_KEY is set.`
+2. `http_client(method="GET", url="https://routes.googleapis.com/...", headers={"X-Goog-Api-Key": "${GOOGLE_MAPS_API_KEY}"})` → the server replaces `${GOOGLE_MAPS_API_KEY}` with the real key before sending.
 
 ---
 
@@ -433,7 +462,9 @@ The call is **synchronous from the agent's perspective** — the agent waits for
 
 | Function | Platforms | Description |
 |----------|-----------|-------------|
-| `local-notification.send` | android, ios, macos, linux | Send a local push notification |
+| `local-notification.send` | android, ios, watchos, macos, linux | Send a local notification |
+
+> tvOS is excluded: Apple restricts it to app-icon badges (no alert banners), so the native handler returns an error there. See [Apple apps](apple.md#local-notifications).
 
 Parameters for `local-notification.send`:
 
@@ -450,7 +481,7 @@ Parameters for `local-notification.send`:
 
 **Custom plugins:** The Flutter host application supports a plugin system where each plugin declares which functions it handles and which platforms it supports. See [Platform Bridge](architecture.md#platform-bridge) for details on creating custom plugins.
 
-Platform values are always **lowercase**: `android`, `ios`, `macos`, `linux`, `windows`.
+Platform values are always **lowercase**: `android`, `ios`, `tvos`, `watchos`, `macos`, `linux`, `windows`.
 
 ---
 

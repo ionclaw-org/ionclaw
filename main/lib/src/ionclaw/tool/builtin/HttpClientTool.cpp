@@ -25,6 +25,7 @@
 #include "ionclaw/config/Config.hpp"
 #include "ionclaw/tool/builtin/ToolHelper.hpp"
 #include "ionclaw/util/Base64.hpp"
+#include "ionclaw/util/EnvironmentHelper.hpp"
 #include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/MimeType.hpp"
 #include "ionclaw/util/SsrfGuard.hpp"
@@ -249,6 +250,9 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
     auto method = params.at("method").get<std::string>();
     auto url = params.at("url").get<std::string>();
 
+    // substitute ${VAR} from the environment so the model can use secrets without seeing their values
+    url = ionclaw::util::EnvironmentHelper::expandEnvVars(url);
+
     // ssrf validation
     try
     {
@@ -269,7 +273,7 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
         {
             if (value.is_string())
             {
-                headers[key] = value.get<std::string>();
+                headers[key] = ionclaw::util::EnvironmentHelper::expandEnvVars(value.get<std::string>());
             }
         }
     }
@@ -280,7 +284,7 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
 
     if (params.contains("body") && params["body"].is_string())
     {
-        body = params["body"].get<std::string>();
+        body = ionclaw::util::EnvironmentHelper::expandEnvVars(params["body"].get<std::string>());
     }
 
     if (params.contains("content_type") && params["content_type"].is_string())
@@ -535,7 +539,8 @@ ToolSchema HttpClientTool::schema() const
     return {
         "http_client",
         "Make HTTP requests with full control over method, headers, body, and authentication. "
-        "Use auth parameter with a configured profile name for authenticated requests (bearer, basic, simple, header).",
+        "Use auth parameter with a configured profile name for authenticated requests (bearer, basic, simple, header). "
+        "Reference environment variables as ${NAME} in url, headers, or body (e.g. {\"X-Goog-Api-Key\": \"${GOOGLE_MAPS_API_KEY}\"}); the server substitutes the real value at request time. Use the environment tool to list available variable names.",
         {{"type", "object"},
          {"properties",
           {{"method", {{"type", "string"}, {"enum", nlohmann::json::array({"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"})}, {"description", "HTTP method"}}},

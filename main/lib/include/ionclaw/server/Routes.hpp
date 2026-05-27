@@ -59,6 +59,9 @@ public:
     void handleConfigRestart(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
     void handleConfigDeleteItem(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &section, const std::string &name);
 
+    void handleEnvironmentVariablesList(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
+    void handleEnvironmentVariablesUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
+
     void handleHealth(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
     void handleVersion(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
     void handleSystemInfo(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);

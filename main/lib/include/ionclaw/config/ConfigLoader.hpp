@@ -20,7 +20,6 @@ public:
     static Config loadFromString(const std::string &yaml);
     static void save(const Config &config, const std::string &path);
     static std::string toYaml(const Config &config);
-    static std::string expandEnvVars(const std::string &value);
     static void resolveWorkspaces(Config &config, const std::string &projectPath);
 
 private:
