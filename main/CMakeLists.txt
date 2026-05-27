@@ -15,6 +15,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/MimeType.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/SsrfGuard.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/StringHelper.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/EnvironmentHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/EmbeddedResources.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/bus/Events.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/bus/MessageBus.cpp
@@ -49,6 +50,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/EditFileTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/ListDirTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/ExecTool.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/EnvironmentTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/MessageTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/WebSearchTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/WebFetchTool.cpp
@@ -99,6 +101,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/TaskRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/AgentRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/ConfigRoutes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/EnvironmentRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/SystemRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/SkillRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/MarketplaceRoutes.cpp

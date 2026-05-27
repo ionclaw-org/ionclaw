@@ -54,6 +54,15 @@ The `.xcodeproj` is generated from `project.yml` and is not checked in. After ad
 
 The voice screen captures a message through the platform's native dictation, then sends it to the local server via `POST /api/chat`. On watchOS this uses `TextFieldLink` (the system dictation button); on tvOS the field opens the on-screen keyboard with dictation. There is no public API to capture the Siri Remote microphone directly, so the field is focused on appear to minimize navigation.
 
+### Local notifications
+
+The agent can show a local notification through the `invoke_platform` tool: `invoke_platform("local-notification.send", {"title": "...", "message": "..."})`. The native handler lives in `Shared/Sources/Platform/PlatformBridge.swift`, registered once at launch via `ionclaw_set_platform_handler` and responding asynchronously via `ionclaw_platform_respond` (same C ABI the Flutter app uses). It schedules the notification with `UserNotifications` and requests authorization lazily on first use.
+
+- **iOS / watchOS**: full support — alert, sound, and badge, shown in the foreground too (via the `UNUserNotificationCenter` delegate).
+- **tvOS**: not supported — Apple restricts tvOS to app-icon badges (no alert banners, and `UNNotificationContent.sound` is unavailable), so `local-notification.send` returns an error explaining the limitation.
+
+To add more platform functions, extend the `switch` in `IonClawPlatform.handle(...)`.
+
 ## Signing
 
 Automatic signing is configured in `project.yml` via `DEVELOPMENT_TEAM`. Set it to your team identifier (or change it in Xcode under Signing & Capabilities). The simulator builds run without a team.

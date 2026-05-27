@@ -104,14 +104,6 @@ Open `http://localhost:8080` in your browser. The web panel is served automatica
 - [Docker](docs/docker.md) — Docker build, run, and compose
 - [Deploy](docs/deploy.md) — One-click deploy to cloud platforms
 
-## Token
-
-IonClaw has a community token on Solana via pump.fun:
-
-**CA:** `H88xMt2eK9TXB8cgA9ZCX7j4oMehbnGATFaHxNdHpump`
-
-[pump.fun](https://pump.fun/coin/H88xMt2eK9TXB8cgA9ZCX7j4oMehbnGATFaHxNdHpump) · [DEXScreener](https://dexscreener.com/solana/H88xMt2eK9TXB8cgA9ZCX7j4oMehbnGATFaHxNdHpump)
-
 ## License
 
 MIT — see [LICENSE](LICENSE.md) for details.

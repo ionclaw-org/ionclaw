@@ -14,8 +14,8 @@
 ## Web
 
 - `web_search(query, count)` - Search the web (Brave Search)
-- `web_fetch(url, max_chars)` - Extract text content from a URL
-- `http_client(method, url, headers, body, auth)` - Make HTTP requests with optional auth profiles
+- `web_fetch(url, max_chars)` - Extract text content from a URL (`${VAR}` in the url is substituted from the project `.env`)
+- `http_client(method, url, headers, body, auth)` - Make HTTP requests with optional auth profiles (`${VAR}` in url/headers/body is substituted from the project `.env`)
 - `rss_reader(url, count)` - Read RSS/Atom feeds
 
 ## Media
@@ -35,6 +35,10 @@
 ## Scheduling
 
 - `cron(action, message, every_seconds, cron_expr, at, tz)` - Manage scheduled jobs
+
+## Environment
+
+- `environment(action, name)` - Inspect environment variables (values are never returned). `action="list"` returns the variable names defined in the project `.env`; `action="has_var"` reports whether `name` is set. To use a secret, reference it as `${NAME}` in `http_client` or `web_fetch` (url, headers, or body); the server substitutes the real value at request time so the secret never enters the conversation.
 
 ## Memory
 

@@ -3,6 +3,7 @@
 #include <regex>
 #include <sstream>
 
+#include "ionclaw/util/EnvironmentHelper.hpp"
 #include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/SsrfGuard.hpp"
 #include "ionclaw/util/StringHelper.hpp"
@@ -106,7 +107,8 @@ std::string WebFetchTool::stripHtml(const std::string &html)
 
 ToolResult WebFetchTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
-    auto url = params.at("url").get<std::string>();
+    // substitute ${VAR} from the environment so the model can use secrets without seeing their values
+    auto url = ionclaw::util::EnvironmentHelper::expandEnvVars(params.at("url").get<std::string>());
     int maxChars = 50000;
 
     if (params.contains("max_chars") && params["max_chars"].is_number_integer())

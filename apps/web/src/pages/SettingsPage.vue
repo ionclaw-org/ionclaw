@@ -7,6 +7,7 @@ import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
+import Password from 'primevue/password'
 import ToggleSwitch from 'primevue/toggleswitch'
 import Dialog from 'primevue/dialog'
 import Message from 'primevue/message'
@@ -54,6 +55,7 @@ const transcriptionConfig = ref({ model: '' })
 const agentsConfig = ref({})
 const telegram = ref({ enabled: false, credential: '', allowed_users: '', proxy: '', reply_to_message: false })
 const mcp = ref({ enabled: false, require_auth: false, credential: '' })
+const environmentVars = ref([])
 const activeTab = ref('info')
 const rawYaml = ref('')
 const yamlLoading = ref(false)
@@ -106,6 +108,38 @@ async function loadAvailableTools() {
     availableTools.value = tools.sort((a, b) => a.name.localeCompare(b.name))
   } catch {
     availableTools.value = []
+  }
+}
+
+async function loadEnvironment() {
+  try {
+    const res = await api.get('/environment/variables')
+    environmentVars.value = res.variables || []
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
+  }
+}
+
+function addEnvironmentVar() {
+  environmentVars.value.push({ key: '', value: '' })
+}
+
+function removeEnvironmentVar(index) {
+  environmentVars.value.splice(index, 1)
+}
+
+async function saveEnvironment() {
+  // omitted keys are deleted, blank/masked values keep the current secret
+  const variables = environmentVars.value
+    .filter((v) => v.key.trim())
+    .map((v) => ({ key: v.key.trim(), value: v.value || '' }))
+
+  try {
+    await api.put('/environment/variables', { variables })
+    toast.add({ severity: 'success', summary: 'Saved', detail: 'Environment updated. Restart to apply.', life: 2500 })
+    await loadEnvironment()
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
   }
 }
 
@@ -165,7 +199,7 @@ async function confirmDeleteItem() {
     }
 
     await configStore.loadConfig()
-    toast.add({ severity: 'success', summary: 'Deleted', detail: `${humanize(name)} removed`, life: 2000 })
+    toast.add({ severity: 'success', summary: 'Deleted', detail: `${humanize(name)} removed. Restart to apply.`, life: 2500 })
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
   }
@@ -272,6 +306,7 @@ onMounted(async () => {
     loadSystemInfo(),
     loadFormSchemas(),
     loadAvailableTools(),
+    loadEnvironment(),
   ])
   mapConfigToLocal()
 })
@@ -311,7 +346,7 @@ async function saveSection(section, data) {
   const payload = coerceTypes(section, data)
   try {
     await configStore.saveSection(section, payload)
-    toast.add({ severity: 'success', summary: 'Saved', detail: `${humanize(section)} updated`, life: 2000 })
+    toast.add({ severity: 'success', summary: 'Saved', detail: `${humanize(section)} updated. Restart to apply.`, life: 2500 })
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
   }
@@ -366,7 +401,7 @@ async function saveAdvanced() {
       toast.add({ severity: 'error', summary: 'Error', detail, life: 5000 })
       return
     }
-    toast.add({ severity: 'success', summary: 'Saved', detail: 'Config updated', life: 2000 })
+    toast.add({ severity: 'success', summary: 'Saved', detail: 'Config updated. Restart to apply.', life: 2500 })
     await Promise.all([loadYaml(), configStore.loadConfig()])
     mapConfigToLocal()
   } catch (e) {
@@ -503,7 +538,7 @@ async function saveTelegram() {
       proxy: telegram.value.proxy || '',
       reply_to_message: telegram.value.reply_to_message,
     })
-    toast.add({ severity: 'success', summary: 'Saved', detail: 'Telegram config updated', life: 2000 })
+    toast.add({ severity: 'success', summary: 'Saved', detail: 'Telegram config updated. Restart the channel to apply.', life: 2500 })
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
   }
@@ -531,7 +566,7 @@ async function saveMcp() {
       require_auth: mcp.value.require_auth,
       credential: mcp.value.credential,
     })
-    toast.add({ severity: 'success', summary: 'Saved', detail: 'MCP config updated', life: 2000 })
+    toast.add({ severity: 'success', summary: 'Saved', detail: 'MCP config updated. Restart the channel to apply.', life: 2500 })
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
   }
@@ -579,6 +614,7 @@ async function toggleMcp(running) {
           <Tab value="web_client">Web Client</Tab>
           <Tab value="agents">Agents</Tab>
           <Tab value="credentials">Credentials</Tab>
+          <Tab value="environment">Environment</Tab>
           <Tab value="providers">Providers</Tab>
           <Tab value="channels">Channels</Tab>
           <Tab value="storage">Storage</Tab>
@@ -598,6 +634,7 @@ async function toggleMcp(running) {
                 <Message severity="error" :closable="false">Failed to load system information.</Message>
               </div>
               <template v-else>
+                <div class="info-grid">
                 <div v-if="systemInfo.os" class="info-section">
                   <h3><i class="pi pi-desktop"></i> Operating System</h3>
                   <div class="info-row">
@@ -630,7 +667,7 @@ async function toggleMcp(running) {
                   <h3><i class="pi pi-server"></i> Memory</h3>
                   <div class="info-row">
                     <span class="info-label">Total</span>
-                    <span class="info-value">{{ systemInfo.memory.total_gb }} GB</span>
+                    <span class="info-value">{{ Number(systemInfo.memory.total_gb).toFixed(2) }} GB</span>
                   </div>
                 </div>
 
@@ -640,6 +677,7 @@ async function toggleMcp(running) {
                     <span class="info-label">Version</span>
                     <span class="info-value">{{ systemInfo.version }}</span>
                   </div>
+                </div>
                 </div>
               </template>
             </div>
@@ -779,6 +817,51 @@ async function toggleMcp(running) {
                   @click="openAddCredential"
                 />
                 <Button label="Save" icon="pi pi-save" size="small" @click="saveCredentials" />
+              </div>
+            </div>
+          </TabPanel>
+
+          <!-- Environment -->
+          <TabPanel value="environment" :pt="{ root: { style: { minHeight: '100%' } } }">
+            <div class="tab-content">
+              <div v-for="(item, index) in environmentVars" :key="index" class="item-block">
+                <div class="item-header">
+                  <i class="pi pi-key"></i>
+                  <strong>{{ item.key || 'New variable' }}</strong>
+                  <Button
+                    icon="pi pi-trash"
+                    severity="danger"
+                    text
+                    rounded
+                    size="small"
+                    @click="removeEnvironmentVar(index)"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>Name</label>
+                  <InputText v-model="item.key" placeholder="GOOGLE_MAPS_API_KEY" class="w-full" />
+                </div>
+                <div class="form-group">
+                  <label>Value</label>
+                  <Password
+                    v-model="item.value"
+                    placeholder="Leave empty to keep current"
+                    :feedback="false"
+                    toggle-mask
+                    class="env-value"
+                    :input-style="{ width: '100%' }"
+                  />
+                </div>
+              </div>
+              <div class="button-row">
+                <Button
+                  label="Add Variable"
+                  icon="pi pi-plus"
+                  severity="secondary"
+                  size="small"
+                  @click="addEnvironmentVar"
+                />
+                <Button label="Save" icon="pi pi-save" size="small" @click="saveEnvironment" />
               </div>
             </div>
           </TabPanel>
@@ -1193,12 +1276,13 @@ async function toggleMcp(running) {
 }
 
 .tab-content {
-  max-width: 600px;
+  width: 100%;
+  max-width: 1100px;
   padding: 0.75rem;
 }
 
 .tab-content-wide {
-  max-width: 800px;
+  max-width: 1100px;
 }
 
 .tab-message {
@@ -1219,6 +1303,11 @@ async function toggleMcp(running) {
 .button-row {
   display: flex;
   gap: 0.5rem;
+}
+
+.env-value {
+  display: block;
+  width: 100%;
 }
 
 .item-block {
@@ -1275,8 +1364,16 @@ async function toggleMcp(running) {
   color: var(--p-text-muted-color);
 }
 
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
 .info-section {
-  margin-bottom: 1.25rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--p-content-border-radius);
 }
 
 .info-section h3 {

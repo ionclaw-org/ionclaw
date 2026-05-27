@@ -6,6 +6,7 @@
 
 #include "ionclaw/config/ConfigLoader.hpp"
 #include "ionclaw/util/EmbeddedResources.hpp"
+#include "ionclaw/util/EnvironmentHelper.hpp"
 
 #include "spdlog/spdlog.h"
 
@@ -60,6 +61,9 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
         {
             return {"", 0, false, "project not initialized at " + resolvedPath + " (config.yml not found)"};
         }
+
+        // load the project .env into the environment before the config expands its ${VAR} references
+        ionclaw::util::EnvironmentHelper::loadDotEnv(resolvedPath);
 
         // load configuration
         spdlog::info("[ServerInstance] Loading config from: {}", configPath);

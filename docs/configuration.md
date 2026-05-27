@@ -6,7 +6,7 @@ IonClaw is a C++ AI agent orchestrator that runs anywhere as a single native bin
 
 ## Environment Variables
 
-Environment variables can be referenced anywhere in `config.yml` using the `${VAR_NAME}` syntax. IonClaw automatically loads a `.env` file from the project directory if one is present, so you can keep secrets out of version control.
+The project `.env` file (in the project root) holds secrets and is the source of truth for environment variables. IonClaw loads it at startup **before** reading `config.yml`, applying each entry with override semantics — a value in `.env` takes precedence over any variable inherited from the surrounding shell. This keeps secrets out of version control and out of `config.yml`, and gives every platform (including iOS, tvOS, and watchOS, which have no shell) a single place to define them.
 
 Example `.env` file:
 
@@ -14,7 +14,7 @@ Example `.env` file:
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-Referencing in `config.yml`:
+Reference variables anywhere in `config.yml` with the `${VAR_NAME}` syntax:
 
 ```yaml
 credentials:
@@ -26,6 +26,10 @@ credentials:
     username: admin
     password: changeme
 ```
+
+The same `${VAR_NAME}` substitution also works at request time in the `http_client` and `web_fetch` tools (url, headers, body), so an agent can send a secret without ever seeing its value (see [Tools](tools.md#http-client)).
+
+**Editing:** manage the variables from the panel under **Settings → Environment**, or via the API at `GET`/`PUT /api/environment/variables`. Values are write-only — they are masked as `****` and a blank field keeps the current secret. The `.env` itself stays hidden from the generic file manager. After changing it, restart the server to re-expand `${VAR}` references in `config.yml` (tools that read the variable directly see the change immediately).
 
 ---
 

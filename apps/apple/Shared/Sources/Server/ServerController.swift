@@ -8,6 +8,10 @@ final class ServerController: ObservableObject {
     @Published private(set) var addresses: [String] = []
     @Published var lastError: String?
 
+    init() {
+        IonClawPlatform.shared.register()
+    }
+
     func start(host: String, port: Int) async {
         guard !isBusy, !isRunning else { return }
 

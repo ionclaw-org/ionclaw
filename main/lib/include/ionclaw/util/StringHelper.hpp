@@ -19,6 +19,9 @@ public:
     static void toLowerInPlace(std::string &str);
     static std::string toLower(const std::string &str);
 
+    static std::string trim(const std::string &str);
+    static std::string unquote(const std::string &str);
+
     static std::string urlEncode(const std::string &str);
     static std::string redactSensitive(const std::string &text);
 

@@ -333,6 +333,29 @@ std::string StringHelper::toLower(const std::string &str)
     return result;
 }
 
+std::string StringHelper::trim(const std::string &str)
+{
+    auto start = str.find_first_not_of(" \t\r\n");
+
+    if (start == std::string::npos)
+    {
+        return "";
+    }
+
+    auto end = str.find_last_not_of(" \t\r\n");
+    return str.substr(start, end - start + 1);
+}
+
+std::string StringHelper::unquote(const std::string &str)
+{
+    if (str.size() >= 2 && (str.front() == '"' || str.front() == '\'') && str.back() == str.front())
+    {
+        return str.substr(1, str.size() - 2);
+    }
+
+    return str;
+}
+
 std::string StringHelper::urlEncode(const std::string &str)
 {
     std::ostringstream encoded;

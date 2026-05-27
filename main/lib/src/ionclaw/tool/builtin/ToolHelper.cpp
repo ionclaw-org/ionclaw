@@ -100,19 +100,21 @@ std::string ToolHelper::toRelativePath(const std::string &absolutePath, const st
         return absolutePath;
     }
 
+    // canonicalize both sides so symlinked prefixes match (e.g. /var vs /private/var on apple platforms)
     auto root = fs::weakly_canonical(fs::path(rootPath)).string();
+    auto abs = fs::weakly_canonical(fs::path(absolutePath)).string();
 
     if (root.back() != '/')
     {
         root += '/';
     }
 
-    if (absolutePath.rfind(root, 0) == 0)
+    if (abs.rfind(root, 0) == 0)
     {
-        return absolutePath.substr(root.size());
+        return abs.substr(root.size());
     }
 
-    return absolutePath;
+    return abs;
 }
 
 std::string ToolHelper::truncateOutput(const std::string &output, int contextWindowTokens)
