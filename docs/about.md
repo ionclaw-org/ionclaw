@@ -1,8 +1,8 @@
 # About IonClaw
 
-IonClaw is an **AI agent orchestrator** built from the ground up in C++. If you are new to the project: an orchestrator is the layer that runs one or more AI agents, gives them tools (files, web, search, etc.), and lets you control and monitor everything from a single place. IonClaw compiles to a single native binary — no Python, no Node server, no Docker required. It runs on Linux, macOS, Windows, iOS, and Android with **zero external dependencies**.
+IonClaw is an **AI agent orchestrator** built from the ground up in C++. If you are new to the project: an orchestrator is the layer that runs one or more AI agents, gives them tools (files, web, search, etc.), and lets you control and monitor everything from a single place. IonClaw compiles to a single native binary — no Python, no Node server, no Docker required. It runs on Linux, macOS, Windows, iOS, Android, tvOS, and watchOS with **zero external dependencies**.
 
-On a server, you start it with one command and it serves a full web panel. On a phone (iOS or Android), the app embeds the same C++ engine and runs everything locally on your device. **It is the only AI agent orchestrator that runs on mobile**, so you get a true personal assistant with **privacy and security by design** — everything runs on your machine. Same codebase, same capabilities, everywhere.
+On a server, you start it with one command and it serves a full web panel. On Apple devices (iOS, tvOS, watchOS) or Android, the app embeds the same C++ engine and runs everything locally on the device. **It is the only AI agent orchestrator that runs on mobile**, so you get a true personal assistant with **privacy and security by design** — everything runs on your machine. Same codebase, same capabilities, everywhere.
 
 Because it is native C++, IonClaw has fast startup, low memory use, and true portability. The whole platform — web panel, project templates, built-in skills — is compiled into the binary. You deploy one file and it just works.
 
@@ -94,7 +94,7 @@ Multiple LLM providers are supported (Anthropic, OpenAI, Gemini, Grok, OpenRoute
 
 IonClaw gives you:
 
-- **Runs anywhere** — macOS, Linux, Windows, iOS, Android
+- **Runs anywhere** — macOS, Linux, Windows, iOS, Android, tvOS, watchOS
 - **Zero dependencies** — one binary with everything embedded
 - **Security-first** — sandboxed agents and isolated workspaces
 - **One command to start** — everything from the browser, no coding required

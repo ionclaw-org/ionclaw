@@ -1,0 +1,30 @@
+{
+  "images" : [
+    {
+      "idiom" : "universal",
+      "filename" : "logo.png"
+    },
+    {
+      "idiom" : "universal",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ],
+      "filename" : "logo-dark.png"
+    },
+    {
+      "idiom" : "watch",
+      "filename" : "logo-dark.png"
+    },
+    {
+      "idiom" : "tv",
+      "filename" : "logo-dark.png"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

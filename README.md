@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-    A C++ AI agent orchestrator that runs anywhere as a native build — Linux, macOS, Windows, iOS, and Android — with zero external dependencies.
+    A C++ AI agent orchestrator that runs anywhere as a native build — Linux, macOS, Windows, iOS, Android, tvOS, and watchOS — with zero external dependencies.
 </p>
 
 <p align="center">
@@ -37,7 +37,7 @@
 
 IonClaw is an AI agent orchestrator built from the ground up in C++. One codebase, compiled natively for each platform — no runtime, no interpreter, no container required.
 
-On a server (Linux, macOS, Windows), it starts with one command and serves a full web panel. On iOS and Android, the app embeds the same C++ engine and runs everything locally on your smartphone. **It is the only AI agent orchestrator that runs on mobile** — a true personal assistant, with **privacy and security by design**, because it runs on your device. Same codebase, same capabilities, everywhere.
+On a server (Linux, macOS, Windows), it starts with one command and serves a full web panel. On iOS, Android, tvOS, and watchOS, the app embeds the same C++ engine and runs everything locally on the device. **It is the only AI agent orchestrator that runs on mobile** — a true personal assistant, with **privacy and security by design**, because it runs on your device. Same codebase, same capabilities, everywhere.
 
 ### Why C++?
 
@@ -95,6 +95,7 @@ Open `http://localhost:8080` in your browser. The web panel is served automatica
 - [Build](docs/build.md) — Build system and Makefile targets
 - [Configuration](docs/configuration.md) — Full config.yml reference
 - [Custom Providers](docs/custom-providers.md) — Ollama, LM Studio, MiniMax, and other OpenAI-compatible providers
+- [Apple](docs/apple.md) — Native iOS, tvOS, and watchOS apps (SwiftUI + XcodeGen)
 - [Flutter](docs/flutter.md) — Flutter app, release builds, and signing
 - [Skills](docs/skills.md) — Creating and managing skills
 - [Tools](docs/tools.md) — Built-in tools reference

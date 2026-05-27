@@ -2,6 +2,8 @@
 
 #include <string>
 
+#include "ionclaw/util/Platform.hpp"
+
 namespace ionclaw
 {
 namespace util
@@ -26,7 +28,7 @@ private:
 
     static bool appendOutput(ProcessResult &result, const char *data, size_t length, size_t maxOutputBytes);
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(IONCLAW_NO_PROCESS_EXEC)
     static void drainPipe(int fd, ProcessResult &result, size_t maxOutputBytes);
     static void collectExitStatus(ProcessResult &result, int status);
 #endif

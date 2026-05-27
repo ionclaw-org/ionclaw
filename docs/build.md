@@ -10,6 +10,7 @@ IonClaw uses a Makefile to orchestrate all build targets. Run `make help` for a 
 - **Xcode** command-line tools (for iOS/macOS targets)
 - **Android NDK** (for Android targets — set `ANDROID_NDK_ROOT` or pass `ANDROID_NDK=...`)
 - **Flutter** SDK (for Flutter targets)
+- **XcodeGen** (for the native Apple app — `brew install xcodegen`)
 - **Docker** (for container targets)
 
 ## Build Commands
@@ -40,9 +41,9 @@ Uses CMake with `-DIONCLAW_BUILD_SHARED=ON`. This produces a dynamic library wit
 
 ### `make build-xcframework`
 
-Builds an **iOS XCFramework** containing arm64 device and simulator (arm64 + x86_64) libraries. Output: `build/xcframework/ionclaw.xcframework`.
+Builds a multi-platform **XCFramework** with **iOS, tvOS, and watchOS** slices (device + simulator for each). Output: `build/xcframework/ionclaw.xcframework`.
 
-This target automatically builds all three iOS architectures before combining them. Used by the Flutter iOS plugin.
+This target builds every architecture per platform (iOS arm64 + simulator arm64/x86_64, tvOS arm64 + simulator arm64/x86_64, watchOS arm64_32 + simulator arm64/x86_64) before combining them. Used by the Flutter iOS plugin and the native [Apple app](apple.md).
 
 ### `make build-all`
 
@@ -51,6 +52,14 @@ Builds **everything**: web client, server executable, and shared library. Equiva
 ### `make build-apple`
 
 Builds all **Apple platform targets**: macOS shared library, iOS XCFramework, and links both to the Flutter plugin. Use this when preparing a full Flutter release.
+
+### `make prepare-apple`
+
+Builds the XCFramework (if not already present) and generates the native Apple Xcode project via XcodeGen. Use this before opening the [Apple app](apple.md) in Xcode.
+
+### `make gen-apple`
+
+Generates the Apple Xcode project (`apps/apple/IonClaw.xcodeproj`) from `apps/apple/project.yml` via [XcodeGen](https://github.com/yonaskolb/XcodeGen). Run after adding or removing source files.
 
 ### `make build-android`
 

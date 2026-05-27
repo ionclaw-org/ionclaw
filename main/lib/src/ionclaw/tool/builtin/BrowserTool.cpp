@@ -21,9 +21,11 @@
 #include "stb_image_write.h"
 #endif
 
+#include "ionclaw/util/Platform.hpp"
+
 #ifndef _WIN32
 #include <signal.h>
-#if !defined(__ANDROID__)
+#if !defined(__ANDROID__) && !defined(IONCLAW_NO_PROCESS_EXEC)
 #include <spawn.h>
 extern char **environ;
 #endif
@@ -433,6 +435,8 @@ public:
         pid = 1;
 #elif defined(__ANDROID__)
         return "Error: browser tool is not supported on Android";
+#elif defined(IONCLAW_NO_PROCESS_EXEC)
+        return "Error: browser tool is not supported on this platform";
 #else
         std::vector<std::string> args = {"/bin/sh", "-c", cmd.str()};
         std::vector<char *> argv;
@@ -486,7 +490,7 @@ public:
         {
 #ifdef _WIN32
             std::system("taskkill /F /IM chrome.exe > nul 2>&1");
-#elif !defined(__ANDROID__)
+#elif !defined(__ANDROID__) && !defined(IONCLAW_NO_PROCESS_EXEC)
             kill(static_cast<pid_t>(pid.load()), SIGTERM);
 #endif
             pid = 0;

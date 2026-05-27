@@ -10,7 +10,14 @@ BUILD_SHARED_DIR        := build/shared
 BUILD_IOS_ARM64         := build/ios-arm64
 BUILD_IOS_SIM_ARM64     := build/ios-sim-arm64
 BUILD_IOS_SIM_X86       := build/ios-sim-x86_64
+BUILD_TVOS_ARM64        := build/tvos-arm64
+BUILD_TVOS_SIM_ARM64    := build/tvos-sim-arm64
+BUILD_TVOS_SIM_X86      := build/tvos-sim-x86_64
+BUILD_WATCHOS_ARM64     := build/watchos-arm64
+BUILD_WATCHOS_SIM_ARM64 := build/watchos-sim-arm64
+BUILD_WATCHOS_SIM_X86   := build/watchos-sim-x86_64
 BUILD_XCFRAMEWORK       := build/xcframework
+APPLE_APP_DIR           := apps/apple
 BUILD_ANDROID_ARM64     := build/android-arm64-v8a
 BUILD_ANDROID_ARMV7     := build/android-armeabi-v7a
 BUILD_ANDROID_X86_64    := build/android-x86_64
@@ -52,7 +59,7 @@ help:
 	@echo "  make uninstall               Remove installed symlink"
 	@echo "  make build-web               Build web client (Vue.js)"
 	@echo "  make build-lib               Build shared library (macOS/Linux)"
-	@echo "  make build-xcframework       Build iOS XCFramework"
+	@echo "  make build-xcframework       Build XCFramework (iOS + tvOS + watchOS)"
 	@echo "  make build-android           Build Android .so for all ABIs"
 	@echo "  make build-all               Build everything (server + web + shared lib)"
 	@echo "  make build-apple             Build all Apple targets (macOS + iOS)"
@@ -80,6 +87,8 @@ help:
 	@echo "  make flutter-deps            Install and upgrade Flutter dependencies"
 	@echo "  make prepare-flutter-macos   Build macOS dylib + web (if not present)"
 	@echo "  make prepare-flutter-ios     Build iOS XCFramework (if not present)"
+	@echo "  make prepare-apple           Build XCFramework + generate Apple Xcode project"
+	@echo "  make gen-apple               Generate Apple Xcode project (XcodeGen)"
 	@echo "  make prepare-flutter-android Build Android .so + web (if not present)"
 	@echo "  make link-flutter-macos      Force rebuild macOS dylib to Flutter plugin"
 	@echo "  make link-flutter-web        Force rebuild web client to Flutter plugin"
@@ -211,20 +220,98 @@ build-ios-sim-x86: ## Build iOS simulator x86_64 shared library
 	cmake --build $(BUILD_IOS_SIM_X86) -j$(NPROC)
 	@echo "==> Done: $(BUILD_IOS_SIM_X86)/lib/"
 
+.PHONY: build-tvos-arm64
+build-tvos-arm64: ## Build tvOS arm64 shared library
+	@echo "==> Building tvOS arm64..."
+	cmake -B $(BUILD_TVOS_ARM64) $(CMAKE_SHARED_FLAGS) \
+		-DCMAKE_SYSTEM_NAME=tvOS \
+		-DCMAKE_OSX_ARCHITECTURES=arm64 \
+		-DCMAKE_OSX_SYSROOT=appletvos
+	cmake --build $(BUILD_TVOS_ARM64) -j$(NPROC)
+	@echo "==> Done: $(BUILD_TVOS_ARM64)/lib/"
+
+.PHONY: build-tvos-sim-arm64
+build-tvos-sim-arm64: ## Build tvOS simulator arm64 shared library
+	@echo "==> Building tvOS simulator arm64..."
+	cmake -B $(BUILD_TVOS_SIM_ARM64) $(CMAKE_SHARED_FLAGS) \
+		-DCMAKE_SYSTEM_NAME=tvOS \
+		-DCMAKE_OSX_ARCHITECTURES=arm64 \
+		-DCMAKE_OSX_SYSROOT=appletvsimulator
+	cmake --build $(BUILD_TVOS_SIM_ARM64) -j$(NPROC)
+	@echo "==> Done: $(BUILD_TVOS_SIM_ARM64)/lib/"
+
+.PHONY: build-tvos-sim-x86
+build-tvos-sim-x86: ## Build tvOS simulator x86_64 shared library
+	@echo "==> Building tvOS simulator x86_64..."
+	cmake -B $(BUILD_TVOS_SIM_X86) $(CMAKE_SHARED_FLAGS) \
+		-DCMAKE_SYSTEM_NAME=tvOS \
+		-DCMAKE_OSX_ARCHITECTURES=x86_64 \
+		-DCMAKE_OSX_SYSROOT=appletvsimulator
+	cmake --build $(BUILD_TVOS_SIM_X86) -j$(NPROC)
+	@echo "==> Done: $(BUILD_TVOS_SIM_X86)/lib/"
+
+.PHONY: build-watchos-arm64
+build-watchos-arm64: ## Build watchOS arm64_32 shared library
+	@echo "==> Building watchOS arm64_32..."
+	cmake -B $(BUILD_WATCHOS_ARM64) $(CMAKE_SHARED_FLAGS) \
+		-DCMAKE_SYSTEM_NAME=watchOS \
+		-DCMAKE_OSX_ARCHITECTURES=arm64_32 \
+		-DCMAKE_OSX_SYSROOT=watchos
+	cmake --build $(BUILD_WATCHOS_ARM64) -j$(NPROC)
+	@echo "==> Done: $(BUILD_WATCHOS_ARM64)/lib/"
+
+.PHONY: build-watchos-sim-arm64
+build-watchos-sim-arm64: ## Build watchOS simulator arm64 shared library
+	@echo "==> Building watchOS simulator arm64..."
+	cmake -B $(BUILD_WATCHOS_SIM_ARM64) $(CMAKE_SHARED_FLAGS) \
+		-DCMAKE_SYSTEM_NAME=watchOS \
+		-DCMAKE_OSX_ARCHITECTURES=arm64 \
+		-DCMAKE_OSX_SYSROOT=watchsimulator
+	cmake --build $(BUILD_WATCHOS_SIM_ARM64) -j$(NPROC)
+	@echo "==> Done: $(BUILD_WATCHOS_SIM_ARM64)/lib/"
+
+.PHONY: build-watchos-sim-x86
+build-watchos-sim-x86: ## Build watchOS simulator x86_64 shared library
+	@echo "==> Building watchOS simulator x86_64..."
+	cmake -B $(BUILD_WATCHOS_SIM_X86) $(CMAKE_SHARED_FLAGS) \
+		-DCMAKE_SYSTEM_NAME=watchOS \
+		-DCMAKE_OSX_ARCHITECTURES=x86_64 \
+		-DCMAKE_OSX_SYSROOT=watchsimulator
+	cmake --build $(BUILD_WATCHOS_SIM_X86) -j$(NPROC)
+	@echo "==> Done: $(BUILD_WATCHOS_SIM_X86)/lib/"
+
 .PHONY: build-xcframework
-build-xcframework: build-ios-arm64 build-ios-sim-arm64 build-ios-sim-x86 ## Build iOS XCFramework
-	@echo "==> Creating simulator fat framework..."
-	mkdir -p $(BUILD_XCFRAMEWORK)/sim/ionclaw.framework
+build-xcframework: build-ios-arm64 build-ios-sim-arm64 build-ios-sim-x86 build-tvos-arm64 build-tvos-sim-arm64 build-tvos-sim-x86 build-watchos-arm64 build-watchos-sim-arm64 build-watchos-sim-x86 ## Build XCFramework (iOS + tvOS + watchOS)
+	@echo "==> Creating iOS simulator fat framework..."
+	mkdir -p $(BUILD_XCFRAMEWORK)/ios-sim/ionclaw.framework
 	lipo -create \
 		$(BUILD_IOS_SIM_ARM64)/lib/ionclaw.framework/ionclaw \
 		$(BUILD_IOS_SIM_X86)/lib/ionclaw.framework/ionclaw \
-		-output $(BUILD_XCFRAMEWORK)/sim/ionclaw.framework/ionclaw
-	cp $(BUILD_IOS_SIM_ARM64)/lib/ionclaw.framework/Info.plist $(BUILD_XCFRAMEWORK)/sim/ionclaw.framework/
+		-output $(BUILD_XCFRAMEWORK)/ios-sim/ionclaw.framework/ionclaw
+	cp $(BUILD_IOS_SIM_ARM64)/lib/ionclaw.framework/Info.plist $(BUILD_XCFRAMEWORK)/ios-sim/ionclaw.framework/
+	@echo "==> Creating tvOS simulator fat framework..."
+	mkdir -p $(BUILD_XCFRAMEWORK)/tvos-sim/ionclaw.framework
+	lipo -create \
+		$(BUILD_TVOS_SIM_ARM64)/lib/ionclaw.framework/ionclaw \
+		$(BUILD_TVOS_SIM_X86)/lib/ionclaw.framework/ionclaw \
+		-output $(BUILD_XCFRAMEWORK)/tvos-sim/ionclaw.framework/ionclaw
+	cp $(BUILD_TVOS_SIM_ARM64)/lib/ionclaw.framework/Info.plist $(BUILD_XCFRAMEWORK)/tvos-sim/ionclaw.framework/
+	@echo "==> Creating watchOS simulator fat framework..."
+	mkdir -p $(BUILD_XCFRAMEWORK)/watchos-sim/ionclaw.framework
+	lipo -create \
+		$(BUILD_WATCHOS_SIM_ARM64)/lib/ionclaw.framework/ionclaw \
+		$(BUILD_WATCHOS_SIM_X86)/lib/ionclaw.framework/ionclaw \
+		-output $(BUILD_XCFRAMEWORK)/watchos-sim/ionclaw.framework/ionclaw
+	cp $(BUILD_WATCHOS_SIM_ARM64)/lib/ionclaw.framework/Info.plist $(BUILD_XCFRAMEWORK)/watchos-sim/ionclaw.framework/
 	@echo "==> Creating XCFramework..."
 	rm -rf $(BUILD_XCFRAMEWORK)/ionclaw.xcframework
 	xcodebuild -create-xcframework \
 		-framework $(BUILD_IOS_ARM64)/lib/ionclaw.framework \
-		-framework $(BUILD_XCFRAMEWORK)/sim/ionclaw.framework \
+		-framework $(BUILD_XCFRAMEWORK)/ios-sim/ionclaw.framework \
+		-framework $(BUILD_TVOS_ARM64)/lib/ionclaw.framework \
+		-framework $(BUILD_XCFRAMEWORK)/tvos-sim/ionclaw.framework \
+		-framework $(BUILD_WATCHOS_ARM64)/lib/ionclaw.framework \
+		-framework $(BUILD_XCFRAMEWORK)/watchos-sim/ionclaw.framework \
 		-output $(BUILD_XCFRAMEWORK)/ionclaw.xcframework
 	@echo "==> Done: $(BUILD_XCFRAMEWORK)/ionclaw.xcframework"
 
@@ -359,6 +446,18 @@ prepare-flutter-ios: ## Build iOS XCFramework only if not present
 	@if [ ! -d "$(BUILD_XCFRAMEWORK)/ionclaw.xcframework" ]; then $(MAKE) link-flutter-ios; \
 	else echo "==> iOS XCFramework already built (skip). Use 'make clean-ios link-flutter-ios' to rebuild."; fi
 
+.PHONY: gen-apple
+gen-apple: ## Generate the Apple (iOS/tvOS/watchOS) Xcode project via XcodeGen
+	@echo "==> Generating Apple Xcode project..."
+	cd $(APPLE_APP_DIR) && xcodegen generate
+	@echo "==> Done: $(APPLE_APP_DIR)/IonClaw.xcodeproj"
+
+.PHONY: prepare-apple
+prepare-apple: ## Build XCFramework (if not present) and generate the Apple Xcode project
+	@if [ ! -d "$(BUILD_XCFRAMEWORK)/ionclaw.xcframework" ]; then $(MAKE) build-xcframework; \
+	else echo "==> XCFramework already built (skip). Use 'make clean-ios build-xcframework' to rebuild."; fi
+	@$(MAKE) gen-apple
+
 .PHONY: prepare-flutter-android
 prepare-flutter-android: ## Build Android .so files only if not present
 	@if [ ! -d "$(FLUTTER_ANDROID_JNILIBS)/arm64-v8a" ]; then $(MAKE) link-flutter-android; \
@@ -473,8 +572,11 @@ clean-lib: ## Remove shared library build
 	rm -rf $(BUILD_SHARED_DIR)
 
 .PHONY: clean-ios
-clean-ios: ## Remove iOS/XCFramework build directories
-	rm -rf $(BUILD_IOS_ARM64) $(BUILD_IOS_SIM_ARM64) $(BUILD_IOS_SIM_X86) $(BUILD_XCFRAMEWORK)
+clean-ios: ## Remove iOS/tvOS/watchOS/XCFramework build directories
+	rm -rf $(BUILD_IOS_ARM64) $(BUILD_IOS_SIM_ARM64) $(BUILD_IOS_SIM_X86) \
+		$(BUILD_TVOS_ARM64) $(BUILD_TVOS_SIM_ARM64) $(BUILD_TVOS_SIM_X86) \
+		$(BUILD_WATCHOS_ARM64) $(BUILD_WATCHOS_SIM_ARM64) $(BUILD_WATCHOS_SIM_X86) \
+		$(BUILD_XCFRAMEWORK)
 
 .PHONY: clean-android
 clean-android: ## Remove Android build directories and jniLibs

@@ -71,7 +71,7 @@ credentials:
 #   kimi       - Moonshot Kimi models (OpenAI-compatible)
 #   deepseek   - DeepSeek models (OpenAI-compatible)
 #
-# Model format: "provider/model-name" (e.g., "anthropic/claude-sonnet-4-20250514")
+# Model format: "provider/model-name" (e.g., "anthropic/claude-sonnet-4-6")
 # All providers support text and image input, streaming and non-streaming.
 # Audio input supported for OpenAI (GPT-4o+) and OpenAI-compatible providers.
 providers:
@@ -112,7 +112,7 @@ web_client:
 agents:
   main:
     workspace: "workspace"
-    model: "anthropic/claude-sonnet-4-20250514"
+    model: "anthropic/claude-sonnet-4-6"
     description: "General-purpose assistant"
     instructions: ""
     tools:
@@ -131,6 +131,8 @@ agents:
       - vision
       - message
       - spawn
+      - subagents
+      - agents_list
       - cron
       - invoke_platform
       - memory_save
@@ -149,7 +151,7 @@ agents:
   # Add more agents for multi-agent routing:
   # creative:
   #   workspace: "workspace"
-  #   model: "anthropic/claude-sonnet-4-20250514"
+  #   model: "anthropic/claude-sonnet-4-6"
   #   description: "Creative tasks: writing, images, memes, social media"
   #   tools:
   #     - read_file
@@ -189,4 +191,4 @@ heartbeat:
   # interval: 1800
 
 # classifier:
-#   model: "anthropic/claude-haiku-3-20240307"
+#   model: "anthropic/claude-haiku-4-5-20251001"

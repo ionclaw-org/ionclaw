@@ -174,10 +174,12 @@ add_library(ionclaw-lib STATIC
     ${CMAKE_CURRENT_BINARY_DIR}/embedded_skills.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/embedded_template.cpp
 )
+
 target_include_directories(ionclaw-lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lib/include)
 target_include_directories(ionclaw-lib PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_definitions(ionclaw-lib PRIVATE IONCLAW_EMBEDDED_RESOURCES)
 target_compile_definitions(ionclaw-lib PUBLIC IONCLAW_VERSION_STRING="${IONCLAW_VERSION}")
+
 add_dependencies(ionclaw-lib ionclaw-embedded-resources)
 
 if(IONCLAW_BUILD_SHARED)
@@ -188,13 +190,14 @@ if(IONCLAW_BUILD_SHARED)
         ${CMAKE_CURRENT_BINARY_DIR}/embedded_skills.cpp
         ${CMAKE_CURRENT_BINARY_DIR}/embedded_template.cpp
     )
+
     set_target_properties(ionclaw-shared PROPERTIES
         OUTPUT_NAME "ionclaw"
         POSITION_INDEPENDENT_CODE ON
     )
 
-    # iOS: build as framework so symbols are available via DynamicLibrary.process()
-    if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    # apple embedded platforms: build as framework so consumers can link and load it
+    if(CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS|watchOS|visionOS)$")
         set_target_properties(ionclaw-shared PROPERTIES
             FRAMEWORK TRUE
             MACOSX_FRAMEWORK_IDENTIFIER "com.ionclaw.lib"
@@ -206,10 +209,12 @@ if(IONCLAW_BUILD_SHARED)
             XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "iPhone Developer"
         )
     endif()
+
     target_include_directories(ionclaw-shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lib/include)
     target_include_directories(ionclaw-shared PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
     target_compile_definitions(ionclaw-shared PRIVATE IONCLAW_EMBEDDED_RESOURCES)
     target_compile_definitions(ionclaw-shared PUBLIC IONCLAW_VERSION_STRING="${IONCLAW_VERSION}")
+
     add_dependencies(ionclaw-shared ionclaw-embedded-resources)
 else()
     # desktop executable

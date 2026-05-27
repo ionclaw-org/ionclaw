@@ -1,0 +1,5 @@
+module CIonClaw {
+    // single source of truth: the public C ABI shipped with the native library
+    header "../../../../main/lib/include/ionclaw/ionclaw.h"
+    export *
+}

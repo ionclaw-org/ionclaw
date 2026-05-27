@@ -7,7 +7,7 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#else
+#elif !defined(IONCLAW_NO_PROCESS_EXEC)
 #include <cerrno>
 #include <csignal>
 #include <cstring>
@@ -140,6 +140,16 @@ ProcessResult ProcessRunner::run(const std::string &command, int timeoutSeconds,
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
     CloseHandle(readPipe);
+
+    return result;
+}
+
+#elif defined(IONCLAW_NO_PROCESS_EXEC) // tvOS, watchOS (no fork/exec)
+
+ProcessResult ProcessRunner::run(const std::string &, int, size_t)
+{
+    ProcessResult result;
+    result.output = "Error: process execution is not available on this platform";
 
     return result;
 }
