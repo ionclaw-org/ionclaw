@@ -6,6 +6,7 @@
 
 #include "ionclaw/provider/AnthropicProvider.hpp"
 #include "ionclaw/provider/FailoverProvider.hpp"
+#include "ionclaw/provider/LlamaProvider.hpp"
 #include "ionclaw/provider/OpenAiProvider.hpp"
 #include "spdlog/spdlog.h"
 
@@ -13,6 +14,28 @@ namespace ionclaw
 {
 namespace provider
 {
+
+namespace
+{
+
+// llama runs a local gguf file pointed to by base_url, so it bypasses the credential-based flow
+std::shared_ptr<LlmProvider> makeLlamaProvider(const std::string &modelPath, const nlohmann::json &params)
+{
+#ifdef IONCLAW_HAS_LLAMA_CPP
+    if (modelPath.empty())
+    {
+        throw std::runtime_error("[ProviderFactory] llama provider requires a model file path in 'base_url'");
+    }
+
+    return std::make_shared<LlamaProvider>(modelPath, params);
+#else
+    (void)modelPath;
+    (void)params;
+    throw std::runtime_error("[ProviderFactory] llama provider requires building with -DIONCLAW_LLAMA_CPP=ON");
+#endif
+}
+
+} // namespace
 
 std::string ProviderFactory::defaultBaseUrl(const std::string &providerName)
 {
@@ -77,6 +100,12 @@ std::shared_ptr<LlmProvider> ProviderFactory::createFromModel(const std::string 
         {
             providerName = model;
         }
+    }
+
+    // llama loads a local model file and carries its setup through model_params
+    if (providerName == "llama")
+    {
+        return makeLlamaProvider(providerConfig.baseUrl, providerConfig.modelParams);
     }
 
     // resolve credentials and settings

@@ -124,6 +124,39 @@ if(stb_ADDED)
     endif()
 endif()
 
+# local llm inference via llama.cpp
+if(IONCLAW_LLAMA_CPP)
+    CPMAddPackage(
+        NAME llama.cpp
+        GITHUB_REPOSITORY ggml-org/llama.cpp
+        GIT_TAG 19e92c33ef974661e4b1e43dd48be231d07be5ed
+        OPTIONS
+            "BUILD_SHARED_LIBS OFF"
+            "LLAMA_BUILD_COMMON OFF"
+            "LLAMA_BUILD_TESTS OFF"
+            "LLAMA_BUILD_EXAMPLES OFF"
+            "LLAMA_BUILD_TOOLS OFF"
+            "LLAMA_BUILD_SERVER OFF"
+            "LLAMA_OPENSSL OFF"
+            # build for the architecture baseline instead of -mcpu=native, which keeps the binary portable and avoids host cpus the compiler may not know
+            "GGML_NATIVE OFF"
+    )
+
+    if(NOT llama.cpp_ADDED)
+        message(FATAL_ERROR "IonClaw: IONCLAW_LLAMA_CPP is ON but llama.cpp could not be fetched")
+    endif()
+
+    target_compile_definitions(ionclaw-lib PUBLIC IONCLAW_HAS_LLAMA_CPP)
+    target_link_libraries(ionclaw-lib PRIVATE llama)
+
+    if(IONCLAW_BUILD_SHARED)
+        target_compile_definitions(ionclaw-shared PUBLIC IONCLAW_HAS_LLAMA_CPP)
+        target_link_libraries(ionclaw-shared PRIVATE llama)
+    endif()
+
+    message(STATUS "IonClaw: llama.cpp enabled for local LLM inference")
+endif()
+
 # link dependencies to ionclaw targets
 target_link_libraries(ionclaw-lib PUBLIC
     spdlog::spdlog

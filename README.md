@@ -95,6 +95,7 @@ Open `http://localhost:8080` in your browser. The web panel is served automatica
 - [Build](docs/build.md) — Build system and Makefile targets
 - [Configuration](docs/configuration.md) — Full config.yml reference
 - [Custom Providers](docs/custom-providers.md) — Ollama, LM Studio, MiniMax, and other OpenAI-compatible providers
+- [Llama.cpp Provider](docs/llama.md) — Offline GGUF models via the embedded llama.cpp backend
 - [Apple](docs/apple.md) — Native iOS, tvOS, and watchOS apps (SwiftUI + XcodeGen)
 - [Flutter](docs/flutter.md) — Flutter app, release builds, and signing
 - [Skills](docs/skills.md) — Creating and managing skills

@@ -3,8 +3,8 @@ cmake_minimum_required(VERSION 3.20.0)
 # allow older cmake minimum version in dependencies
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "")
 
-# cmake project
-project(ionclaw LANGUAGES CXX)
+# cmake project (c is required by the llama.cpp/ggml backend)
+project(ionclaw LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,6 +25,13 @@ endif()
 # options
 set(IONCLAW_VERSION "1.0.6" CACHE STRING "IonClaw Version")
 option(IONCLAW_BUILD_SHARED "Build Shared Library (FFI)" OFF)
+
+# llama.cpp
+set(IONCLAW_LLAMA_CPP_DEFAULT ON)
+if(CMAKE_SYSTEM_NAME MATCHES "^(tvOS|watchOS|visionOS)$")
+    set(IONCLAW_LLAMA_CPP_DEFAULT OFF)
+endif()
+option(IONCLAW_LLAMA_CPP "Build With llama.cpp For Local LLM Inference" ${IONCLAW_LLAMA_CPP_DEFAULT})
 
 # shared library requires all code (including dependencies) to be position-independent
 if(IONCLAW_BUILD_SHARED)

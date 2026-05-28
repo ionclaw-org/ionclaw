@@ -2,6 +2,8 @@
 
 IonClaw supports any LLM provider that exposes an OpenAI-compatible chat completions API. This includes self-hosted models (Ollama, LM Studio, vLLM, llama.cpp) and third-party services (MiniMax, Together AI, Fireworks, Groq, etc.).
 
+> To run a GGUF model offline without a separate server, use the built-in `llama` provider instead — it links llama.cpp directly into the binary. See [Local Inference](llama.md).
+
 ---
 
 ## How It Works

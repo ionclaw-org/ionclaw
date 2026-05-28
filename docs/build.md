@@ -21,6 +21,8 @@ Builds the **server executable** in release mode. Output: `build/release/bin/ion
 
 Uses CMake with `-DCMAKE_BUILD_TYPE=Release`. This is the main target for development and production.
 
+Local inference via llama.cpp is built in by default on supported platforms (`-DIONCLAW_LLAMA_CPP=OFF` to disable). See [Local Inference](llama.md).
+
 ### `make build-debug`
 
 Builds the **server executable** in debug mode with debug symbols. Output: `build/debug/bin/ionclaw-server`.

@@ -22,6 +22,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/bus/EventDispatcher.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/AnthropicProvider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/OpenAiProvider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/LlamaProvider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/ProviderFactory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/ProviderHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/session/SessionManager.cpp
