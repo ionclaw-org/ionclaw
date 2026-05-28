@@ -54,6 +54,9 @@ struct Session
     bool abortedLastRun = false;
     int abortCutoffMessageIndex = -1;
     std::string abortCutoffTimestamp;
+
+    // transient flag: the user stopped the previous run, consumed once to prime the next turn
+    bool stoppedByUser = false;
 };
 
 class SessionManager
@@ -73,6 +76,9 @@ public:
 
     void setAbortCutoffAll();
     void clearAbortFlag(const std::string &sessionKey);
+
+    void markStoppedByUser(const std::string &sessionKey);
+    void clearStoppedByUser(const std::string &sessionKey);
 
     void updateLiveStateField(const std::string &sessionKey, const std::string &field, const nlohmann::json &value);
     void updateLastMessageContent(const std::string &sessionKey, const std::string &content);

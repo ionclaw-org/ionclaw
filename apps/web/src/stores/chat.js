@@ -143,6 +143,12 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  // stop the running turn for a session; the backend aborts it and the turn-end events clear the rest
+  async function stopTurn(sessionKey = currentSessionId.value) {
+    await api.post(`/chat/${sessionKey}/stop`)
+    _clearLive(chatIdFromKey(sessionKey))
+  }
+
   // ------------------------------------------------------------------
   // websocket event handlers
   // ------------------------------------------------------------------
@@ -384,6 +390,11 @@ export const useChatStore = defineStore('chat', () => {
     toolRunning.value = false
   }
 
+  // another client (or this one) stopped the turn; clear the live indicator
+  function onExecutionStopped(data) {
+    _clearLive(chatIdFromKey(data?.session_key || ''))
+  }
+
   return {
     messages,
     sessions,
@@ -391,6 +402,8 @@ export const useChatStore = defineStore('chat', () => {
     liveMessage,
     toolRunning,
     sendMessage,
+    stopTurn,
+    onExecutionStopped,
     onUserMessage,
     onMessage,
     onThinking,

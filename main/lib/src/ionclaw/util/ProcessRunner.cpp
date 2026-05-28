@@ -39,7 +39,7 @@ bool ProcessRunner::appendOutput(ProcessResult &result, const char *data, size_t
 
 #ifdef _WIN32
 
-ProcessResult ProcessRunner::run(const std::string &command, int timeoutSeconds, size_t maxOutputBytes)
+ProcessResult ProcessRunner::run(const std::string &command, int timeoutSeconds, size_t maxOutputBytes, const std::function<bool()> &isCancelled)
 {
     ProcessResult result;
 
@@ -87,11 +87,21 @@ ProcessResult ProcessRunner::run(const std::string &command, int timeoutSeconds,
     while (true)
     {
         auto remaining = static_cast<LONGLONG>(deadline - GetTickCount64());
+        bool cancelRequested = isCancelled && isCancelled();
 
-        if (remaining <= 0)
+        if (remaining <= 0 || cancelRequested)
         {
             TerminateProcess(pi.hProcess, 1);
-            result.timedOut = true;
+
+            if (cancelRequested)
+            {
+                result.cancelled = true;
+            }
+            else
+            {
+                result.timedOut = true;
+            }
+
             break;
         }
 
@@ -146,7 +156,7 @@ ProcessResult ProcessRunner::run(const std::string &command, int timeoutSeconds,
 
 #elif defined(IONCLAW_NO_PROCESS_EXEC) // tvOS, watchOS (no fork/exec)
 
-ProcessResult ProcessRunner::run(const std::string &, int, size_t)
+ProcessResult ProcessRunner::run(const std::string &, int, size_t, const std::function<bool()> &)
 {
     ProcessResult result;
     result.output = "Error: process execution is not available on this platform";
@@ -188,7 +198,7 @@ void ProcessRunner::drainPipe(int fd, ProcessResult &result, size_t maxOutputByt
     }
 }
 
-ProcessResult ProcessRunner::run(const std::string &command, int timeoutSeconds, size_t maxOutputBytes)
+ProcessResult ProcessRunner::run(const std::string &command, int timeoutSeconds, size_t maxOutputBytes, const std::function<bool()> &isCancelled)
 {
     ProcessResult result;
 
@@ -248,12 +258,13 @@ ProcessResult ProcessRunner::run(const std::string &command, int timeoutSeconds,
     {
         auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now());
 
-        if (remaining.count() <= 0)
+        bool cancelRequested = isCancelled && isCancelled();
+
+        if (remaining.count() <= 0 || cancelRequested)
         {
-            // timeout: kill process group
+            // timeout or user stop: kill the process group, then force kill after a grace period
             kill(-pid, SIGTERM);
 
-            // brief grace period, then force kill
             int status = 0;
             auto grace = std::chrono::steady_clock::now() + std::chrono::milliseconds(GRACE_PERIOD_MS);
 
@@ -274,10 +285,18 @@ ProcessResult ProcessRunner::run(const std::string &command, int timeoutSeconds,
                 waitpid(pid, &status, 0);
             }
 
-            // drain any output produced before timeout
+            // drain any output produced before termination
             drainPipe(pipefd[0], result, maxOutputBytes);
 
-            result.timedOut = true;
+            if (cancelRequested)
+            {
+                result.cancelled = true;
+            }
+            else
+            {
+                result.timedOut = true;
+            }
+
             result.exitCode = -1;
             break;
         }

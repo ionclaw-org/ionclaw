@@ -103,6 +103,7 @@ Response: `os`, `cpu`, `memory` (e.g. `total_gb`), and `version` are always pres
 | GET | `/api/chat/sessions` | List all chat sessions |
 | GET | `/api/chat/sessions/{session_id}` | Get a single session with messages |
 | DELETE | `/api/chat/sessions/{session_id}` | Delete a session |
+| POST | `/api/chat/{session_id}/stop` | Stop the running turn for a session (and its subagents) |
 
 **POST /api/chat**
 
@@ -196,6 +197,17 @@ Response:
 }
 ```
 
+**POST /api/chat/{session_id}/stop**
+
+Stops the turn currently running for the session and cascades to any subagents it spawned. The aborted turn records a `[Request interrupted by the user]` marker in history so the next turn keeps clean context. Returns `409` if the session has no active execution.
+
+```json
+{
+  "status": "stopped",
+  "session_key": "web:..."
+}
+```
+
 ---
 
 ### Tasks
@@ -205,16 +217,17 @@ Response:
 | GET | `/api/tasks` | List tasks |
 | GET | `/api/tasks/{task_id}` | Get a single task |
 | PUT or PATCH | `/api/tasks/{task_id}` | Update task state |
+| POST | `/api/tasks/{task_id}/stop` | Stop the execution behind a running task |
 
 **GET /api/tasks**
 
-Returns tasks (TODO, DOING, DONE, ERROR). Each task object includes:
+Returns tasks (TODO, DOING, DONE, ERROR, STOPPED). Each task object includes:
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | string | Task identifier |
 | `title` | string | Short title |
-| `state` | string | `TODO`, `DOING`, `DONE`, or `ERROR` |
+| `state` | string | `TODO`, `DOING`, `DONE`, `ERROR`, or `STOPPED` (user-stopped, distinct from error) |
 | `agent_name` | string | Name of the agent handling the task |
 | `tool_count` | int | Number of tool calls executed |
 | `iteration_count` | int | Number of LLM call iterations |
@@ -227,12 +240,23 @@ Request body:
 
 ```json
 {
-  "state": "TODO | DOING | DONE | ERROR",
+  "state": "TODO | DOING | DONE | ERROR | STOPPED",
   "result": "string (optional)"
 }
 ```
 
 Returns `400` with a descriptive message if `state` is missing or not one of the valid values.
+
+**POST /api/tasks/{task_id}/stop**
+
+Stops the execution behind a running task by aborting its session (a subagent task resolves to its parent session and stops that branch). Returns `409` if the task is not running, `404` if unknown.
+
+```json
+{
+  "status": "stopped",
+  "task_id": "..."
+}
+```
 
 ---
 

@@ -103,7 +103,7 @@ void TaskManager::updateState(const std::string &taskId, TaskState state, const 
             task.result = result;
         }
 
-        if (state == TaskState::Done || state == TaskState::Error)
+        if (state == TaskState::Done || state == TaskState::Error || state == TaskState::Stopped)
         {
             task.completedAt = task.updatedAt;
         }

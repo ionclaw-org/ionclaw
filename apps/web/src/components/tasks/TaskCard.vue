@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, onUnmounted, watch } from 'vue'
 import Tag from 'primevue/tag'
+import Button from 'primevue/button'
 import { useTasksStore } from '../../stores/tasks'
 import { humanizeToolName } from '../../utils/format'
 
@@ -20,11 +21,20 @@ function handleTitleClick() {
   }
 }
 
+async function handleStop() {
+  try {
+    await tasksStore.stopTask(props.task.id)
+  } catch (e) {
+    console.error('[tasks] stop error:', e)
+  }
+}
+
 const severityMap = {
   TODO: 'info',
   DOING: 'warn',
   DONE: 'success',
   ERROR: 'danger',
+  STOPPED: 'secondary',
 }
 
 function formatTime(iso) {
@@ -105,7 +115,19 @@ const tokenSummary = computed(() => {
   <div :class="['task-card', task.state === 'ERROR' ? 'task-error' : '']">
     <div class="task-header">
       <span class="task-title" title="Open chat session" @click="handleTitleClick">{{ task.title }}</span>
-      <Tag :value="task.state" :severity="severityMap[task.state] || 'secondary'" />
+      <div class="task-header-right">
+        <Button
+          v-if="task.state === 'DOING'"
+          icon="pi pi-stop"
+          severity="danger"
+          text
+          rounded
+          size="small"
+          title="Stop"
+          @click="handleStop"
+        />
+        <Tag :value="task.state" :severity="severityMap[task.state] || 'secondary'" />
+      </div>
     </div>
 
     <div v-if="task.description" class="task-desc">
@@ -191,6 +213,13 @@ const tokenSummary = computed(() => {
   gap: 0.5rem;
   margin-bottom: 0.4rem;
   min-width: 0;
+}
+
+.task-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
 }
 
 .task-title {

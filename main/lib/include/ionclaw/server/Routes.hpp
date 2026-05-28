@@ -40,10 +40,12 @@ public:
     void handleChatSessions(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
     void handleChatSession(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &sessionId);
     void handleChatSessionDelete(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &sessionId);
+    void handleChatStop(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &sessionId);
 
     void handleTasksList(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
     void handleTaskGet(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &taskId);
     void handleTaskUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &taskId);
+    void handleTaskStop(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &taskId);
 
     void handleAgentsList(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
 

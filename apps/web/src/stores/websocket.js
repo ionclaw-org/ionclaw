@@ -166,6 +166,9 @@ export const useWebSocketStore = defineStore('websocket', () => {
       case 'task:updated':
         tasks.onTaskUpdated(msg.data)
         break
+      case 'execution:stopped':
+        chat.onExecutionStopped(msg.data)
+        break
     }
   }
 

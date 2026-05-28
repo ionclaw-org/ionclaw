@@ -43,7 +43,7 @@ std::string AgentLoop::pickFallbackThinkingLevel(const std::string &current)
     return "";
 }
 
-void AgentLoop::flushAbandonedToolCalls(std::vector<ionclaw::provider::Message> &messages, const std::vector<ionclaw::provider::ToolCall> &toolCalls)
+void AgentLoop::flushAbandonedToolCalls(std::vector<ionclaw::provider::Message> &messages, const std::vector<ionclaw::provider::ToolCall> &toolCalls, const std::string &resultText)
 {
     for (size_t ti = 0; ti < toolCalls.size(); ++ti)
     {
@@ -58,7 +58,7 @@ void AgentLoop::flushAbandonedToolCalls(std::vector<ionclaw::provider::Message> 
         }
         if (!hasResult)
         {
-            ContextBuilder::addToolResult(messages, toolCalls[ti].id, toolCalls[ti].name, "[tool call was not completed]");
+            ContextBuilder::addToolResult(messages, toolCalls[ti].id, toolCalls[ti].name, resultText);
         }
     }
 }
@@ -533,6 +533,12 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
     toolContext.subagentRegistry = subagentRegistryPtr;
     toolContext.hookRunner = hookRunnerPtr;
 
+    // expose the turn's abort flag so long-running tools can stop when the user stops the turn
+    toolContext.isCancelled = [this]() {
+        auto *handle = defaultActiveTurnHandle.load(std::memory_order_acquire);
+        return handle != nullptr && handle->aborted.load();
+    };
+
     try
     {
         // resolve media paths to base64 content blocks (and transcriptions)
@@ -636,6 +642,17 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
             }
         }
 
+        // if the user stopped the previous run, instruct the model to resume carefully instead of blindly continuing
+        {
+            auto session = sessionManager->getOrCreate(sessionKey);
+
+            if (session.stoppedByUser)
+            {
+                effectiveContent = "Note: The previous agent run was aborted by the user. Resume carefully or ask for clarification.\n\n" + effectiveContent;
+                sessionManager->clearStoppedByUser(sessionKey);
+            }
+        }
+
         // exclude the last user message from history (we add it separately)
         if (!history.empty() && history.back().role == "user")
         {
@@ -705,6 +722,15 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
             turnState.lastSentContent = responseText;
         }
 
+        // record a user-initiated stop in the persisted turn so the next turn keeps clean context and the model does not resume in a loop
+        bool wasAborted = turnState.activeTurnHandle && turnState.activeTurnHandle->aborted.load();
+
+        if (wasAborted)
+        {
+            responseText = responseText.empty() ? std::string("[Request interrupted by the user]") : responseText + "\n\n[Request interrupted by the user]";
+            sessionManager->markStoppedByUser(sessionKey);
+        }
+
         // save assistant response to session
         ionclaw::session::SessionMessage assistantSessionMsg;
         assistantSessionMsg.role = "assistant";
@@ -740,12 +766,19 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
         {
             try
             {
-                auto resultPreview = ionclaw::util::StringHelper::utf8SafeTruncate(responseText, TASK_RESULT_MAX_CHARS);
-                taskManager->updateState(taskId, ionclaw::task::TaskState::Done, resultPreview);
+                if (wasAborted)
+                {
+                    taskManager->updateState(taskId, ionclaw::task::TaskState::Stopped, "Stopped by user");
+                }
+                else
+                {
+                    auto resultPreview = ionclaw::util::StringHelper::utf8SafeTruncate(responseText, TASK_RESULT_MAX_CHARS);
+                    taskManager->updateState(taskId, ionclaw::task::TaskState::Done, resultPreview);
+                }
             }
             catch (const std::exception &e)
             {
-                spdlog::warn("[AgentLoop] Failed to update task to done: {}", e.what());
+                spdlog::warn("[AgentLoop] Failed to update task state at turn end: {}", e.what());
             }
         }
 
@@ -998,7 +1031,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
 
         try
         {
-            response = consumeStream(messages, taskId, chatId, effectiveName, usageTracker, callback, turnModelParams);
+            response = consumeStream(messages, taskId, chatId, effectiveName, usageTracker, callback, turnModelParams, turnState.activeTurnHandle);
         }
         catch (const std::exception &e)
         {
@@ -1123,6 +1156,15 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
 
         if (!response.toolCalls.empty())
         {
+            // the user stopped during the stream, so record the turn and skip executing this iteration's tools
+            if (turnState.activeTurnHandle && turnState.activeTurnHandle->aborted.load())
+            {
+                ContextBuilder::addAssistantMessage(messages, response.content, response.toolCalls, response.reasoningContent);
+                flushAbandonedToolCalls(messages, response.toolCalls, "[Request interrupted by the user]");
+                spdlog::info("[AgentLoop] Turn aborted by interrupt before tool execution");
+                break;
+            }
+
             // record tool calls for loop detection
             for (const auto &tc : response.toolCalls)
             {
@@ -1292,7 +1334,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
             // check abort after tool execution
             if (turnState.activeTurnHandle && turnState.activeTurnHandle->aborted.load())
             {
-                flushAbandonedToolCalls(messages, response.toolCalls);
+                flushAbandonedToolCalls(messages, response.toolCalls, "[Request interrupted by the user]");
                 spdlog::info("[AgentLoop] Turn aborted by interrupt after tool execution");
                 break;
             }
@@ -1368,7 +1410,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
     return {"I've reached my processing limit. Please try again or simplify your request.", blocks};
 }
 
-StreamResult AgentLoop::consumeStream(const std::vector<ionclaw::provider::Message> &messages, const std::string &taskId, const std::string &chatId, const std::string &effectiveName, UsageTracker &usageTracker, AgentEventCallback &callback, const nlohmann::json &modelParams)
+StreamResult AgentLoop::consumeStream(const std::vector<ionclaw::provider::Message> &messages, const std::string &taskId, const std::string &chatId, const std::string &effectiveName, UsageTracker &usageTracker, AgentEventCallback &callback, const nlohmann::json &modelParams, const ActiveTurnHandle *activeTurnHandle)
 {
     StreamResult result;
     result.finishReason = "stop";
@@ -1389,7 +1431,8 @@ StreamResult AgentLoop::consumeStream(const std::vector<ionclaw::provider::Messa
     // process stream chunks as they arrive
     // clang-format off
     provider->chatStream(request, [&](const ionclaw::provider::StreamChunk &chunk) {
-        if (stopped.load())
+        // stop emitting and accumulating the moment the server shuts down or the user stops the turn
+        if (stopped.load() || (activeTurnHandle && activeTurnHandle->aborted.load()))
         {
             return;
         }
@@ -1433,6 +1476,8 @@ StreamResult AgentLoop::consumeStream(const std::vector<ionclaw::provider::Messa
                 result.finishReason = chunk.finishReason;
             }
         }
+    }, [this, activeTurnHandle]() {
+        return stopped.load() || (activeTurnHandle && activeTurnHandle->aborted.load());
     });
     // clang-format on
 

@@ -187,7 +187,7 @@ HttpResponse HttpClient::get(const std::string &path)
     return readResponse(response, rs);
 }
 
-void HttpClient::postStream(const std::string &path, const std::string &body, StreamCallback callback)
+void HttpClient::postStream(const std::string &path, const std::string &body, StreamCallback callback, const CancelPredicate &isCancelled)
 {
     Poco::URI uri(baseUrl + path);
     auto session = createSession(uri, timeoutSeconds);
@@ -223,6 +223,12 @@ void HttpClient::postStream(const std::string &path, const std::string &body, St
 
     while (std::getline(rs, line))
     {
+        // stop reading as soon as the caller cancels, abandoning the rest of the stream
+        if (isCancelled && isCancelled())
+        {
+            break;
+        }
+
         if (line.empty() || line == "\r")
         {
             continue;

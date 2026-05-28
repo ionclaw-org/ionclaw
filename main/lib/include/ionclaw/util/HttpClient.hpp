@@ -29,6 +29,7 @@ struct HttpResponse
 };
 
 using StreamCallback = std::function<void(const std::string &chunk)>;
+using CancelPredicate = std::function<bool()>;
 
 class HttpClient
 {
@@ -40,7 +41,7 @@ public:
     HttpResponse post(const std::string &path, const std::string &body);
     HttpResponse get(const std::string &path);
 
-    void postStream(const std::string &path, const std::string &body, StreamCallback callback);
+    void postStream(const std::string &path, const std::string &body, StreamCallback callback, const CancelPredicate &isCancelled = {});
 
     using RedirectValidator = std::function<void(const std::string &url)>;
 

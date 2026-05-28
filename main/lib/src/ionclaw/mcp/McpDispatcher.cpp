@@ -484,8 +484,9 @@ nlohmann::json McpDispatcher::toolChat(const std::string &sessionId, const nlohm
                 auto state = data.value("state", std::string(""));
                 bool isDoneState = (state == "done" || state == "DONE");
                 bool isErrorState = (state == "error" || state == "ERROR");
+                bool isStoppedState = (state == "stopped" || state == "STOPPED");
 
-                if (isDoneState || isErrorState)
+                if (isDoneState || isErrorState || isStoppedState)
                 {
                     std::lock_guard<std::mutex> lock(stream->mtx);
                     stream->done = true;

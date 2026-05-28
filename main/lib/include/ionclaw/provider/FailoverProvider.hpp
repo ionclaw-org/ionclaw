@@ -20,7 +20,7 @@ public:
     FailoverProvider(std::vector<std::shared_ptr<LlmProvider>> providers, std::vector<std::string> providerNames, std::vector<nlohmann::json> profileModelParams = {});
 
     ChatCompletionResponse chat(const ChatCompletionRequest &request) override;
-    void chatStream(const ChatCompletionRequest &request, StreamCallback callback) override;
+    void chatStream(const ChatCompletionRequest &request, StreamCallback callback, const CancelPredicate &isCancelled = {}) override;
     std::string name() const override;
 
 private:

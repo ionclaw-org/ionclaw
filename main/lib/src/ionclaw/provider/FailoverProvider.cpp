@@ -195,7 +195,7 @@ ChatCompletionResponse FailoverProvider::chat(const ChatCompletionRequest &reque
     throw std::runtime_error("[FailoverProvider] All provider profiles exhausted after " + std::to_string(attempts) + " attempts");
 }
 
-void FailoverProvider::chatStream(const ChatCompletionRequest &request, StreamCallback callback)
+void FailoverProvider::chatStream(const ChatCompletionRequest &request, StreamCallback callback, const CancelPredicate &isCancelled)
 {
     int attempts = 0;
     int consecutiveFailures = 0;
@@ -220,7 +220,7 @@ void FailoverProvider::chatStream(const ChatCompletionRequest &request, StreamCa
         try
         {
             auto profileRequest = applyProfileParams(request, idx);
-            providers[idx]->chatStream(profileRequest, wrappedCallback);
+            providers[idx]->chatStream(profileRequest, wrappedCallback, isCancelled);
             markGood(idx);
             currentIndex.store(idx);
             return;

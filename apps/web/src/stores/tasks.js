@@ -23,7 +23,11 @@ export const useTasksStore = defineStore('tasks', () => {
   const todoTasks = computed(() => sortByNewest(filteredTasks.value.filter((t) => t.state === 'TODO')))
   const doingTasks = computed(() => sortByNewest(filteredTasks.value.filter((t) => t.state === 'DOING')))
   const doneTasks = computed(() =>
-    sortByNewest(filteredTasks.value.filter((t) => t.state === 'DONE' || t.state === 'ERROR')),
+    sortByNewest(
+      filteredTasks.value.filter(
+        (t) => t.state === 'DONE' || t.state === 'ERROR' || t.state === 'STOPPED',
+      ),
+    ),
   )
 
   async function loadTasks() {
@@ -57,6 +61,11 @@ export const useTasksStore = defineStore('tasks', () => {
     activeTools.value = tools
   }
 
+  // stop the running execution behind a task; the backend aborts it and emits the task update
+  async function stopTask(taskId) {
+    await api.post(`/tasks/${taskId}/stop`)
+  }
+
   function onTaskCreated(data) {
     tasks.value = { ...tasks.value, [data.id]: data }
   }
@@ -65,7 +74,7 @@ export const useTasksStore = defineStore('tasks', () => {
     const existing = tasks.value[data.id]
     const updated = existing ? { ...existing, ...data } : data
     tasks.value = { ...tasks.value, [data.id]: updated }
-    if (data.state === 'DONE' || data.state === 'ERROR') {
+    if (data.state === 'DONE' || data.state === 'ERROR' || data.state === 'STOPPED') {
       const { [data.id]: _, ...rest } = activeTools.value
       activeTools.value = rest
     }
@@ -97,6 +106,7 @@ export const useTasksStore = defineStore('tasks', () => {
     doingTasks,
     doneTasks,
     loadTasks,
+    stopTask,
     onTaskCreated,
     onTaskUpdated,
     onToolUse,

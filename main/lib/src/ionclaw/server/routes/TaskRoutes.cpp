@@ -69,7 +69,7 @@ void Routes::handleTaskUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
         }
         catch (const std::invalid_argument &)
         {
-            sendError(resp, "Invalid task state: " + stateStr + " (valid: TODO, DOING, DONE, ERROR)");
+            sendError(resp, "Invalid task state: " + stateStr + " (valid: TODO, DOING, DONE, ERROR, STOPPED)");
             return;
         }
         auto result = body.value("result", "");
@@ -82,6 +82,26 @@ void Routes::handleTaskUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
     {
         sendError(resp, e.what(), 400);
     }
+}
+
+void Routes::handleTaskStop(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp, const std::string &taskId)
+{
+    auto task = taskManager->getTask(taskId);
+
+    if (task.id.empty())
+    {
+        sendError(resp, "Task not found", 404);
+        return;
+    }
+
+    // stopping a subagent task resolves to the parent session and stops that whole branch via cascade
+    if (!orchestrator->stopSession(task.sessionKey(), "Stopped by user"))
+    {
+        sendError(resp, "Task is not running", 409);
+        return;
+    }
+
+    sendJson(resp, {{"status", "stopped"}, {"task_id", taskId}});
 }
 
 } // namespace server

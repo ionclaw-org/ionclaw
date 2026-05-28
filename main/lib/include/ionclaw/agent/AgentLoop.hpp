@@ -116,7 +116,7 @@ private:
     std::atomic<bool> stopped{false};
 
     static std::string pickFallbackThinkingLevel(const std::string &current);
-    static void flushAbandonedToolCalls(std::vector<ionclaw::provider::Message> &messages, const std::vector<ionclaw::provider::ToolCall> &toolCalls);
+    static void flushAbandonedToolCalls(std::vector<ionclaw::provider::Message> &messages, const std::vector<ionclaw::provider::ToolCall> &toolCalls, const std::string &resultText = "[tool call was not completed]");
     static std::string truncateText(const std::string &s, size_t maxLen);
     static std::string formatToolSummary(const std::string &name, const nlohmann::json &args);
     static std::string stripTrailingDirectives(const std::string &text);
@@ -132,7 +132,7 @@ private:
 
     void compactWithHooks(std::vector<ionclaw::provider::Message> &messages, const std::string &sessionKey, const std::string &taskId, const nlohmann::json &modelParams, TurnState &turnState, const ionclaw::tool::ToolContext *toolContext = nullptr);
 
-    StreamResult consumeStream(const std::vector<ionclaw::provider::Message> &messages, const std::string &taskId, const std::string &chatId, const std::string &effectiveName, UsageTracker &usageTracker, AgentEventCallback &callback, const nlohmann::json &modelParams);
+    StreamResult consumeStream(const std::vector<ionclaw::provider::Message> &messages, const std::string &taskId, const std::string &chatId, const std::string &effectiveName, UsageTracker &usageTracker, AgentEventCallback &callback, const nlohmann::json &modelParams, const ActiveTurnHandle *activeTurnHandle);
 };
 
 } // namespace agent

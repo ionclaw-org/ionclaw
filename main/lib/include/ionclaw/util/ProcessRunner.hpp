@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <string>
 
 #include "ionclaw/util/Platform.hpp"
@@ -14,12 +15,13 @@ struct ProcessResult
     std::string output;
     int exitCode = -1;
     bool timedOut = false;
+    bool cancelled = false;
 };
 
 class ProcessRunner
 {
 public:
-    static ProcessResult run(const std::string &command, int timeoutSeconds, size_t maxOutputBytes);
+    static ProcessResult run(const std::string &command, int timeoutSeconds, size_t maxOutputBytes, const std::function<bool()> &isCancelled = {});
 
 private:
     static constexpr size_t BUFFER_SIZE = 4096;

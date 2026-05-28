@@ -69,6 +69,8 @@ std::string Task::stateToString(TaskState state)
         return "DONE";
     case TaskState::Error:
         return "ERROR";
+    case TaskState::Stopped:
+        return "STOPPED";
     default:
         return "TODO";
     }
@@ -92,6 +94,11 @@ TaskState Task::stateFromString(const std::string &str)
     if (lower == "error")
     {
         return TaskState::Error;
+    }
+
+    if (lower == "stopped")
+    {
+        return TaskState::Stopped;
     }
 
     if (lower == "todo")

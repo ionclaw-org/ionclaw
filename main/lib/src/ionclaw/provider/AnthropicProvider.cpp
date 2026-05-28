@@ -654,7 +654,7 @@ ChatCompletionResponse AnthropicProvider::chat(const ChatCompletionRequest &requ
     return parseResponse(json);
 }
 
-void AnthropicProvider::chatStream(const ChatCompletionRequest &request, StreamCallback callback)
+void AnthropicProvider::chatStream(const ChatCompletionRequest &request, StreamCallback callback, const CancelPredicate &isCancelled)
 {
     // configure http client with auth headers
     util::HttpClient client(baseUrl, timeout);
@@ -729,7 +729,7 @@ void AnthropicProvider::chatStream(const ChatCompletionRequest &request, StreamC
             spdlog::warn("[AnthropicProvider] Non-JSON stream data received: {}", ionclaw::util::StringHelper::utf8SafeTruncate(data, 200));
             throw std::runtime_error("[AnthropicProvider] Non-JSON error response: " + ionclaw::util::StringHelper::utf8SafeTruncate(data, 500));
         }
-    });
+    }, isCancelled);
     // clang-format on
 }
 

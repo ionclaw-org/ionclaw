@@ -737,6 +737,39 @@ void SessionManager::clearAbortFlag(const std::string &sessionKey)
     writeSessionFile(snapshot);
 }
 
+void SessionManager::markStoppedByUser(const std::string &sessionKey)
+{
+    // transient in-memory flag consumed on the next turn, so no file write is needed
+    auto mtx = getSessionMutex(sessionKey);
+    std::lock_guard<std::mutex> lock(*mtx);
+    std::lock_guard<std::mutex> glock(globalMutex);
+
+    auto it = cache.find(sessionKey);
+
+    if (it == cache.end())
+    {
+        return;
+    }
+
+    it->second.stoppedByUser = true;
+}
+
+void SessionManager::clearStoppedByUser(const std::string &sessionKey)
+{
+    auto mtx = getSessionMutex(sessionKey);
+    std::lock_guard<std::mutex> lock(*mtx);
+    std::lock_guard<std::mutex> glock(globalMutex);
+
+    auto it = cache.find(sessionKey);
+
+    if (it == cache.end())
+    {
+        return;
+    }
+
+    it->second.stoppedByUser = false;
+}
+
 void SessionManager::updateLiveStateField(const std::string &sessionKey, const std::string &field, const nlohmann::json &value)
 {
     auto mtx = getSessionMutex(sessionKey);

@@ -394,5 +394,26 @@ void Routes::handleChatSessionDelete(Poco::Net::HTTPServerRequest &, Poco::Net::
     }
 }
 
+void Routes::handleChatStop(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp, const std::string &sessionId)
+{
+    try
+    {
+        // active turns are keyed by the base session key, so resolve to it before stopping
+        auto baseKey = ionclaw::session::SessionKeyUtils::extractBaseKey(resolveSessionKey(sessionId));
+
+        if (!orchestrator->stopSession(baseKey, "Stopped by user"))
+        {
+            sendError(resp, "No active execution for this session", 409);
+            return;
+        }
+
+        sendJson(resp, {{"status", "stopped"}, {"session_key", baseKey}});
+    }
+    catch (const std::exception &e)
+    {
+        sendError(resp, e.what(), 500);
+    }
+}
+
 } // namespace server
 } // namespace ionclaw

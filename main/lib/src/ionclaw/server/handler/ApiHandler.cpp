@@ -132,6 +132,20 @@ void ApiHandler::routeRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
         }
     }
 
+    // chat stop: POST /api/chat/{sessionId}/stop
+    auto chatSub = HttpHelper::extractPathParam(path, "/api/chat/");
+
+    if (!chatSub.empty() && method == "POST")
+    {
+        auto slashPos = chatSub.find('/');
+
+        if (slashPos != std::string::npos && chatSub.substr(slashPos + 1) == "stop")
+        {
+            routes->handleChatStop(req, resp, chatSub.substr(0, slashPos));
+            return;
+        }
+    }
+
     // tasks
     if (path == "/api/tasks" && method == "GET")
     {
@@ -143,6 +157,15 @@ void ApiHandler::routeRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
 
     if (!taskId.empty())
     {
+        // task stop: POST /api/tasks/{taskId}/stop
+        auto slashPos = taskId.find('/');
+
+        if (slashPos != std::string::npos && taskId.substr(slashPos + 1) == "stop" && method == "POST")
+        {
+            routes->handleTaskStop(req, resp, taskId.substr(0, slashPos));
+            return;
+        }
+
         if (method == "GET")
         {
             routes->handleTaskGet(req, resp, taskId);

@@ -59,6 +59,7 @@ public:
 
     bool isSessionActive(const std::string &sessionKey) const;
     std::shared_ptr<ActiveTurnHandle> getActiveTurn(const std::string &sessionKey) const;
+    bool stopSession(const std::string &sessionKey, const std::string &reason);
 
     ionclaw::bus::SessionQueue *getSessionQueue() const { return sessionQueue.get(); }
 

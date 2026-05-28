@@ -227,6 +227,40 @@ std::vector<SubagentRunRecord> SubagentRegistry::getChildren(const std::string &
     return result;
 }
 
+std::vector<std::string> SubagentRegistry::getDescendantSessionKeys(const std::string &sessionKey) const
+{
+    std::lock_guard<std::mutex> lock(mutex);
+
+    std::vector<std::string> descendants;
+
+    // walk the run tree breadth-first, expanding only live runs so the walk stays bounded
+    std::vector<std::string> frontier = {sessionKey};
+
+    while (!frontier.empty())
+    {
+        auto current = frontier.back();
+        frontier.pop_back();
+
+        for (const auto &[id, record] : records)
+        {
+            if (record.requesterSessionKey != current)
+            {
+                continue;
+            }
+
+            if (record.status != SubagentStatus::Pending && record.status != SubagentStatus::Active)
+            {
+                continue;
+            }
+
+            descendants.push_back(record.childSessionKey);
+            frontier.push_back(record.childSessionKey);
+        }
+    }
+
+    return descendants;
+}
+
 int SubagentRegistry::getActiveChildCount(const std::string &requesterSessionKey) const
 {
     std::lock_guard<std::mutex> lock(mutex);

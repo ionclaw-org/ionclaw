@@ -51,6 +51,14 @@ function handleNewSession() {
   chatStore.newSession()
 }
 
+async function handleStop() {
+  try {
+    await chatStore.stopTurn()
+  } catch (e) {
+    console.error('[chat] stop error:', e)
+  }
+}
+
 async function handleSelectSession(key) {
   try {
     await chatStore.switchSession(key)
@@ -103,7 +111,18 @@ function toggleSessions() {
           />
           <h2>{{ currentLabel }}</h2>
         </div>
-        <Button icon="pi pi-plus" label="New" severity="secondary" text size="small" @click="handleNewSession" />
+        <div class="chat-header-actions">
+          <Button
+            v-if="chatStore.liveMessage"
+            icon="pi pi-stop"
+            label="Stop"
+            severity="danger"
+            text
+            size="small"
+            @click="handleStop"
+          />
+          <Button icon="pi pi-plus" label="New" severity="secondary" text size="small" @click="handleNewSession" />
+        </div>
       </div>
       <ChatMessages
         :messages="chatStore.messages"
@@ -164,6 +183,12 @@ function toggleSessions() {
 }
 
 .chat-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chat-header-actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;

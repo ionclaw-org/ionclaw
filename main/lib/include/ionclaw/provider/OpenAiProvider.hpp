@@ -19,7 +19,7 @@ public:
     OpenAiProvider(const std::string &apiKey, const std::string &baseUrl = "https://api.openai.com/v1", int timeout = 60, const std::map<std::string, std::string> &extraHeaders = {});
 
     ChatCompletionResponse chat(const ChatCompletionRequest &request) override;
-    void chatStream(const ChatCompletionRequest &request, StreamCallback callback) override;
+    void chatStream(const ChatCompletionRequest &request, StreamCallback callback, const CancelPredicate &isCancelled = {}) override;
     std::string name() const override;
 
 private:

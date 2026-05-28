@@ -86,6 +86,9 @@ struct ToolContext
     std::string agentName;
     std::function<void(const std::string &channel, const std::string &chatId, const std::string &content)> messageSender;
 
+    // returns true once the user stops the turn, so long-running tools can bail and clean up cooperatively
+    std::function<bool()> isCancelled;
+
     const ionclaw::config::Config *config = nullptr;
     ionclaw::task::TaskManager *taskManager = nullptr;
     ionclaw::session::SessionManager *sessionManager = nullptr;

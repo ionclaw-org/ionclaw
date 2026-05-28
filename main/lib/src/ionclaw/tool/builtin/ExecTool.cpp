@@ -113,10 +113,19 @@ ToolResult ExecTool::execute(const nlohmann::json &params, const ToolContext &co
 
     auto timeoutSec = (context.config) ? context.config->tools.execTimeout : 60;
 
-    // execute via fork/exec (POSIX) or CreateProcess (Windows) with native timeout
-    auto result = ionclaw::util::ProcessRunner::run(fullCommand, timeoutSec, MAX_OUTPUT_BYTES);
+    // execute via fork/exec (POSIX) or CreateProcess (Windows) with native timeout and cooperative cancellation
+    auto result = ionclaw::util::ProcessRunner::run(fullCommand, timeoutSec, MAX_OUTPUT_BYTES, context.isCancelled);
 
-    if (result.timedOut)
+    if (result.cancelled)
+    {
+        if (!result.output.empty())
+        {
+            result.output += "\n";
+        }
+
+        result.output += "[interrupted by the user]";
+    }
+    else if (result.timedOut)
     {
         if (!result.output.empty())
         {

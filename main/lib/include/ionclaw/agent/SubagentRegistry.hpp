@@ -65,6 +65,7 @@ public:
     bool allChildrenTerminal(const std::string &requesterSessionKey) const;
 
     int killRun(const std::string &runId, bool cascade = true);
+    std::vector<std::string> getDescendantSessionKeys(const std::string &sessionKey) const;
 
     void load();
     void save();

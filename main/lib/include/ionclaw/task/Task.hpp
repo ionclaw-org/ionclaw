@@ -16,7 +16,8 @@ enum class TaskState
     Todo,
     Doing,
     Done,
-    Error
+    Error,
+    Stopped
 };
 
 struct Task

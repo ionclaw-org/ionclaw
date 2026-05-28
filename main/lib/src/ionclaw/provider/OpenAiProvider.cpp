@@ -502,7 +502,7 @@ ChatCompletionResponse OpenAiProvider::chat(const ChatCompletionRequest &request
     return parseResponse(json);
 }
 
-void OpenAiProvider::chatStream(const ChatCompletionRequest &request, StreamCallback callback)
+void OpenAiProvider::chatStream(const ChatCompletionRequest &request, StreamCallback callback, const CancelPredicate &isCancelled)
 {
     // configure http client with auth headers
     util::HttpClient client(baseUrl, timeout);
@@ -671,7 +671,7 @@ void OpenAiProvider::chatStream(const ChatCompletionRequest &request, StreamCall
             spdlog::warn("[OpenAiProvider] Non-JSON stream data received: {}", ionclaw::util::StringHelper::utf8SafeTruncate(data, 200));
             throw std::runtime_error("[OpenAiProvider] Non-JSON error response: " + ionclaw::util::StringHelper::utf8SafeTruncate(data, 500));
         }
-    });
+    }, isCancelled);
     // clang-format on
 }
 

@@ -59,13 +59,14 @@ struct ChatCompletionResponse
 };
 
 using StreamCallback = std::function<void(const StreamChunk &chunk)>;
+using CancelPredicate = std::function<bool()>;
 
 class LlmProvider
 {
 public:
     virtual ~LlmProvider() = default;
     virtual ChatCompletionResponse chat(const ChatCompletionRequest &request) = 0;
-    virtual void chatStream(const ChatCompletionRequest &request, StreamCallback callback) = 0;
+    virtual void chatStream(const ChatCompletionRequest &request, StreamCallback callback, const CancelPredicate &isCancelled = {}) = 0;
     virtual std::string name() const = 0;
 };
 

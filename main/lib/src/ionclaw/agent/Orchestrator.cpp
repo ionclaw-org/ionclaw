@@ -893,6 +893,9 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
     // handle subagent completion (this is a child finishing)
     if (!subagentRunId.empty() && subagentRegistry)
     {
+        // a stopped child is reported back as errored so the parent is unblocked and the run is not marked completed
+        bool turnAborted = turnHandle->aborted.load();
+
         auto lastHistory = sessionManager->getHistory(sessionKey, 1);
         std::string outcome;
 
@@ -901,7 +904,7 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
             outcome = lastHistory.back().content;
         }
 
-        handleSubagentCompletion(subagentRunId, outcome, false);
+        handleSubagentCompletion(subagentRunId, outcome, turnAborted);
     }
 
     // if this parent turn spawned children that are still running,
@@ -929,6 +932,51 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
 
     // drain followup/collect queue after turn completes (base key)
     drainSessionQueue(baseKey);
+}
+
+bool Orchestrator::stopSession(const std::string &sessionKey, const std::string &reason)
+{
+    spdlog::info("[Orchestrator] Stop requested for session {} ({})", sessionKey, reason);
+
+    // abort the target turn and drop its queued work without re-queuing, so it does not resume
+    bool stoppedAny = false;
+
+    if (auto activeTurn = getActiveTurn(sessionKey))
+    {
+        activeTurn->aborted.store(true);
+        stoppedAny = true;
+    }
+
+    sessionQueue->clear(sessionKey);
+
+    // cascade: abort every running descendant subagent turn so nothing keeps executing
+    if (subagentRegistry)
+    {
+        for (const auto &childSessionKey : subagentRegistry->getDescendantSessionKeys(sessionKey))
+        {
+            if (auto childTurn = getActiveTurn(childSessionKey))
+            {
+                childTurn->aborted.store(true);
+                stoppedAny = true;
+            }
+
+            sessionQueue->clear(childSessionKey);
+        }
+
+        // mark the subagent runs killed, cascading through the whole subtree
+        for (const auto &child : subagentRegistry->getChildren(sessionKey))
+        {
+            subagentRegistry->killRun(child.runId, true);
+        }
+    }
+
+    // only announce a stop when a turn was actually aborted, so idle sessions do not emit spurious events
+    if (stoppedAny)
+    {
+        dispatcher->broadcast("execution:stopped", {{"session_key", sessionKey}, {"reason", reason}});
+    }
+
+    return stoppedAny;
 }
 
 void Orchestrator::handleInterrupt(const std::string &sessionKey, const ionclaw::bus::InboundMessage &message)
