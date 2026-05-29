@@ -6,12 +6,15 @@
 #include <cstdint>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #include "nlohmann/json.hpp"
 
 #include "ionclaw/provider/LlmProvider.hpp"
 
 struct llama_model;
+struct llama_context;
+struct common_chat_templates;
 
 namespace ionclaw
 {
@@ -34,14 +37,14 @@ public:
     std::string name() const override;
 
 private:
-    struct SamplerParams
+    struct GenerationResult
     {
-        int32_t maxTokens = 4096;
-        int32_t topK = 40;
-        int32_t repeatLastN = 64;
-        double temperature = 0.7;
-        double topP = 0.95;
-        double repeatPenalty = 1.1;
+        std::string content;
+        std::string reasoningContent;
+        std::vector<ToolCall> toolCalls;
+        std::string finishReason;
+        int promptTokens = 0;
+        int completionTokens = 0;
     };
 
     std::string modelPath;
@@ -49,6 +52,8 @@ private:
     int32_t gpuLayers;
 
     llama_model *model = nullptr;
+    llama_context *ctx = nullptr;
+    common_chat_templates *templates = nullptr;
     std::mutex inferenceMutex;
     std::atomic<bool> aborted{false};
 
@@ -56,15 +61,16 @@ private:
     static int backendRefCount;
 
     void ensureModel();
+    void ensureContext();
+    void ensureTemplates();
+    void releaseTemplates();
+    void releaseContext();
     void releaseModel();
 
-    std::string buildPrompt(const ChatCompletionRequest &request) const;
-    SamplerParams resolveSamplerParams(const ChatCompletionRequest &request) const;
-    std::string generate(const std::string &prompt, const SamplerParams &params, const StreamCallback *callback, const CancelPredicate &isCancelled);
+    GenerationResult generate(const ChatCompletionRequest &request, const StreamCallback *callback, const CancelPredicate &isCancelled);
 
     static void acquireBackend();
     static void releaseBackend();
-    static size_t incompleteUtf8Tail(const std::string &text);
 };
 
 } // namespace provider

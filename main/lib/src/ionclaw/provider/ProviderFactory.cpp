@@ -1,8 +1,11 @@
 #include "ionclaw/provider/ProviderFactory.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <map>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 #include "ionclaw/provider/AnthropicProvider.hpp"
 #include "ionclaw/provider/FailoverProvider.hpp"
@@ -33,6 +36,65 @@ std::shared_ptr<LlmProvider> makeLlamaProvider(const std::string &modelPath, con
     (void)params;
     throw std::runtime_error("[ProviderFactory] llama provider requires building with -DIONCLAW_LLAMA_CPP=ON");
 #endif
+}
+
+std::string fileNameOf(const std::string &path)
+{
+    auto pos = path.find_last_of("/\\");
+    return pos == std::string::npos ? path : path.substr(pos + 1);
+}
+
+bool startsWithCaseInsensitive(const std::string &text, const std::string &prefix)
+{
+    if (prefix.size() > text.size())
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < prefix.size(); ++i)
+    {
+        if (std::tolower(static_cast<unsigned char>(text[i])) != std::tolower(static_cast<unsigned char>(prefix[i])))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool isModelFile(const std::string &fileName)
+{
+    static const std::string suffix = ".gguf";
+
+    if (fileName.size() < suffix.size())
+    {
+        return false;
+    }
+
+    return startsWithCaseInsensitive(fileName.substr(fileName.size() - suffix.size()), suffix);
+}
+
+// finds the provider whose base_url file name matches the term after "llama/", skipping anything that is not a model file
+const ionclaw::config::ProviderConfig &resolveLlamaProvider(const ionclaw::config::Config &config, const std::string &requested)
+{
+    for (const auto &[key, provider] : config.providers)
+    {
+        const auto fileName = fileNameOf(provider.baseUrl);
+
+        // remote providers point base_url at a url, not a gguf file, so they are never llama candidates
+        if (!isModelFile(fileName))
+        {
+            continue;
+        }
+
+        // no term given selects the first model file, otherwise match the start of the file name
+        if (requested.empty() || startsWithCaseInsensitive(fileName, requested))
+        {
+            return provider;
+        }
+    }
+
+    throw std::runtime_error("[ProviderFactory] no provider has a model file matching 'llama/" + requested + "'");
 }
 
 } // namespace
@@ -83,29 +145,24 @@ std::shared_ptr<LlmProvider> ProviderFactory::create(const std::string &provider
 
 std::shared_ptr<LlmProvider> ProviderFactory::createFromModel(const std::string &model, const ionclaw::config::Config &config)
 {
-    // resolve provider config from model string
-    auto providerConfig = config.resolveProvider(model);
-    auto providerName = providerConfig.name;
+    auto slashPos = model.find('/');
+    auto providerName = slashPos != std::string::npos ? model.substr(0, slashPos) : model;
 
-    // extract provider name from model prefix if not configured
-    if (providerName.empty())
-    {
-        auto slashPos = model.find('/');
-
-        if (slashPos != std::string::npos)
-        {
-            providerName = model.substr(0, slashPos);
-        }
-        else
-        {
-            providerName = model;
-        }
-    }
-
-    // llama loads a local model file and carries its setup through model_params
+    // the "llama/" prefix loads a local model file, selected by matching the rest against each provider's base_url file name
     if (providerName == "llama")
     {
-        return makeLlamaProvider(providerConfig.baseUrl, providerConfig.modelParams);
+        auto requested = slashPos != std::string::npos ? model.substr(slashPos + 1) : std::string();
+        const auto &provider = resolveLlamaProvider(config, requested);
+
+        return makeLlamaProvider(provider.baseUrl, provider.modelParams);
+    }
+
+    // resolve provider config from the model string for everything else
+    auto providerConfig = config.resolveProvider(model);
+
+    if (!providerConfig.name.empty())
+    {
+        providerName = providerConfig.name;
     }
 
     // resolve credentials and settings

@@ -108,12 +108,15 @@ providers:
     # base_url: https://api.deepseek.com/v1
 
   # llama - local inference via llama.cpp (requires building with -DIONCLAW_LLAMA_CPP=ON)
-  # base_url points to a .gguf model file on disk and no credential is used
-  # llama:
-  #   base_url: "/path/to/models/qwen2.5-3b-instruct-q4_k_m.gguf"
+  # declare one provider per .gguf file, base_url is the file path and no credential is used
+  # an agent selects one with "llama/<start-of-file-name>", matched case-insensitively against each base_url file name
+  # qwen3:
+  #   base_url: "/path/to/models/qwen3-xl-instruct-q4_k_m.gguf"
   #   model_params:
   #     context_size: 4096
   #     gpu_layers: -1
+  # llama3:
+  #   base_url: "/path/to/models/llama-3.1-8b-instruct-q4_k_m.gguf"
 
 web_client:
   credential: web_client
