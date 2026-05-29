@@ -132,11 +132,13 @@ if(IONCLAW_LLAMA_CPP)
         GIT_TAG 19e92c33ef974661e4b1e43dd48be231d07be5ed
         OPTIONS
             "BUILD_SHARED_LIBS OFF"
-            "LLAMA_BUILD_COMMON OFF"
+            # common carries the chat-template, grammar and tool-call machinery the provider relies on
+            "LLAMA_BUILD_COMMON ON"
             "LLAMA_BUILD_TESTS OFF"
             "LLAMA_BUILD_EXAMPLES OFF"
             "LLAMA_BUILD_TOOLS OFF"
             "LLAMA_BUILD_SERVER OFF"
+            "LLAMA_CURL OFF"
             "LLAMA_OPENSSL OFF"
             # build for the architecture baseline instead of -mcpu=native, which keeps the binary portable and avoids host cpus the compiler may not know
             "GGML_NATIVE OFF"
@@ -146,12 +148,21 @@ if(IONCLAW_LLAMA_CPP)
         message(FATAL_ERROR "IonClaw: IONCLAW_LLAMA_CPP is ON but llama.cpp could not be fetched")
     endif()
 
+    # build the provider in its own target so llama-common's bundled includes (its vendored nlohmann) never leak into the rest of the codebase
+    add_library(ionclaw-llama STATIC ${CMAKE_SOURCE_DIR}/main/lib/src/ionclaw/provider/LlamaProvider.cpp)
+    set_target_properties(ionclaw-llama PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    target_include_directories(ionclaw-llama PRIVATE ${CMAKE_SOURCE_DIR}/main/lib/include)
+    target_compile_definitions(ionclaw-llama PRIVATE IONCLAW_HAS_LLAMA_CPP)
+
+    # nlohmann is listed first so the project's version wins over the copy llama-common bundles
+    target_link_libraries(ionclaw-llama PRIVATE nlohmann_json::nlohmann_json spdlog::spdlog llama-common)
+
     target_compile_definitions(ionclaw-lib PUBLIC IONCLAW_HAS_LLAMA_CPP)
-    target_link_libraries(ionclaw-lib PRIVATE llama)
+    target_link_libraries(ionclaw-lib PRIVATE ionclaw-llama)
 
     if(IONCLAW_BUILD_SHARED)
         target_compile_definitions(ionclaw-shared PUBLIC IONCLAW_HAS_LLAMA_CPP)
-        target_link_libraries(ionclaw-shared PRIVATE llama)
+        target_link_libraries(ionclaw-shared PRIVATE ionclaw-llama)
     endif()
 
     message(STATUS "IonClaw: llama.cpp enabled for local LLM inference")
