@@ -2,6 +2,11 @@ name: Build All
 
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Also build installers (MSI/PKG/DEB) and release packages"
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths-ignore:
@@ -24,15 +29,25 @@ on:
 jobs:
   build-linux:
     uses: ./.github/workflows/build-linux.yml
+    with:
+      release: ${{ inputs.release || false }}
 
   build-macos:
     uses: ./.github/workflows/build-macos.yml
+    with:
+      release: ${{ inputs.release || false }}
 
   build-windows:
     uses: ./.github/workflows/build-windows.yml
+    with:
+      release: ${{ inputs.release || false }}
 
   build-ios:
     uses: ./.github/workflows/build-ios.yml
+    with:
+      release: ${{ inputs.release || false }}
 
   build-android:
     uses: ./.github/workflows/build-android.yml
+    with:
+      release: ${{ inputs.release || false }}

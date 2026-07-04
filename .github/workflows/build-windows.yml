@@ -82,7 +82,9 @@ jobs:
         if: ${{ inputs.release }}
         shell: pwsh
         run: |
-          cpack --config build/release/CPackConfig.cmake -C ${{ env.BUILD_TYPE }} -G WIX -B dist/wix
+          cpack --config build/release/CPackConfig.cmake -C ${{ env.BUILD_TYPE }} -G WIX -B dist/wix -D CPACK_WIX_PATCH_FILE=""
+          Write-Host "=== WIX component ids (diagnostic) ==="
+          Get-ChildItem dist/wix -Recurse -Filter "*.wxs" | ForEach-Object { Select-String -Path $_.FullName -Pattern 'ionclaw' } | ForEach-Object { Write-Host $_.Line.Trim() }
           $msi = Get-ChildItem -Path dist/wix -Recurse -Filter "*.msi" | Select-Object -First 1
           Copy-Item $msi.FullName "${{ matrix.artifact }}.msi"
 
