@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <ctime>
+#include <filesystem>
 #include <sstream>
 #include <stdexcept>
 
@@ -168,24 +169,43 @@ bool CronParser::isValidTimezone(const std::string &tz)
         return true;
     }
 
-#if !defined(_WIN32)
-    TzGuard guard(tz, tzMutex);
-
-    auto now = std::time(nullptr);
-    std::tm tm1{};
-    localtime_r(&now, &tm1);
-
-    // valid IANA timezones yield a short abbreviation (e.g. EST/PST), while invalid ones echo the input back
-    std::string tzAbbrev = tm1.tm_zone ? tm1.tm_zone : "";
-
-    if (tz.find('/') != std::string::npos && tzAbbrev == tz)
+    // reject path traversal before touching the filesystem or the TZ environment
+    if (tz.find("..") != std::string::npos || tz.front() == '/')
     {
         return false;
     }
 
+#if !defined(_WIN32)
+    // a valid IANA zone has a matching entry in the system zoneinfo database
+    bool haveDatabase = false;
+
+    for (const auto *dir : {"/usr/share/zoneinfo", "/etc/zoneinfo"})
+    {
+        std::error_code ec;
+
+        if (!std::filesystem::is_directory(dir, ec))
+        {
+            continue;
+        }
+
+        haveDatabase = true;
+
+        if (std::filesystem::is_regular_file(std::filesystem::path(dir) / tz, ec))
+        {
+            return true;
+        }
+    }
+
+    // when the database is present a missing entry means the zone is invalid
+    if (haveDatabase)
+    {
+        return false;
+    }
+
+    // slim environments ship no zoneinfo database, so fall back to the region/city shape
     return tz.find('/') != std::string::npos;
 #else
-    // windows: accept common formats
+    // windows lacks the zoneinfo database, so accept the region/city shape
     return tz.find('/') != std::string::npos;
 #endif
 }
@@ -201,7 +221,10 @@ bool CronParser::isValidExpression(const std::string &expr)
         fieldCount++;
     }
 
-    if (fieldCount != 5)
+    // reject anything that is not exactly five fields, including trailing extra tokens
+    std::string extra;
+
+    if (fieldCount != 5 || stream >> extra)
     {
         return false;
     }

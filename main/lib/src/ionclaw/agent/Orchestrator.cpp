@@ -136,12 +136,13 @@ void Orchestrator::start()
 
             // merge provider-level model_params as defaults under agent-level model_params
             auto resolvedAgentConfig = agentConfig;
-            auto providerConfig = config.resolveProvider(agentConfig.model);
+            const auto *providerConfig = config.findProvider(agentConfig.model);
 
-            if (providerConfig.modelParams.is_object() && !providerConfig.modelParams.empty())
+            // prefix-based providers (e.g. claude-cli) have no config entry and no provider-level params
+            if (providerConfig && providerConfig->modelParams.is_object() && !providerConfig->modelParams.empty())
             {
                 // provider params are the base; agent params override
-                auto merged = providerConfig.modelParams;
+                auto merged = providerConfig->modelParams;
                 if (resolvedAgentConfig.modelParams.is_object())
                 {
                     merged.merge_patch(resolvedAgentConfig.modelParams);

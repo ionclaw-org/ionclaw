@@ -66,9 +66,27 @@ jobs:
           Copy-Item LICENSE.md dist/${{ matrix.artifact }}/
           Compress-Archive -Path dist/${{ matrix.artifact }} -DestinationPath ${{ matrix.artifact }}.zip
 
+      - name: Install WiX Toolset
+        if: ${{ inputs.release }}
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip" -OutFile wix314.zip
+          Expand-Archive -Path wix314.zip -DestinationPath "$env:RUNNER_TEMP\wix" -Force
+          "$env:RUNNER_TEMP\wix" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      - name: Build MSI installer
+        if: ${{ inputs.release }}
+        shell: pwsh
+        run: |
+          cpack --config build/release/CPackConfig.cmake -C ${{ env.BUILD_TYPE }} -G WIX -B dist/wix
+          $msi = Get-ChildItem -Path dist/wix -Recurse -Filter "*.msi" | Select-Object -First 1
+          Copy-Item $msi.FullName "${{ matrix.artifact }}.msi"
+
       - name: Upload artifacts
         if: ${{ inputs.release }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}.zip
+          path: |
+            ${{ matrix.artifact }}.zip
+            ${{ matrix.artifact }}.msi

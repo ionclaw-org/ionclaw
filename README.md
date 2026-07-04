@@ -50,7 +50,7 @@ Because native means fast startup, low memory, no dependencies, and true portabi
 - **Web control panel** — configure agents, providers, credentials, and skills from the browser
 - **Skills system** — extend agent capabilities with simple Markdown files
 - **Browser automation** — agents can navigate, click, type, screenshot, and extract data from web pages
-- **Multi-provider** — Anthropic, OpenAI, Gemini, Grok, OpenRouter, DeepSeek, Kimi, and any OpenAI-compatible endpoint
+- **Multi-provider** — Anthropic, OpenAI, Gemini, Grok, OpenRouter, DeepSeek, Kimi, Ollama, Claude Code CLI, and any OpenAI-compatible endpoint
 - **Scheduler** — cron expressions, intervals, and one-shot tasks with full board tracking
 - **Subagents** — agents can spawn child agents for parallel work
 - **Memory** — persistent memory with search-based recall across sessions
@@ -95,7 +95,7 @@ Open `http://localhost:8080` in your browser. The web panel is served automatica
 - [Build](docs/build.md) — Build system and Makefile targets
 - [Configuration](docs/configuration.md) — Full config.yml reference
 - [API](docs/api.md) — REST API and WebSocket reference
-- [Custom Providers](docs/custom-providers.md) — Ollama, LM Studio, MiniMax, and other OpenAI-compatible providers
+- [Custom Providers](docs/custom-providers.md) — Ollama, LM Studio, MiniMax, the Claude Code CLI, and other OpenAI-compatible providers
 - [Llama.cpp Provider](docs/llama.md) — Offline GGUF models via the embedded llama.cpp backend
 - [Apple](docs/apple.md) — Native iOS, tvOS, and watchOS apps (SwiftUI + XcodeGen)
 - [Android](docs/android.md) — Native Android app (Kotlin + Compose) and the distributable aar

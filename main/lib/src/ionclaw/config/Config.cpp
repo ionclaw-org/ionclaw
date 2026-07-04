@@ -63,27 +63,18 @@ std::string Config::resolveBaseUrl(const std::string &providerName) const
     return "";
 }
 
-ProviderConfig Config::resolveProvider(const std::string &model) const
+const ProviderConfig *Config::findProvider(const std::string &model) const
 {
     // extract prefix from model string (e.g., "anthropic/claude-3-5-sonnet" -> "anthropic")
     auto slashPos = model.find('/');
-    std::string prefix;
-
-    if (slashPos != std::string::npos)
-    {
-        prefix = model.substr(0, slashPos);
-    }
-    else
-    {
-        prefix = model;
-    }
+    auto prefix = slashPos != std::string::npos ? model.substr(0, slashPos) : model;
 
     // find provider matching the prefix
     auto provIt = providers.find(prefix);
 
     if (provIt != providers.end())
     {
-        return provIt->second;
+        return &provIt->second;
     }
 
     // search all providers for a name match
@@ -91,11 +82,23 @@ ProviderConfig Config::resolveProvider(const std::string &model) const
     {
         if (provider.name == prefix)
         {
-            return provider;
+            return &provider;
         }
     }
 
-    throw std::runtime_error("[Config] No provider found for model: " + model);
+    return nullptr;
+}
+
+ProviderConfig Config::resolveProvider(const std::string &model) const
+{
+    const auto *provider = findProvider(model);
+
+    if (!provider)
+    {
+        throw std::runtime_error("[Config] No provider found for model: " + model);
+    }
+
+    return *provider;
 }
 
 } // namespace config

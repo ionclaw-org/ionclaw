@@ -29,6 +29,29 @@ brew upgrade ionclaw
 
 ---
 
+## Windows (MSI Installer)
+
+Download `ionclaw-windows-x86_64.msi` from the [latest release](https://github.com/ionclaw-org/ionclaw/releases) and run it, or install it silently:
+
+```powershell
+msiexec /i ionclaw-windows-x86_64.msi /qn
+```
+
+The server is installed to `C:\Program Files\IonClaw\bin\ionclaw-server.exe`. Initialize and start a project:
+
+```powershell
+& "C:\Program Files\IonClaw\bin\ionclaw-server.exe" init C:\path\to\project
+& "C:\Program Files\IonClaw\bin\ionclaw-server.exe" start --project C:\path\to\project
+```
+
+Uninstall from **Settings → Apps → Installed apps**, or silently:
+
+```powershell
+msiexec /x ionclaw-windows-x86_64.msi /qn
+```
+
+---
+
 ## Build from Source
 
 **Requirements:** CMake 3.20+, C++17 compiler, Node.js 18+ (for web client).

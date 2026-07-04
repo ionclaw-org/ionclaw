@@ -187,6 +187,7 @@ struct Config
 
     std::string resolveApiKey(const std::string &providerName) const;
     std::string resolveBaseUrl(const std::string &providerName) const;
+    const ProviderConfig *findProvider(const std::string &model) const;
     ProviderConfig resolveProvider(const std::string &model) const;
 };
 

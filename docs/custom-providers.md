@@ -22,25 +22,18 @@ To add a custom provider, you need three things in your `config.yml`:
 
 ### Ollama (Local)
 
-[Ollama](https://ollama.com) runs models locally and exposes an OpenAI-compatible API on port 11434.
+[Ollama](https://ollama.com) runs models locally and exposes an OpenAI-compatible API on port 11434. `ollama` is a built-in provider: it needs no credential and defaults to `http://localhost:11434/v1`, so a bare provider entry is enough.
 
 ```yaml
-credentials:
-  ollama:
-    type: simple
-    key: "ollama"  # Ollama ignores the key, but a value is required
-
 providers:
-  ollama:
-    credential: ollama
-    base_url: http://localhost:11434/v1
+  ollama: {}   # defaults to http://localhost:11434/v1, no credential needed
 
 agents:
   main:
     model: "ollama/llama3.3"
 ```
 
-> Ollama does not require an API key. Use any non-empty string.
+Pull the model first with `ollama pull llama3.3`, then check what is installed with `ollama list`. Point a remote Ollama server at a different host by setting `base_url`.
 
 ### LM Studio (Local)
 
@@ -151,6 +144,21 @@ agents:
   main:
     model: "vllm/meta-llama/Llama-3.3-70B-Instruct"
 ```
+
+---
+
+## Claude Code CLI (Subscription)
+
+The built-in `claude-cli` provider drives the local `claude` binary (Claude Code) instead of the API, so responses come from your logged-in subscription without spending API tokens. It is resolved by the `claude-cli/` prefix and needs no credential or provider entry.
+
+```yaml
+agents:
+  main:
+    model: "claude-cli/opus"
+    tools: []   # the cli answers in a single text turn, so leave tools empty
+```
+
+Install and authenticate Claude Code first (run `claude` and sign in). The provider runs the binary with the prompt on stdin and API-key environment variables stripped, so the subscription answers. It is text-only and single-turn: it does not stream tokens or call tools, so agents using it must have no tools configured. The model after the prefix is passed to `--model` (e.g. `opus`, `sonnet`, `haiku`, or a full model id).
 
 ---
 

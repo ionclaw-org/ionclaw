@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "ionclaw/provider/AnthropicProvider.hpp"
+#include "ionclaw/provider/ClaudeCliProvider.hpp"
 #include "ionclaw/provider/FailoverProvider.hpp"
 #include "ionclaw/provider/LlamaProvider.hpp"
 #include "ionclaw/provider/OpenAiProvider.hpp"
@@ -111,6 +112,7 @@ std::string ProviderFactory::defaultBaseUrl(const std::string &providerName)
         {"gemini", "https://generativelanguage.googleapis.com/v1beta/openai"},
         {"kimi", "https://api.moonshot.cn/v1"},
         {"moonshot", "https://api.moonshot.cn/v1"},
+        {"ollama", "http://localhost:11434/v1"},
     };
 
     auto it = defaults.find(providerName);
@@ -129,7 +131,7 @@ std::shared_ptr<LlmProvider> ProviderFactory::create(const std::string &provider
     }
 
     // all other providers use OpenAI-compatible API
-    if (providerName == "openai" || providerName == "openrouter" || providerName == "deepseek" || providerName == "grok" || providerName == "google" || providerName == "gemini" || providerName == "kimi" || providerName == "moonshot")
+    if (providerName == "openai" || providerName == "openrouter" || providerName == "deepseek" || providerName == "grok" || providerName == "google" || providerName == "gemini" || providerName == "kimi" || providerName == "moonshot" || providerName == "ollama")
     {
         return std::make_shared<OpenAiProvider>(apiKey, resolvedUrl, timeout, extraHeaders);
     }
@@ -155,6 +157,19 @@ std::shared_ptr<LlmProvider> ProviderFactory::createFromModel(const std::string 
         const auto &provider = resolveLlamaProvider(config, requested);
 
         return makeLlamaProvider(provider.baseUrl, provider.modelParams);
+    }
+
+    // the "claude-cli/" prefix drives the local claude binary, so it needs no credential or base_url
+    if (providerName == "claude-cli")
+    {
+        auto cliModel = slashPos != std::string::npos ? model.substr(slashPos + 1) : std::string();
+
+        if (cliModel.empty())
+        {
+            throw std::runtime_error("[ProviderFactory] claude-cli provider requires a model after the prefix, e.g. 'claude-cli/opus'");
+        }
+
+        return std::make_shared<ClaudeCliProvider>(cliModel);
     }
 
     // resolve provider config from the model string for everything else
