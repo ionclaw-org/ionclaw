@@ -278,6 +278,15 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
         }
     }
 
+    // reject header injection: a control character in a name or value could split the request
+    for (const auto &[key, value] : headers)
+    {
+        if (key.find_first_of("\r\n") != std::string::npos || value.find_first_of("\r\n") != std::string::npos)
+        {
+            return "Error: request headers must not contain control characters";
+        }
+    }
+
     // body and content type (extracted before auth for oauth1 signature)
     std::string body;
     std::string contentTypeParam = "json";
@@ -438,7 +447,7 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
 #ifdef _WIN32
                 Poco::Net::Context::Ptr context = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "");
 #else
-                Poco::Net::Context::Ptr context = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "", "", "", Poco::Net::Context::VERIFY_NONE, 9, true, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
+                Poco::Net::Context::Ptr context = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "", "", "", Poco::Net::Context::VERIFY_RELAXED, 9, true, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
 #endif
                 session = std::make_unique<Poco::Net::HTTPSClientSession>(host, port, context);
             }

@@ -15,6 +15,7 @@
 #include "ionclaw/session/SessionKeyUtils.hpp"
 #include "ionclaw/session/SessionManager.hpp"
 #include "ionclaw/task/TaskManager.hpp"
+#include "ionclaw/util/RandomHelper.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
 #include "ionclaw/util/UniqueId.hpp"
@@ -140,7 +141,7 @@ bool McpDispatcher::verifyToken(const std::string &token) const
         auto credIt = config->credentials.find(credName);
         if (credIt != config->credentials.end() && !credIt->second.key.empty())
         {
-            return token == credIt->second.key;
+            return ionclaw::util::RandomHelper::constantTimeEquals(token, credIt->second.key);
         }
     }
 

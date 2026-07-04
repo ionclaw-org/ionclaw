@@ -27,6 +27,25 @@ To update:
 brew upgrade ionclaw
 ```
 
+Alternatively, download `ionclaw-macos-<arch>.pkg` from the [latest release](https://github.com/ionclaw-org/ionclaw/releases) and open it. It installs `ionclaw-server` to `/usr/local/bin` (already on `PATH`), so a new terminal can run it directly.
+
+---
+
+## Linux (.deb)
+
+On Debian and Ubuntu, download `ionclaw_<version>_amd64.deb` from the [latest release](https://github.com/ionclaw-org/ionclaw/releases) and install it:
+
+```bash
+sudo dpkg -i ionclaw_*_amd64.deb
+```
+
+The server is installed to `/usr/bin/ionclaw-server` (on `PATH`). Initialize and start a project:
+
+```bash
+ionclaw-server init /path/to/your/project
+ionclaw-server start --project /path/to/your/project
+```
+
 ---
 
 ## Windows (MSI Installer)
@@ -37,11 +56,11 @@ Download `ionclaw-windows-x86_64.msi` from the [latest release](https://github.c
 msiexec /i ionclaw-windows-x86_64.msi /qn
 ```
 
-The server is installed to `C:\Program Files\IonClaw\bin\ionclaw-server.exe`. Initialize and start a project:
+The installer adds `ionclaw-server` to the system `PATH`, so open a new terminal and run it directly (installed under `C:\Program Files\IonClaw\bin`):
 
 ```powershell
-& "C:\Program Files\IonClaw\bin\ionclaw-server.exe" init C:\path\to\project
-& "C:\Program Files\IonClaw\bin\ionclaw-server.exe" start --project C:\path\to\project
+ionclaw-server init C:\path\to\project
+ionclaw-server start --project C:\path\to\project
 ```
 
 Uninstall from **Settings → Apps → Installed apps**, or silently:

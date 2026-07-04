@@ -1,12 +1,11 @@
 #include "ionclaw/server/ServerInstance.hpp"
 
 #include <filesystem>
-#include <random>
-#include <sstream>
 
 #include "ionclaw/config/ConfigLoader.hpp"
 #include "ionclaw/util/EmbeddedResources.hpp"
 #include "ionclaw/util/EnvironmentHelper.hpp"
+#include "ionclaw/util/RandomHelper.hpp"
 
 #include "spdlog/spdlog.h"
 
@@ -77,20 +76,9 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
 
         if (cfg.credentials.find(serverCredName) == cfg.credentials.end())
         {
-            std::random_device rd;
-            std::mt19937 gen(rd());
-            std::uniform_int_distribution<> dis(0, 15);
-            std::ostringstream oss;
-            const char hex[] = "0123456789abcdef";
-
-            for (int i = 0; i < 64; ++i)
-            {
-                oss << hex[dis(gen)];
-            }
-
             ionclaw::config::CredentialConfig serverCred;
             serverCred.type = "simple";
-            serverCred.key = oss.str();
+            serverCred.key = ionclaw::util::RandomHelper::secureHex(32);
             cfg.credentials[serverCredName] = serverCred;
             cfg.server.credential = serverCredName;
             defaultsCreated = true;

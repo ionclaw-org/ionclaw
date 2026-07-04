@@ -2,6 +2,11 @@ name: Build Linux
 
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Also build full release packages"
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       release:
@@ -49,16 +54,24 @@ jobs:
         run: ./build/release/bin/ionclaw-server --help
 
       - name: Package server
-        if: ${{ inputs.release }}
         run: |
           mkdir -p dist/ionclaw-linux-x86_64
           cp build/release/bin/ionclaw-server dist/ionclaw-linux-x86_64/
           cp LICENSE.md dist/ionclaw-linux-x86_64/
           tar -czf ionclaw-linux-x86_64.tar.gz -C dist ionclaw-linux-x86_64
 
-      - name: Upload artifacts
+      - name: Build DEB installer
         if: ${{ inputs.release }}
+        run: |
+          cpack --config build/release/CPackConfig.cmake -C ${{ env.BUILD_TYPE }} -G DEB -B dist/deb
+          deb=$(find dist/deb -maxdepth 1 -name "*.deb" | head -1)
+          cp "$deb" ionclaw-linux-x86_64.deb
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ionclaw-linux-x86_64
-          path: ionclaw-linux-x86_64.tar.gz
+          if-no-files-found: ignore
+          path: |
+            ionclaw-linux-x86_64.tar.gz
+            ionclaw-linux-x86_64.deb

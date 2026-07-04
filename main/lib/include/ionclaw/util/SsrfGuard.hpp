@@ -16,6 +16,7 @@ public:
     static void validateUrlAllowLoopback(const std::string &url);
 
 private:
+    static bool isBlockedIpv4(const unsigned char *bytes, bool allowLoopback);
     static bool isPrivateIp(const Poco::Net::IPAddress &addr, bool allowLoopback);
     static void validateUrlImpl(const std::string &url, bool allowLoopback);
 };

@@ -1,12 +1,11 @@
 #include "ionclaw/server/Auth.hpp"
 
-#include <random>
-#include <sstream>
 #include <stdexcept>
 
 #include "spdlog/spdlog.h"
 
 #include "ionclaw/util/JwtHelper.hpp"
+#include "ionclaw/util/RandomHelper.hpp"
 
 namespace ionclaw
 {
@@ -46,18 +45,7 @@ Auth::Auth(const ionclaw::config::Config &config)
     // generate ephemeral jwt secret if none configured
     if (secret.empty())
     {
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution<> dis(0, 15);
-        std::ostringstream oss;
-        const char hex[] = "0123456789abcdef";
-
-        for (int i = 0; i < 64; ++i)
-        {
-            oss << hex[dis(gen)];
-        }
-
-        secret = oss.str();
+        secret = ionclaw::util::RandomHelper::secureHex(32);
         spdlog::warn("[Auth] No server credential configured, using ephemeral JWT secret");
     }
 }
@@ -88,7 +76,11 @@ std::string Auth::login(const std::string &username, const std::string &password
 {
     std::lock_guard<std::mutex> lock(mutex);
 
-    if (username != validUsername || password != validPassword)
+    // evaluate both comparisons in constant time so timing cannot reveal the username or password
+    bool userMatches = ionclaw::util::RandomHelper::constantTimeEquals(username, validUsername);
+    bool passMatches = ionclaw::util::RandomHelper::constantTimeEquals(password, validPassword);
+
+    if (!userMatches || !passMatches)
     {
         throw std::runtime_error("[Auth] Invalid username or password");
     }

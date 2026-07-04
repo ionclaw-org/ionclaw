@@ -142,6 +142,7 @@ private:
     static bool isSystemFile(const std::string &name);
 
     static bool isValidMarketplaceSegment(const std::string &s);
+    static bool looksLikeSecretField(const std::string &name);
 
     std::string resolveFilePath(const std::string &relativePath) const;
 

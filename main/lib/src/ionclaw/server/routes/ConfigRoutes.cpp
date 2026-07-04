@@ -6,6 +6,7 @@
 
 #include "ionclaw/config/ConfigLoader.hpp"
 #include "ionclaw/tool/builtin/ToolHelper.hpp"
+#include "ionclaw/util/StringHelper.hpp"
 
 namespace ionclaw
 {
@@ -13,6 +14,25 @@ namespace server
 {
 
 namespace fs = std::filesystem;
+
+// a raw credential field is treated as secret when its name hints at a key, token, password, or secret
+bool Routes::looksLikeSecretField(const std::string &name)
+{
+    auto lower = name;
+    ionclaw::util::StringHelper::toLowerInPlace(lower);
+
+    static const std::vector<std::string> markers = {"key", "secret", "token", "password", "passwd", "credential", "private"};
+
+    for (const auto &marker : markers)
+    {
+        if (lower.find(marker) != std::string::npos)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp)
 {
@@ -88,10 +108,8 @@ void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
             item["token"] = "****";
         }
 
-        // include additional fields from raw, masking secret values
+        // include additional fields from raw, masking any that look like secrets
         static const std::set<std::string> knownFields = {"type", "key", "username", "password", "token"};
-        static const std::set<std::string> secretFields = {
-            "consumer_key", "consumer_secret", "access_token", "access_token_secret", "value"};
 
         if (cred.raw.is_object())
         {
@@ -102,7 +120,7 @@ void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
                     continue;
                 }
 
-                if (secretFields.count(fieldName) > 0 && fieldValue.is_string() && !fieldValue.get<std::string>().empty())
+                if (looksLikeSecretField(fieldName) && fieldValue.is_string() && !fieldValue.get<std::string>().empty())
                 {
                     item[fieldName] = "****";
                 }
@@ -190,17 +208,14 @@ void Routes::handleConfigYaml(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
             cred.token = "****";
         }
 
-        // mask additional secret fields in raw
-        static const std::set<std::string> secretRawFields = {
-            "consumer_key", "consumer_secret", "access_token", "access_token_secret", "value"};
-
+        // mask any raw field that looks like a secret
         if (cred.raw.is_object())
         {
-            for (const auto &field : secretRawFields)
+            for (auto &[fieldName, fieldValue] : cred.raw.items())
             {
-                if (cred.raw.contains(field) && cred.raw[field].is_string() && !cred.raw[field].get<std::string>().empty())
+                if (looksLikeSecretField(fieldName) && fieldValue.is_string() && !fieldValue.get<std::string>().empty())
                 {
-                    cred.raw[field] = "****";
+                    fieldValue = "****";
                 }
             }
         }
@@ -493,22 +508,14 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
                     }
                 }
 
-                // restore masked secret values from current raw before overwriting
-                static const std::set<std::string> secretRawFields = {
-                    "consumer_key", "consumer_secret", "access_token", "access_token_secret", "value"};
-
+                // restore any masked secret field from the current raw so a "****" submission keeps the real value
                 if (cred.raw.is_object())
                 {
-                    for (const auto &field : secretRawFields)
+                    for (auto &[fieldName, fieldValue] : credData.items())
                     {
-                        if (credData.contains(field) && credData[field].is_string())
+                        if (looksLikeSecretField(fieldName) && fieldValue.is_string() && fieldValue.get<std::string>() == "****" && cred.raw.contains(fieldName))
                         {
-                            auto val = credData[field].get<std::string>();
-
-                            if ((val.empty() || val == "****") && cred.raw.contains(field))
-                            {
-                                credData[field] = cred.raw[field];
-                            }
+                            fieldValue = cred.raw[fieldName];
                         }
                     }
                 }
@@ -616,9 +623,6 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
                 newConfig.projectPath = config->projectPath;
 
                 // restore masked credential values from current config
-                static const std::set<std::string> secretRawFields = {
-                    "consumer_key", "consumer_secret", "access_token", "access_token_secret", "value"};
-
                 for (auto &[name, cred] : newConfig.credentials)
                 {
                     auto it = config->credentials.find(name);
@@ -643,14 +647,14 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
                         cred.token = it->second.token;
                     }
 
-                    // restore masked raw fields (oauth1, header, etc.)
+                    // restore any masked raw field (oauth1, header, etc.) from the existing credential
                     if (cred.raw.is_object() && it->second.raw.is_object())
                     {
-                        for (const auto &field : secretRawFields)
+                        for (auto &[fieldName, fieldValue] : cred.raw.items())
                         {
-                            if (cred.raw.contains(field) && cred.raw[field].is_string() && cred.raw[field].get<std::string>() == "****" && it->second.raw.contains(field))
+                            if (looksLikeSecretField(fieldName) && fieldValue.is_string() && fieldValue.get<std::string>() == "****" && it->second.raw.contains(fieldName))
                             {
-                                cred.raw[field] = it->second.raw[field];
+                                fieldValue = it->second.raw[fieldName];
                             }
                         }
                     }

@@ -42,6 +42,7 @@ extern char **environ;
 #include "ionclaw/tool/builtin/ToolHelper.hpp"
 #include "ionclaw/util/Base64.hpp"
 #include "ionclaw/util/HttpClient.hpp"
+#include "ionclaw/util/SsrfGuard.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 
 namespace ionclaw
@@ -1911,8 +1912,35 @@ std::string actionTabs()
     return out.str();
 }
 
+// blocks navigation to private, loopback, and metadata addresses while allowing the blank tab sentinel
+std::string validateBrowserUrl(const std::string &url)
+{
+    if (url.empty() || url == "about:blank")
+    {
+        return "";
+    }
+
+    try
+    {
+        ionclaw::util::SsrfGuard::validateUrl(url);
+    }
+    catch (const std::exception &e)
+    {
+        return std::string("Error: ") + e.what();
+    }
+
+    return "";
+}
+
 std::string actionOpen(bool headless, const std::string &url)
 {
+    auto urlError = validateBrowserUrl(url);
+
+    if (!urlError.empty())
+    {
+        return urlError;
+    }
+
     auto err = ensureBrowser(headless);
 
     if (!err.empty())
@@ -1930,7 +1958,7 @@ std::string actionOpen(bool headless, const std::string &url)
 
     auto tabs = TabManager::instance().listTabs();
     return "Opened new tab (targetId=" + targetId + "). " + "Now " + std::to_string(tabs.size()) + " tab(s) open. " + "NOTE: If you just want to go to a URL, use action='navigate' instead - "
-           "it uses the current tab without opening new ones.";
+                                                                                                                      "it uses the current tab without opening new ones.";
 }
 
 std::string actionFocus(const std::string &targetId)
@@ -1992,6 +2020,13 @@ std::string actionNavigate(CdpTab &tab, const std::string &url)
         return "Error: 'url' is required for navigate action";
     }
 
+    auto urlError = validateBrowserUrl(url);
+
+    if (!urlError.empty())
+    {
+        return urlError;
+    }
+
     // drain any stale events from previous operations
     tab.drainEvents();
 
@@ -2024,7 +2059,8 @@ std::string actionNavigate(CdpTab &tab, const std::string &url)
     if (!loaded)
     {
         return "Warning: page load timed out (30s). "
-               "Current URL: " + (pageInfo.url.empty() ? "(unknown)" : pageInfo.url) + (pageInfo.title.empty() ? "" : " | Title: \"" + pageInfo.title + "\"") + " " + ctx + ". The page may still be loading - use action='snapshot' to check.";
+               "Current URL: " +
+               (pageInfo.url.empty() ? "(unknown)" : pageInfo.url) + (pageInfo.title.empty() ? "" : " | Title: \"" + pageInfo.title + "\"") + " " + ctx + ". The page may still be loading - use action='snapshot' to check.";
     }
 
     std::ostringstream out;
@@ -2311,7 +2347,8 @@ std::string actionSnapshot(CdpTab &tab, const nlohmann::json &params)
                 var items = [];
                 var refCount = 0;
                 function walk(node, depth) {
-                    if (depth > )" + std::to_string(MAX_SNAPSHOT_DEPTH) + R"( || items.length > )" + std::to_string(MAX_SNAPSHOT_NODES) + R"() return;
+                    if (depth > )" +
+                  std::to_string(MAX_SNAPSHOT_DEPTH) + R"( || items.length > )" + std::to_string(MAX_SNAPSHOT_NODES) + R"() return;
                     var tag = node.tagName ? node.tagName.toLowerCase() : '';
                     if (!tag || tag === 'script' || tag === 'style' || tag === 'noscript' || tag === 'svg') return;
 
@@ -2591,7 +2628,7 @@ ToolResult actionScreenshot(CdpTab &tab, const nlohmann::json &params)
         {
             stbi_image_free(pixels);
             return "Screenshot saved: " + filePath.string() + " (" + std::to_string(fullSizeKB) + "KB, " + std::to_string(w) + "x" + std::to_string(h) + "). "
-                                                                 "Warning: could not generate preview (resize failed).";
+                                                                                                                                                         "Warning: could not generate preview (resize failed).";
         }
 
         previewData = resizedPixels.data();
@@ -2607,7 +2644,7 @@ ToolResult actionScreenshot(CdpTab &tab, const nlohmann::json &params)
     if (jpegBuf.empty())
     {
         return "Screenshot saved: " + filePath.string() + " (" + std::to_string(fullSizeKB) + "KB, " + std::to_string(w) + "x" + std::to_string(h) + "). "
-                                                             "Warning: could not generate preview (JPEG encode failed).";
+                                                                                                                                                     "Warning: could not generate preview (JPEG encode failed).";
     }
 
     auto previewB64 = Base64::encode(jpegBuf.data(), jpegBuf.size());
@@ -2637,7 +2674,8 @@ std::string actionInspect(CdpTab &tab)
                 'a, button, input, textarea, select, [role="button"], [role="link"], '
                 + '[role="textbox"], [contenteditable="true"], [tabindex]:not([tabindex="-1"])'
             );
-            for (var i = 0; i < els.length && items.length < )" + std::to_string(MAX_INTERACTIVE_ELEMENTS) + R"(; i++) {
+            for (var i = 0; i < els.length && items.length < )" +
+              std::to_string(MAX_INTERACTIVE_ELEMENTS) + R"(; i++) {
                 var el = els[i];
                 var rect = el.getBoundingClientRect();
                 if (rect.width === 0 || rect.height === 0) continue;
@@ -2900,9 +2938,11 @@ std::string actionSelect(CdpTab &tab, const nlohmann::json &params)
     auto valuesJson = values.dump();
 
     auto js = "(() => {"
-              "const el = document.querySelector('" + safeSelector + "');"
+              "const el = document.querySelector('" +
+              safeSelector + "');"
                              "if (!el || el.tagName.toLowerCase() !== 'select') return null;"
-                             "const vals = " + valuesJson + ";"
+                             "const vals = " +
+              valuesJson + ";"
                            "for (const opt of el.options) {"
                            "  opt.selected = vals.includes(opt.value) || vals.includes(opt.textContent.trim());"
                            "}"
@@ -3411,6 +3451,13 @@ std::string actionSetCookie(CdpTab &tab, const nlohmann::json &params)
 
     if (!url.empty())
     {
+        auto urlError = validateBrowserUrl(url);
+
+        if (!urlError.empty())
+        {
+            return urlError;
+        }
+
         cookieParams["url"] = url;
     }
 

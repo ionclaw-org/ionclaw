@@ -5,6 +5,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/config/ConfigLoader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/TimeHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/UniqueId.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/RandomHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/JwtHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/Base64.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/StbImageWrite.cpp
@@ -224,5 +225,5 @@ else()
     # desktop executable
     add_executable(ionclaw-server ${CMAKE_CURRENT_SOURCE_DIR}/app/src/main.cpp)
     target_include_directories(ionclaw-server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib/include)
-    install(TARGETS ionclaw-server RUNTIME DESTINATION bin)
+    install(TARGETS ionclaw-server RUNTIME DESTINATION bin COMPONENT runtime)
 endif()

@@ -61,7 +61,7 @@ public:
     std::shared_ptr<ActiveTurnHandle> getActiveTurn(const std::string &sessionKey) const;
     bool stopSession(const std::string &sessionKey, const std::string &reason);
 
-    ionclaw::bus::SessionQueue *getSessionQueue() const { return sessionQueue.get(); }
+    std::shared_ptr<ionclaw::bus::SessionQueue> getSessionQueue() const;
 
 private:
     std::shared_ptr<ionclaw::bus::MessageBus> bus;
@@ -85,6 +85,9 @@ private:
 
     std::atomic<bool> running{false};
     std::thread workerThread;
+
+    // guards the service pointers and config against the start/stop/restart swap racing http-thread readers
+    mutable std::mutex lifecycleMutex;
 
     std::map<std::string, std::shared_ptr<ActiveTurnHandle>> activeTurns;
     mutable std::mutex activeTurnsMutex;

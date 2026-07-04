@@ -91,13 +91,21 @@ void Orchestrator::start()
     hookRunner = std::make_shared<HookRunner>();
 
     // create subagent registry and announce queue
-    subagentRegistry = std::make_shared<SubagentRegistry>(config.projectPath);
-    subagentRegistry->load();
-    subagentRegistry->recoverStaleRuns();
-    announceQueue = std::make_shared<AnnounceQueue>();
+    auto newSubagentRegistry = std::make_shared<SubagentRegistry>(config.projectPath);
+    newSubagentRegistry->load();
+    newSubagentRegistry->recoverStaleRuns();
+    auto newAnnounceQueue = std::make_shared<AnnounceQueue>();
 
     // create session queue for queue mode routing
-    sessionQueue = std::make_shared<ionclaw::bus::SessionQueue>();
+    auto newSessionQueue = std::make_shared<ionclaw::bus::SessionQueue>();
+
+    // publish the service pointers atomically so http-thread readers never observe a half-built set
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        subagentRegistry = newSubagentRegistry;
+        announceQueue = newAnnounceQueue;
+        sessionQueue = newSessionQueue;
+    }
 
     // mark sessions that were active during previous crash as aborted
     sessionManager->setAbortCutoffAll();
@@ -513,7 +521,8 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
     // get session history for classifier context from agent-scoped session
     std::vector<ionclaw::session::SessionMessage> history;
     {
-        auto historyAgent = !previousAffinity.empty() ? previousAffinity : !targetAgent.empty() ? targetAgent : (agentLoops.count("main") ? "main" : agentLoops.begin()->first);
+        auto historyAgent = !previousAffinity.empty() ? previousAffinity : !targetAgent.empty() ? targetAgent
+                                                                                                : (agentLoops.count("main") ? "main" : agentLoops.begin()->first);
         auto historyKey = ionclaw::session::SessionKeyUtils::build(historyAgent, channel, message.chatId);
         history = sessionManager->getHistory(historyKey, 20);
     }
@@ -939,6 +948,15 @@ bool Orchestrator::stopSession(const std::string &sessionKey, const std::string 
 {
     spdlog::info("[Orchestrator] Stop requested for session {} ({})", sessionKey, reason);
 
+    // snapshot the service pointers so a concurrent stop/restart cannot free them mid-call
+    std::shared_ptr<ionclaw::bus::SessionQueue> queue;
+    std::shared_ptr<SubagentRegistry> registry;
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        queue = sessionQueue;
+        registry = subagentRegistry;
+    }
+
     // abort the target turn and drop its queued work without re-queuing, so it does not resume
     bool stoppedAny = false;
 
@@ -948,12 +966,15 @@ bool Orchestrator::stopSession(const std::string &sessionKey, const std::string 
         stoppedAny = true;
     }
 
-    sessionQueue->clear(sessionKey);
+    if (queue)
+    {
+        queue->clear(sessionKey);
+    }
 
     // cascade: abort every running descendant subagent turn so nothing keeps executing
-    if (subagentRegistry)
+    if (registry)
     {
-        for (const auto &childSessionKey : subagentRegistry->getDescendantSessionKeys(sessionKey))
+        for (const auto &childSessionKey : registry->getDescendantSessionKeys(sessionKey))
         {
             if (auto childTurn = getActiveTurn(childSessionKey))
             {
@@ -961,13 +982,16 @@ bool Orchestrator::stopSession(const std::string &sessionKey, const std::string 
                 stoppedAny = true;
             }
 
-            sessionQueue->clear(childSessionKey);
+            if (queue)
+            {
+                queue->clear(childSessionKey);
+            }
         }
 
         // mark the subagent runs killed, cascading through the whole subtree
-        for (const auto &child : subagentRegistry->getChildren(sessionKey))
+        for (const auto &child : registry->getChildren(sessionKey))
         {
-            subagentRegistry->killRun(child.runId, true);
+            registry->killRun(child.runId, true);
         }
     }
 
@@ -1254,9 +1278,14 @@ void Orchestrator::stop()
     skillsLoaders.clear();
     classifier.reset();
     hookRunner.reset();
-    subagentRegistry.reset();
-    announceQueue.reset();
-    sessionQueue.reset();
+
+    // reset the http-visible service pointers under the lifecycle lock so a concurrent reader sees a clean null
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        subagentRegistry.reset();
+        announceQueue.reset();
+        sessionQueue.reset();
+    }
 
     spdlog::info("[Orchestrator] Stopped");
 }
@@ -1267,7 +1296,10 @@ void Orchestrator::restart(const ionclaw::config::Config &newConfig)
 
     stop();
 
-    config = newConfig;
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        config = newConfig;
+    }
 
     start();
 
@@ -1286,6 +1318,8 @@ std::vector<nlohmann::json> Orchestrator::getFlatToolDefinitions() const
 
 std::vector<std::string> Orchestrator::getAgentNames() const
 {
+    std::lock_guard<std::mutex> lock(lifecycleMutex);
+
     std::vector<std::string> names;
     names.reserve(config.agents.size());
 
@@ -1295,6 +1329,12 @@ std::vector<std::string> Orchestrator::getAgentNames() const
     }
 
     return names;
+}
+
+std::shared_ptr<ionclaw::bus::SessionQueue> Orchestrator::getSessionQueue() const
+{
+    std::lock_guard<std::mutex> lock(lifecycleMutex);
+    return sessionQueue;
 }
 
 } // namespace agent

@@ -2,6 +2,7 @@
 
 #include <istream>
 #include <memory>
+#include <stdexcept>
 
 #include "Poco/Net/HTTPClientSession.h"
 #include "Poco/Net/HTTPRequest.h"
@@ -42,7 +43,7 @@ std::unique_ptr<Poco::Net::HTTPClientSession> HttpClient::createSession(const Po
 #ifdef _WIN32
         Poco::Net::Context::Ptr context = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "");
 #else
-        Poco::Net::Context::Ptr context = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "", "", "", Poco::Net::Context::VERIFY_NONE, 9, true, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
+        Poco::Net::Context::Ptr context = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "", "", "", Poco::Net::Context::VERIFY_RELAXED, 9, true, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
 #endif
 
         session = std::make_unique<Poco::Net::HTTPSClientSession>(uri.getHost(), uri.getPort(), context);
@@ -97,10 +98,21 @@ std::unique_ptr<Poco::Net::HTTPClientSession> HttpClient::createSession(const Po
     return session;
 }
 
+bool HttpClient::hasHeaderControlChar(const std::string &text)
+{
+    return text.find_first_of(std::string("\r\n\0", 3)) != std::string::npos;
+}
+
 void HttpClient::applyHeaders(Poco::Net::HTTPRequest &request, const std::map<std::string, std::string> &headers)
 {
     for (const auto &pair : headers)
     {
+        // reject header injection: control characters would let a caller split the request or inject headers
+        if (hasHeaderControlChar(pair.first) || hasHeaderControlChar(pair.second))
+        {
+            throw std::runtime_error("[HttpClient] Invalid characters in request header: " + pair.first);
+        }
+
         request.set(pair.first, pair.second);
     }
 }

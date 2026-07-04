@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CPackWiXPatch>
+  <!-- add the install bin directory to the system path so the server runs from any terminal -->
+  <CPackWiXFragment Id="CM_CP_bin.ionclaw_server.exe">
+    <Environment Id="IonClawPath" Name="PATH" Value="[CM_DP_bin]" Permanent="no" Part="last" Action="set" System="yes" />
+  </CPackWiXFragment>
+</CPackWiXPatch>

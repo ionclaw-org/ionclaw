@@ -2,8 +2,6 @@
 
 #include <unordered_map>
 
-#include "Poco/URI.h"
-
 namespace ionclaw
 {
 namespace server
@@ -44,15 +42,38 @@ void HttpHelper::addCorsHeaders(Poco::Net::HTTPServerResponse &resp)
 
 std::string HttpHelper::extractPathParam(const std::string &path, const std::string &prefix)
 {
+    // path already comes percent-decoded from Poco::URI::getPath, so no second decode is applied
     if (path.size() > prefix.size() && path.substr(0, prefix.size()) == prefix)
     {
-        std::string raw = path.substr(prefix.size());
-        std::string decoded;
-        Poco::URI::decode(raw, decoded);
-        return decoded;
+        return path.substr(prefix.size());
     }
 
     return "";
+}
+
+bool HttpHelper::hasTraversalSegment(const std::string &path)
+{
+    size_t start = 0;
+
+    while (start <= path.size())
+    {
+        auto end = path.find('/', start);
+        auto segmentLen = (end == std::string::npos ? path.size() : end) - start;
+
+        if (path.compare(start, segmentLen, "..") == 0)
+        {
+            return true;
+        }
+
+        if (end == std::string::npos)
+        {
+            break;
+        }
+
+        start = end + 1;
+    }
+
+    return false;
 }
 
 } // namespace handler

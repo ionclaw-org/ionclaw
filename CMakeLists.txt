@@ -78,27 +78,54 @@ if(IONCLAW_BUILD_TESTS AND NOT IONCLAW_BUILD_SHARED)
     add_subdirectory(tests)
 endif()
 
-# windows installer (msi via wix) — packages the server executable with install and uninstall support
-if(WIN32 AND NOT IONCLAW_BUILD_SHARED)
-    # bundle the msvc runtime so the installed server runs on a clean machine
-    set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION bin)
-    include(InstallRequiredSystemLibraries)
-
-    if(EXISTS "${CMAKE_SOURCE_DIR}/LICENSE.md")
-        install(FILES "${CMAKE_SOURCE_DIR}/LICENSE.md" DESTINATION . RENAME LICENSE.txt)
-    endif()
-
+# desktop installers via cpack — msi on windows, dmg on macos, deb on linux
+if(NOT IONCLAW_BUILD_SHARED AND (WIN32 OR APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux"))
     set(CPACK_PACKAGE_NAME "IonClaw")
     set(CPACK_PACKAGE_VENDOR "IonClaw")
     set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "IonClaw AI Agent Orchestrator")
     set(CPACK_PACKAGE_VERSION "${IONCLAW_VERSION}")
     set(CPACK_PACKAGE_INSTALL_DIRECTORY "IonClaw")
+    set(CPACK_PACKAGE_CONTACT "https://github.com/ionclaw-org/ionclaw")
 
-    set(CPACK_GENERATOR "WIX")
-    # a stable upgrade guid lets new installers replace older ones instead of installing side by side
-    set(CPACK_WIX_UPGRADE_GUID "6F1B2C34-9D5E-4A78-8B90-1C2D3E4F5A6B")
-    set(CPACK_WIX_PROPERTY_ARPHELPLINK "https://github.com/ionclaw-org/ionclaw")
-    set(CPACK_WIX_ROOT_FEATURE_TITLE "IonClaw")
+    # package only the server runtime so dependency headers and static libs stay out of the installer
+    set(CPACK_COMPONENTS_ALL runtime)
+    set(CPACK_COMPONENTS_GROUPING ALL_COMPONENTS_IN_ONE)
+
+    if(WIN32)
+        # bundle the msvc runtime so the installed server runs on a clean machine
+        set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION bin)
+        set(CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT runtime)
+        include(InstallRequiredSystemLibraries)
+
+        install(FILES "${CMAKE_SOURCE_DIR}/LICENSE.md" DESTINATION . RENAME LICENSE.txt COMPONENT runtime)
+
+        set(CPACK_GENERATOR "WIX")
+        # a stable upgrade guid lets new installers replace older ones instead of installing side by side
+        set(CPACK_WIX_UPGRADE_GUID "6F1B2C34-9D5E-4A78-8B90-1C2D3E4F5A6B")
+        set(CPACK_WIX_PROPERTY_ARPHELPLINK "https://github.com/ionclaw-org/ionclaw")
+        set(CPACK_WIX_ROOT_FEATURE_TITLE "IonClaw")
+        # add the install bin directory to the system path
+        set(CPACK_WIX_PATCH_FILE "${CMAKE_SOURCE_DIR}/cmake/wix-patch.xml")
+    elseif(APPLE)
+        install(FILES "${CMAKE_SOURCE_DIR}/LICENSE.md" DESTINATION share/doc/ionclaw RENAME LICENSE.txt COMPONENT runtime)
+
+        # flat installer package that drops the binary into a directory already on the path
+        set(CPACK_GENERATOR "productbuild")
+        set(CPACK_PACKAGING_INSTALL_PREFIX "/usr/local")
+
+        # productbuild only accepts rtf, txt, or html for the license screen, so provide a txt copy
+        configure_file("${CMAKE_SOURCE_DIR}/LICENSE.md" "${CMAKE_BINARY_DIR}/LICENSE.txt" COPYONLY)
+        set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_BINARY_DIR}/LICENSE.txt")
+    else()
+        # debian package with automatically resolved shared-library dependencies
+        install(FILES "${CMAKE_SOURCE_DIR}/LICENSE.md" DESTINATION share/doc/ionclaw RENAME copyright COMPONENT runtime)
+
+        set(CPACK_GENERATOR "DEB")
+        set(CPACK_DEB_COMPONENT_INSTALL ON)
+        set(CPACK_DEBIAN_PACKAGE_MAINTAINER "IonClaw")
+        set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+        set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
+    endif()
 
     include(CPack)
 endif()

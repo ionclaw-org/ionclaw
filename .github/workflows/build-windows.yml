@@ -2,6 +2,11 @@ name: Build Windows
 
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Also build the MSI installer"
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       release:
@@ -57,7 +62,6 @@ jobs:
         run: build/release/bin/ionclaw-server.exe --help
 
       - name: Package server
-        if: ${{ inputs.release }}
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist/${{ matrix.artifact }}
@@ -83,10 +87,10 @@ jobs:
           Copy-Item $msi.FullName "${{ matrix.artifact }}.msi"
 
       - name: Upload artifacts
-        if: ${{ inputs.release }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
+          if-no-files-found: ignore
           path: |
             ${{ matrix.artifact }}.zip
             ${{ matrix.artifact }}.msi

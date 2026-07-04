@@ -32,11 +32,13 @@ namespace agent
 
 std::string AgentLoop::pickFallbackThinkingLevel(const std::string &current)
 {
-    if (current == "high") {
+    if (current == "high")
+    {
         return "medium";
     }
 
-    if (current == "medium") {
+    if (current == "medium")
+    {
         return "low";
     }
 
@@ -424,7 +426,14 @@ nlohmann::json UsageTracker::toJson() const
 
 // agent loop
 
-AgentLoop::AgentLoop(std::shared_ptr<ionclaw::provider::LlmProvider> provider, std::shared_ptr<ionclaw::tool::ToolRegistry> toolRegistry, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, const ionclaw::config::AgentConfig &agentConfig, const std::string &agentName) : provider(std::move(provider)) , toolRegistry(std::move(toolRegistry)) , sessionManager(std::move(sessionManager)) , taskManager(std::move(taskManager)) , dispatcher(std::move(dispatcher)) , agentConfig(agentConfig) , agentName(agentName)
+AgentLoop::AgentLoop(std::shared_ptr<ionclaw::provider::LlmProvider> provider, std::shared_ptr<ionclaw::tool::ToolRegistry> toolRegistry, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, const ionclaw::config::AgentConfig &agentConfig, const std::string &agentName)
+    : provider(std::move(provider))
+    , toolRegistry(std::move(toolRegistry))
+    , sessionManager(std::move(sessionManager))
+    , taskManager(std::move(taskManager))
+    , dispatcher(std::move(dispatcher))
+    , agentConfig(agentConfig)
+    , agentName(agentName)
 {
 }
 
@@ -534,7 +543,8 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
     toolContext.hookRunner = hookRunnerPtr;
 
     // expose the turn's abort flag so long-running tools can stop when the user stops the turn
-    toolContext.isCancelled = [this]() {
+    toolContext.isCancelled = [this]()
+    {
         auto *handle = defaultActiveTurnHandle.load(std::memory_order_acquire);
         return handle != nullptr && handle->aborted.load();
     };
@@ -709,7 +719,8 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
         // then fall back to last sent content from a previous turn
         if (responseText == "[SILENT]")
         {
-            responseText = !messageToolDeliveredContent.empty() ? messageToolDeliveredContent : !turnState.lastSentContent.empty() ? turnState.lastSentContent : "";
+            responseText = !messageToolDeliveredContent.empty() ? messageToolDeliveredContent : !turnState.lastSentContent.empty() ? turnState.lastSentContent
+                                                                                                                                   : "";
         }
         else if (responseText.empty() && !messageToolDeliveredContent.empty())
         {
@@ -826,7 +837,8 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
             auto providerName = slashPos != std::string::npos ? agentConfig.model.substr(0, slashPos) : agentConfig.model;
             errorText = "Could not connect to provider '" + providerName + "': the host was not found. "
                                                                            "Please check that the provider's base_url is correct and the service is reachable. "
-                                                                           "(model: " + agentConfig.model + ")";
+                                                                           "(model: " +
+                        agentConfig.model + ")";
         }
         else if (errorCategory == "auth")
         {
@@ -919,6 +931,18 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
     int contextOverflowAttempts = 0;
     bool transientRetried = false;
     static constexpr int MAX_OVERFLOW_COMPACTION_ATTEMPTS = 3;
+
+    // resolve the tools this agent may actually execute so a hallucinated or injected call cannot escape the policy
+    auto allowedToolList = agentConfig.tools.empty() ? toolRegistry->getToolNames() : agentConfig.tools;
+    allowedToolList = ionclaw::tool::ToolRegistry::applyToolPolicy(allowedToolList, agentConfig.toolPolicy);
+
+    std::set<std::string> allowedTools;
+    for (const auto &name : allowedToolList)
+    {
+        auto lower = name;
+        ionclaw::util::StringHelper::toLowerInPlace(lower);
+        allowedTools.insert(lower);
+    }
 
     // per-turn copy of model params so thinking downgrades don't persist across turns
     nlohmann::json turnModelParams = agentConfig.modelParams;
@@ -1264,6 +1288,17 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
                     {
                         args = hookCtx.data["arguments"];
                     }
+                }
+
+                // enforce the agent tool policy at execution time, not only when advertising tools to the model
+                auto requestedTool = tc.name;
+                ionclaw::util::StringHelper::toLowerInPlace(requestedTool);
+
+                if (allowedTools.count(requestedTool) == 0)
+                {
+                    spdlog::warn("[AgentLoop] Tool {} is not permitted for agent {}", tc.name, effectiveName);
+                    ContextBuilder::addToolResult(messages, tc.id, tc.name, "Error: tool '" + tc.name + "' is not available to this agent");
+                    continue;
                 }
 
                 auto result = toolRegistry->executeTool(tc.name, args, toolContext);

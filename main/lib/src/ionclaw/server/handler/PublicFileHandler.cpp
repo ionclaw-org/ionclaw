@@ -92,6 +92,11 @@ void PublicFileHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::N
     {
         auto ext = Poco::Path(canonicalPath.string()).getExtension();
         resp.setContentType(HttpHelper::contentTypeForExtension(ext));
+
+        // this directory holds model- and user-supplied files, so prevent html/svg from executing as a document
+        resp.set("X-Content-Type-Options", "nosniff");
+        resp.set("Content-Security-Policy", "default-src 'none'; sandbox");
+
         resp.setStatus(Poco::Net::HTTPResponse::HTTP_OK);
         auto &out = resp.send();
         out << ifs.rdbuf();

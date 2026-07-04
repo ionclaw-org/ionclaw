@@ -57,6 +57,12 @@ std::string ToolHelper::validateAndResolvePath(const std::string &projectPath, c
         throw std::runtime_error("[ToolHelper] Workspace path is not configured");
     }
 
+    // a null byte truncates the path at the os layer, so reject it before any resolution
+    if (rawPath.find('\0') != std::string::npos)
+    {
+        throw std::runtime_error("[ToolHelper] Path contains a null byte");
+    }
+
     std::string resolved;
 
     if (!publicPath.empty() && rawPath.size() > 7 && rawPath.substr(0, 7) == "public/")

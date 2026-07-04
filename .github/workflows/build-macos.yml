@@ -2,6 +2,11 @@ name: Build macOS
 
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Also build full release packages"
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       release:
@@ -68,16 +73,24 @@ jobs:
         run: file build/release/bin/ionclaw-server
 
       - name: Package server
-        if: ${{ inputs.release }}
         run: |
           mkdir -p dist/${{ matrix.artifact }}
           cp build/release/bin/ionclaw-server dist/${{ matrix.artifact }}/
           cp LICENSE.md dist/${{ matrix.artifact }}/
           tar -czf ${{ matrix.artifact }}.tar.gz -C dist ${{ matrix.artifact }}
 
-      - name: Upload artifacts
+      - name: Build PKG installer
         if: ${{ inputs.release }}
+        run: |
+          cpack --config build/release/CPackConfig.cmake -C ${{ env.BUILD_TYPE }} -G productbuild -B dist/pkg
+          pkg=$(find dist/pkg -maxdepth 1 -name "*.pkg" | head -1)
+          cp "$pkg" ${{ matrix.artifact }}.pkg
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}.tar.gz
+          if-no-files-found: ignore
+          path: |
+            ${{ matrix.artifact }}.tar.gz
+            ${{ matrix.artifact }}.pkg

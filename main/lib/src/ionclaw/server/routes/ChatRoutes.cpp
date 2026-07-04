@@ -145,7 +145,7 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
 
             if (mode == ionclaw::bus::QueueMode::Steer || mode == ionclaw::bus::QueueMode::SteerBacklog)
             {
-                auto *sq = orchestrator->getSessionQueue();
+                auto sq = orchestrator->getSessionQueue();
 
                 if (sq)
                 {

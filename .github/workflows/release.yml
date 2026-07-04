@@ -54,3 +54,5 @@ jobs:
             artifacts/*.tar.gz
             artifacts/*.zip
             artifacts/*.msi
+            artifacts/*.pkg
+            artifacts/*.deb
