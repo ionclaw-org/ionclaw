@@ -234,6 +234,9 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
 
         httpServer = std::make_shared<HttpServer>(routes, auth, wsManager, mcpDispatcher, cfg.server, webDir, publicDir);
 
+        // surface insecure configuration before accepting any traffic
+        warnInsecureConfig(cfg);
+
         // start services
         orchestrator->start();
         spdlog::info("[ServerInstance] Orchestrator started");
@@ -366,6 +369,40 @@ void ServerInstance::resetComponents()
     bus.reset();
     dispatcher.reset();
     config.reset();
+}
+
+void ServerInstance::warnInsecureConfig(const ionclaw::config::Config &cfg)
+{
+    // default web credential is trivially guessable and grants the full admin api
+    auto webCredIt = cfg.credentials.find(cfg.webClient.credential);
+
+    if (webCredIt != cfg.credentials.end() && webCredIt->second.username == "admin" && webCredIt->second.password == "admin")
+    {
+        spdlog::warn("[ServerInstance] Web client uses the default admin/admin credential, change it before exposing the server");
+    }
+
+    // a channel with no allowed_users accepts messages from anyone who can reach it
+    for (const auto &[name, channel] : cfg.channels)
+    {
+        if (!channel.enabled)
+        {
+            continue;
+        }
+
+        if (name == "mcp")
+        {
+            bool requireAuth = channel.raw.contains("require_auth") && channel.raw["require_auth"].is_boolean() && channel.raw["require_auth"].get<bool>();
+
+            if (!requireAuth)
+            {
+                spdlog::warn("[ServerInstance] MCP channel is enabled without require_auth, any client that reaches it can drive the agent");
+            }
+        }
+        else if (channel.allowedUsers.empty())
+        {
+            spdlog::warn("[ServerInstance] Channel '{}' is enabled with no allowed_users, it will accept messages from anyone", name);
+        }
+    }
 }
 
 } // namespace server

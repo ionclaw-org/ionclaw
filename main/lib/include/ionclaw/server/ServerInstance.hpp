@@ -58,6 +58,7 @@ private:
     static std::mutex mutex;
 
     static void resetComponents();
+    static void warnInsecureConfig(const ionclaw::config::Config &cfg);
 };
 
 } // namespace server
