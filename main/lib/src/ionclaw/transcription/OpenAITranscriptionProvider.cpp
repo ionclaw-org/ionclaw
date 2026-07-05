@@ -8,6 +8,7 @@
 #include "Poco/StreamCopier.h"
 #include "Poco/URI.h"
 
+#include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 
 #ifdef IONCLAW_HAS_SSL
@@ -148,7 +149,8 @@ TranscriptionResult OpenAITranscriptionProvider::transcribe(const std::string &a
 #ifdef _WIN32
         Poco::Net::Context::Ptr ctx = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "");
 #else
-        Poco::Net::Context::Ptr ctx = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "", "", "", Poco::Net::Context::VERIFY_RELAXED, 9, true, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
+        auto caLocation = ionclaw::util::HttpClient::systemCaLocation();
+        Poco::Net::Context::Ptr ctx = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "", "", caLocation, Poco::Net::Context::VERIFY_RELAXED, 9, true, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
 #endif
         session = std::make_unique<Poco::Net::HTTPSClientSession>(host, port, ctx);
     }

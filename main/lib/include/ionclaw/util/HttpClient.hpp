@@ -49,6 +49,8 @@ public:
 
     static std::unique_ptr<Poco::Net::HTTPClientSession> createSession(const Poco::URI &uri, int timeoutSeconds, const std::string &proxy = "");
 
+    static std::string systemCaLocation();
+
 private:
     std::string baseUrl;
     int timeoutSeconds;

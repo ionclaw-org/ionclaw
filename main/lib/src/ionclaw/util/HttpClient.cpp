@@ -1,5 +1,6 @@
 #include "ionclaw/util/HttpClient.hpp"
 
+#include <fstream>
 #include <istream>
 #include <memory>
 #include <stdexcept>
@@ -32,6 +33,27 @@ void HttpClient::setHeader(const std::string &key, const std::string &value)
     defaultHeaders[key] = value;
 }
 
+std::string HttpClient::systemCaLocation()
+{
+    // openssl on macos and linux does not know where the system ca store lives, so point it at the common bundles
+    static const char *candidates[] = {
+        "/etc/ssl/cert.pem",                  // macos, alpine, freebsd
+        "/etc/ssl/certs/ca-certificates.crt", // debian, ubuntu
+        "/etc/pki/tls/certs/ca-bundle.crt",   // rhel, fedora
+        "/etc/ssl/ca-bundle.pem",             // opensuse
+    };
+
+    for (const auto *path : candidates)
+    {
+        if (std::ifstream(path).good())
+        {
+            return path;
+        }
+    }
+
+    return "";
+}
+
 std::unique_ptr<Poco::Net::HTTPClientSession> HttpClient::createSession(const Poco::URI &uri, int timeoutSeconds, const std::string &proxy)
 {
     std::unique_ptr<Poco::Net::HTTPClientSession> session;
@@ -41,9 +63,11 @@ std::unique_ptr<Poco::Net::HTTPClientSession> HttpClient::createSession(const Po
 #ifdef IONCLAW_HAS_SSL
         // use Poco::Net::Context::Ptr (AutoPtr) for exception-safe ownership
 #ifdef _WIN32
+        // netsslwin verifies against the windows system certificate store
         Poco::Net::Context::Ptr context = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "");
 #else
-        Poco::Net::Context::Ptr context = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "", "", "", Poco::Net::Context::VERIFY_RELAXED, 9, true, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
+        auto caLocation = systemCaLocation();
+        Poco::Net::Context::Ptr context = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "", "", caLocation, Poco::Net::Context::VERIFY_RELAXED, 9, true, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
 #endif
 
         session = std::make_unique<Poco::Net::HTTPSClientSession>(uri.getHost(), uri.getPort(), context);

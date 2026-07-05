@@ -75,12 +75,17 @@ std::string ToolHelper::validateAndResolvePath(const std::string &projectPath, c
     }
     else
     {
-        // relative path: search workspace first, then project root
+        // relative path: prefer the workspace, only fall back to the project root for a file that already exists there
         resolved = normalizePath(workspacePath, rawPath);
 
         if (!fs::exists(resolved) && !projectPath.empty() && projectPath != workspacePath)
         {
-            resolved = normalizePath(projectPath, rawPath);
+            auto projectResolved = normalizePath(projectPath, rawPath);
+
+            if (fs::exists(projectResolved))
+            {
+                resolved = projectResolved;
+            }
         }
     }
 
