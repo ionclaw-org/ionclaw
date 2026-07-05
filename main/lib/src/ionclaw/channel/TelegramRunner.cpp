@@ -266,7 +266,10 @@ bool TelegramRunner::isAllowed(const std::string &userId, const std::string &use
     }
     for (const auto &allowed : allowedUsers)
     {
-        if (allowed == userId || allowed == username)
+        // usernames may be listed with a leading @ in config while telegram reports them without it
+        auto normalized = (!allowed.empty() && allowed[0] == '@') ? allowed.substr(1) : allowed;
+
+        if (allowed == userId || normalized == username)
         {
             return true;
         }
@@ -869,6 +872,8 @@ void TelegramRunner::processUpdate(const nlohmann::json &update)
 
 void TelegramRunner::pollLoop()
 {
+    int backoffMs = 0;
+
     while (running.load())
     {
         try
@@ -880,6 +885,9 @@ void TelegramRunner::pollLoop()
             }
             std::string body = telegramGet(token, path, proxy, POLL_TIMEOUT_SEC + 2);
             auto j = nlohmann::json::parse(body);
+
+            backoffMs = 0;
+
             if (!j.value("ok", false) || !j.contains("result"))
             {
                 continue;
@@ -891,18 +899,26 @@ void TelegramRunner::pollLoop()
         }
         catch (const std::exception &e)
         {
-            if (running.load())
+            if (!running.load())
             {
-                std::string msg = e.what();
+                break;
+            }
 
-                if (msg.find("Timeout") != std::string::npos || msg.find("timeout") != std::string::npos)
-                {
-                    spdlog::debug("[TelegramRunner] Poll timeout (normal)");
-                }
-                else
-                {
-                    spdlog::warn("[TelegramRunner] Poll error: {}", msg);
-                }
+            std::string msg = e.what();
+
+            if (msg.find("Timeout") != std::string::npos || msg.find("timeout") != std::string::npos)
+            {
+                spdlog::debug("[TelegramRunner] Poll timeout (normal)");
+                continue;
+            }
+
+            // back off on persistent errors (bad token, conflict, connectivity) so the loop does not busy-spin
+            spdlog::warn("[TelegramRunner] Poll error: {}", msg);
+            backoffMs = backoffMs == 0 ? 1000 : std::min(backoffMs * 2, 30000);
+
+            for (int slept = 0; slept < backoffMs && running.load(); slept += 200)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(200));
             }
         }
     }

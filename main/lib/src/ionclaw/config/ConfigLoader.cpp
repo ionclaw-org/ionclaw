@@ -533,9 +533,6 @@ Config ConfigLoader::loadFromNode(const YAML::Node &root)
         }
     }
 
-    // forms
-    config.forms = yamlToJson(root["forms"]);
-
     return config;
 }
 

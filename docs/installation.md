@@ -50,9 +50,13 @@ ionclaw-server start --project /path/to/your/project
 
 ## Windows (MSI Installer)
 
-Download `ionclaw-windows-x86_64.msi` from the [latest release](https://github.com/ionclaw-org/ionclaw/releases) and run it, or install it silently:
+Download `ionclaw-windows-x86_64.msi` from the [latest release](https://github.com/ionclaw-org/ionclaw/releases).
+
+Because the file was downloaded from the internet, Windows tags it with the "mark of the web" and may block it. Before running, **right-click the `.msi` → Properties → check "Unblock" → Apply**. Then run the installer, or install it silently:
 
 ```powershell
+# unblock from a terminal instead of the properties dialog
+Unblock-File .\ionclaw-windows-x86_64.msi
 msiexec /i ionclaw-windows-x86_64.msi /qn
 ```
 

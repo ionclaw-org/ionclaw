@@ -61,6 +61,25 @@ jobs:
       - name: Verify binary
         run: build/release/bin/ionclaw-server.exe --help
 
+      - name: Smoke test (server + system info + version resource)
+        shell: pwsh
+        run: |
+          $bin = "build/release/bin/ionclaw-server.exe"
+          & $bin init ./smoke
+          $srv = Start-Process $bin -ArgumentList 'start','--project','./smoke','--host','127.0.0.1','--port','8123' -PassThru
+          for ($i = 0; $i -lt 30; $i++) { try { Invoke-RestMethod http://127.0.0.1:8123/api/health | Out-Null; break } catch { Start-Sleep 1 } }
+          $tok = (Invoke-RestMethod -Method Post http://127.0.0.1:8123/api/auth/login -Body '{"username":"admin","password":"admin"}' -ContentType 'application/json').token
+          $info = Invoke-RestMethod http://127.0.0.1:8123/api/system/info -Headers @{ Authorization = "Bearer $tok" }
+          $info | ConvertTo-Json
+          $fileVersion = (Get-Item $bin).VersionInfo.FileVersion
+          Write-Host "exe file version: $fileVersion"
+          Stop-Process -Id $srv.Id -Force
+          if ($info.os.system -eq 'Unknown' -or -not $info.os.system) { throw 'os.system empty' }
+          if (-not $info.os.machine) { throw 'os.machine empty' }
+          if ($info.cpu.processor -eq 'unknown' -or -not $info.cpu.processor) { throw 'cpu.processor empty' }
+          if ($fileVersion -notlike '1.0.6*') { throw "exe version resource wrong: $fileVersion" }
+          Write-Host "SMOKE OK $($info.os.system) $($info.os.machine)"
+
       - name: Package server
         shell: pwsh
         run: |

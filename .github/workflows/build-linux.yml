@@ -53,6 +53,19 @@ jobs:
       - name: Verify binary
         run: ./build/release/bin/ionclaw-server --help
 
+      - name: Smoke test (server + system info)
+        run: |
+          BIN=./build/release/bin/ionclaw-server
+          "$BIN" init ./smoke
+          "$BIN" start --project ./smoke --host 127.0.0.1 --port 8123 &
+          SRV=$!
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8123/api/health >/dev/null && break; sleep 1; done
+          TOKEN=$(curl -s -X POST http://127.0.0.1:8123/api/auth/login -H 'Content-Type: application/json' -d '{"username":"admin","password":"admin"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
+          INFO=$(curl -s http://127.0.0.1:8123/api/system/info -H "Authorization: Bearer $TOKEN")
+          echo "$INFO"
+          kill $SRV 2>/dev/null || true
+          echo "$INFO" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['os']['system'] not in ('Unknown','',None), 'os.system empty'; assert d['os']['machine'] not in ('',None), 'os.machine empty'; assert d['cpu']['processor'] not in ('unknown','',None), 'cpu.processor empty'; assert d['version'], 'version empty'; print('SMOKE OK', d['os']['system'], d['os']['machine'])"
+
       - name: Package server
         run: |
           mkdir -p dist/ionclaw-linux-x86_64

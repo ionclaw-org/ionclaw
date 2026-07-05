@@ -33,6 +33,14 @@ CronParser::TzGuard::TzGuard(const std::string &tz, std::mutex &mtx)
 
     setenv("TZ", tz.c_str(), 1);
     tzset();
+#else
+    // windows cannot apply iana timezone names to the c runtime, so per-job timezones fall back to local time
+    static bool warned = false;
+    if (!warned)
+    {
+        warned = true;
+        spdlog::warn("[CronParser] Per-job timezone '{}' is not applied on Windows, schedules use the local timezone", tz);
+    }
 #endif
 }
 

@@ -642,10 +642,15 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
             {
                 auto cutoff = session.abortCutoffMessageIndex;
 
-                if (cutoff < static_cast<int>(history.size()))
+                // history holds only the last maxHistory messages, so map the full-array cutoff into history space
+                int offset = static_cast<int>(session.messages.size()) - static_cast<int>(history.size());
+                int rel = std::max(0, cutoff - offset);
+
+                if (rel < static_cast<int>(history.size()))
                 {
-                    history.erase(history.begin() + cutoff, history.end());
-                    spdlog::info("[AgentLoop] Trimmed {} post-abort messages from session {}", static_cast<int>(session.messages.size()) - cutoff, sessionKey);
+                    auto removed = static_cast<int>(history.size()) - rel;
+                    history.erase(history.begin() + rel, history.end());
+                    spdlog::info("[AgentLoop] Trimmed {} post-abort messages from session {}", removed, sessionKey);
                 }
 
                 sessionManager->clearAbortFlag(sessionKey);

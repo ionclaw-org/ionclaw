@@ -181,6 +181,11 @@ target_link_libraries(ionclaw-lib PUBLIC
     ${IONCLAW_SSL_LIBS}
 )
 
+if(WIN32)
+    # advapi32 provides the registry apis used for system information
+    target_link_libraries(ionclaw-lib PUBLIC advapi32)
+endif()
+
 target_compile_definitions(ionclaw-lib PUBLIC IONCLAW_HAS_SSL)
 
 if(IONCLAW_BUILD_SHARED)

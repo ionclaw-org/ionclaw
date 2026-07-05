@@ -14,6 +14,7 @@ class InvokePlatformTool final : public Tool
 public:
     ToolResult execute(const nlohmann::json &params, const ToolContext &context) override;
     ToolSchema schema() const override;
+    std::set<std::string> supportedPlatforms() const override;
 };
 
 } // namespace builtin

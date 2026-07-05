@@ -422,10 +422,11 @@ public:
             cmd << " --start-maximized";
         }
 
-        cmd << " about:blank >/dev/null 2>&1";
+        cmd << " about:blank";
 
 #ifdef _WIN32
-        auto cmdStr = cmd.str() + " &";
+        // launch detached through start so the call returns immediately instead of blocking on chrome
+        auto cmdStr = "start \"\" /b " + cmd.str() + " >nul 2>&1";
         auto result = std::system(cmdStr.c_str());
 
         if (result != 0)
@@ -439,6 +440,7 @@ public:
 #elif defined(IONCLAW_NO_PROCESS_EXEC)
         return "Error: browser tool is not supported on this platform";
 #else
+        cmd << " >/dev/null 2>&1";
         std::vector<std::string> args = {"/bin/sh", "-c", cmd.str()};
         std::vector<char *> argv;
 
@@ -524,7 +526,7 @@ private:
 
         return "";
 #elif defined(_WIN32)
-        const char *paths[] = {
+        std::vector<std::string> paths = {
             "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
             "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
             "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
@@ -533,7 +535,15 @@ private:
             "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
         };
 
-        for (auto path : paths)
+        // chrome and edge installed without admin rights live under the user local app data
+        if (const char *localAppData = std::getenv("LOCALAPPDATA"))
+        {
+            paths.push_back(std::string(localAppData) + "\\Google\\Chrome\\Application\\chrome.exe");
+            paths.push_back(std::string(localAppData) + "\\Microsoft\\Edge\\Application\\msedge.exe");
+            paths.push_back(std::string(localAppData) + "\\BraveSoftware\\Brave-Browser\\Application\\brave.exe");
+        }
+
+        for (const auto &path : paths)
         {
             if (std::ifstream(path).good())
             {

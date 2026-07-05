@@ -223,7 +223,15 @@ if(IONCLAW_BUILD_SHARED)
     add_dependencies(ionclaw-shared ionclaw-embedded-resources)
 else()
     # desktop executable
-    add_executable(ionclaw-server ${CMAKE_CURRENT_SOURCE_DIR}/app/src/main.cpp)
+    set(IONCLAW_SERVER_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/app/src/main.cpp)
+
+    if(WIN32)
+        # embed a version resource so explorer and powershell report the real version
+        configure_file(${CMAKE_SOURCE_DIR}/cmake/version.rc.in ${CMAKE_CURRENT_BINARY_DIR}/version.rc @ONLY)
+        list(APPEND IONCLAW_SERVER_SOURCES ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+    endif()
+
+    add_executable(ionclaw-server ${IONCLAW_SERVER_SOURCES})
     target_include_directories(ionclaw-server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib/include)
     install(TARGETS ionclaw-server RUNTIME DESTINATION bin COMPONENT runtime)
 endif()

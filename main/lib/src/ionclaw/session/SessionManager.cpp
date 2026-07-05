@@ -535,6 +535,7 @@ void SessionManager::clearSession(const std::string &sessionKey)
     std::string createdAt;
     std::string updatedAt;
     std::string dispName;
+    bool cached = false;
 
     {
         std::lock_guard<std::mutex> glock(globalMutex);
@@ -551,43 +552,77 @@ void SessionManager::clearSession(const std::string &sessionKey)
             createdAt = it->second.createdAt;
             updatedAt = it->second.updatedAt;
             dispName = it->second.displayName;
-        }
-        else
-        {
-            // session not in cache, nothing to clear
-            return;
+            cached = true;
         }
 
         filePath = sessionFilePath(sessionKey);
     }
 
-    if (fs::exists(filePath))
+    if (!fs::exists(filePath))
     {
-        std::ofstream ofs(filePath, std::ios::trunc);
+        // nothing persisted to clear, the in-memory copy (if any) was already reset above
+        return;
+    }
 
-        if (ofs.is_open())
+    if (!cached)
+    {
+        // an evicted or never-loaded session must still be cleared on disk, preserving its metadata
+        std::ifstream ifs(filePath);
+        std::string firstLine;
+
+        if (ifs.is_open() && std::getline(ifs, firstLine))
         {
-            nlohmann::json meta;
-            meta["_type"] = "metadata";
-            meta["key"] = key;
-            meta["created_at"] = createdAt;
-            meta["updated_at"] = updatedAt;
-            if (!dispName.empty())
+            try
             {
-                meta["display_name"] = dispName;
-            }
-            ofs << meta.dump() << "\n";
-            ofs.flush();
+                auto meta = nlohmann::json::parse(firstLine);
 
-            if (!ofs.good())
+                if (meta.value("_type", std::string()) == "metadata")
+                {
+                    key = meta.value("key", sessionKey);
+                    createdAt = meta.value("created_at", std::string());
+                    dispName = meta.value("display_name", std::string());
+                }
+            }
+            catch (const std::exception &)
             {
-                spdlog::error("[SessionManager] Failed to flush cleared session file: {}", filePath);
             }
         }
-        else
+
+        if (key.empty())
         {
-            spdlog::error("[SessionManager] Failed to open session file for clear: {}", filePath);
+            key = sessionKey;
         }
+        if (createdAt.empty())
+        {
+            createdAt = util::TimeHelper::now();
+        }
+        updatedAt = util::TimeHelper::now();
+    }
+
+    std::ofstream ofs(filePath, std::ios::trunc);
+
+    if (ofs.is_open())
+    {
+        nlohmann::json meta;
+        meta["_type"] = "metadata";
+        meta["key"] = key;
+        meta["created_at"] = createdAt;
+        meta["updated_at"] = updatedAt;
+        if (!dispName.empty())
+        {
+            meta["display_name"] = dispName;
+        }
+        ofs << meta.dump() << "\n";
+        ofs.flush();
+
+        if (!ofs.good())
+        {
+            spdlog::error("[SessionManager] Failed to flush cleared session file: {}", filePath);
+        }
+    }
+    else
+    {
+        spdlog::error("[SessionManager] Failed to open session file for clear: {}", filePath);
     }
 }
 

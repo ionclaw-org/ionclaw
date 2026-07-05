@@ -73,8 +73,10 @@ watch(
   },
 )
 
-function toUtcISO(date) {
-  return date.toISOString()
+function toLocalISO(date) {
+  // the backend parses this as local wall-clock time, so send local components without a timezone suffix
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
 onMounted(loadJobs)
@@ -96,7 +98,7 @@ function buildScheduleBody(form) {
   }
   if (form.type === 'every') body.every_seconds = form.every_seconds
   if (form.type === 'cron') body.cron_expr = form.cron_expr
-  if (form.type === 'at' && form.at) body.at = toUtcISO(form.at)
+  if (form.type === 'at' && form.at) body.at = toLocalISO(form.at)
   return body
 }
 

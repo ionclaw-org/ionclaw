@@ -663,6 +663,9 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
                 // save with restored credential values (validated config only)
                 auto configPath = config->projectPath + "/config.yml";
                 ionclaw::config::ConfigLoader::save(newConfig, configPath);
+
+                // resolve relative agent workspaces to absolute so skill and file paths stay correct
+                ionclaw::config::ConfigLoader::resolveWorkspaces(newConfig, config->projectPath);
                 *config = newConfig;
 
                 sendJson(resp, {{"status", "ok"}});
