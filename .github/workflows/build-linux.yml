@@ -53,7 +53,7 @@ jobs:
       - name: Verify binary
         run: ./build/release/bin/ionclaw-server --help
 
-      - name: Smoke test (server + system info)
+      - name: Smoke test (server + system info + cron timezone)
         run: |
           BIN=./build/release/bin/ionclaw-server
           "$BIN" init ./smoke
@@ -63,8 +63,11 @@ jobs:
           TOKEN=$(curl -s -X POST http://127.0.0.1:8123/api/auth/login -H 'Content-Type: application/json' -d '{"username":"admin","password":"admin"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
           INFO=$(curl -s http://127.0.0.1:8123/api/system/info -H "Authorization: Bearer $TOKEN")
           echo "$INFO"
+          curl -s -X POST http://127.0.0.1:8123/api/scheduler/jobs -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"name":"tz","message":"x","cron_expr":"30 12 * * *","timezone":"America/New_York"}' >/dev/null
+          JOBS=$(curl -s http://127.0.0.1:8123/api/scheduler/jobs -H "Authorization: Bearer $TOKEN")
           kill $SRV 2>/dev/null || true
           echo "$INFO" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['os']['system'] not in ('Unknown','',None), 'os.system empty'; assert d['os']['machine'] not in ('',None), 'os.machine empty'; assert d['cpu']['processor'] not in ('unknown','',None), 'cpu.processor empty'; assert d['version'], 'version empty'; print('SMOKE OK', d['os']['system'], d['os']['machine'])"
+          echo "$JOBS" | python3 -c "import sys,json,datetime; j=json.load(sys.stdin); j=j if isinstance(j,list) else j.get('jobs',[]); job=next(x for x in j if x['schedule']['tz']=='America/New_York'); dt=datetime.datetime.utcfromtimestamp(job['state']['next_run_ms']/1000); assert dt.minute==30 and dt.hour in (16,17), f'CRON TZ WRONG: {dt} UTC'; print('CRON TZ OK: 12:30 America/New_York =', dt.strftime('%H:%M'), 'UTC')"
 
       - name: Package server
         run: |

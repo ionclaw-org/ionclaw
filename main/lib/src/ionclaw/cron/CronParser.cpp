@@ -9,6 +9,8 @@
 
 #include "spdlog/spdlog.h"
 
+#include "ionclaw/cron/WindowsTimeZone.hpp"
+
 namespace ionclaw
 {
 namespace cron
@@ -33,14 +35,6 @@ CronParser::TzGuard::TzGuard(const std::string &tz, std::mutex &mtx)
 
     setenv("TZ", tz.c_str(), 1);
     tzset();
-#else
-    // windows cannot apply iana timezone names to the c runtime, so per-job timezones fall back to local time
-    static bool warned = false;
-    if (!warned)
-    {
-        warned = true;
-        spdlog::warn("[CronParser] Per-job timezone '{}' is not applied on Windows, schedules use the local timezone", tz);
-    }
 #endif
 }
 
@@ -279,6 +273,45 @@ int64_t CronParser::nextRun(const std::string &expr, const std::string &tz)
     auto months = expandField(fields[3], 1, 12);
     auto daysOfWeek = expandField(fields[4], 0, 6);
 
+    // search up to 366 days ahead
+    static constexpr int MAX_ITERATIONS = 366 * 24 * 60;
+
+#if defined(_WIN32)
+    // windows has no iana tz database, so resolve the zone to native rules for dst-correct scheduling
+    if (!tz.empty() && WindowsTimeZone::isSupported(tz))
+    {
+        auto nowEpoch = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        std::tm ltm{};
+
+        if (WindowsTimeZone::utcToLocal(tz, nowEpoch, ltm))
+        {
+            ltm.tm_sec = 0;
+            ltm.tm_min++;
+
+            for (int i = 0; i < MAX_ITERATIONS; i++)
+            {
+                // _mkgmtime normalizes the calendar fields and weekday without applying any timezone
+                std::time_t normalized = _mkgmtime(&ltm);
+                gmtime_s(&ltm, &normalized);
+
+                if (matchesField(ltm.tm_mon + 1, months) && matchesField(ltm.tm_mday, daysOfMonth) && matchesField(ltm.tm_wday, daysOfWeek) && matchesField(ltm.tm_hour, hours) && matchesField(ltm.tm_min, minutes))
+                {
+                    std::time_t utcResult = 0;
+
+                    if (WindowsTimeZone::localToUtc(tz, ltm, utcResult))
+                    {
+                        return static_cast<int64_t>(utcResult) * 1000;
+                    }
+
+                    break;
+                }
+
+                ltm.tm_min++;
+            }
+        }
+    }
+#endif
+
     // raii guard handles TZ set/restore and mutex lock/unlock
     TzGuard guard(tz, tzMutex);
 
@@ -302,9 +335,6 @@ int64_t CronParser::nextRun(const std::string &expr, const std::string &tz)
         tm.tm_min = 0;
         tm.tm_hour++;
     }
-
-    // search up to 366 days ahead
-    static constexpr int MAX_ITERATIONS = 366 * 24 * 60;
 
     for (int i = 0; i < MAX_ITERATIONS; i++)
     {

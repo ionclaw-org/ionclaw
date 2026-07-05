@@ -73,11 +73,17 @@ jobs:
           $info | ConvertTo-Json
           $fileVersion = (Get-Item $bin).VersionInfo.FileVersion
           Write-Host "exe file version: $fileVersion"
+          Invoke-RestMethod -Method Post http://127.0.0.1:8123/api/scheduler/jobs -Headers @{ Authorization = "Bearer $tok" } -Body '{"name":"tz","message":"x","cron_expr":"30 12 * * *","timezone":"America/New_York"}' -ContentType 'application/json' | Out-Null
+          $jobs = Invoke-RestMethod http://127.0.0.1:8123/api/scheduler/jobs -Headers @{ Authorization = "Bearer $tok" }
+          $job = $jobs | Where-Object { $_.schedule.tz -eq 'America/New_York' } | Select-Object -First 1
+          $dt = [DateTimeOffset]::FromUnixTimeMilliseconds([int64]$job.state.next_run_ms).UtcDateTime
+          Write-Host "cron 12:30 America/New_York -> $($dt.ToString('HH:mm')) UTC"
           Stop-Process -Id $srv.Id -Force
           if ($info.os.system -eq 'Unknown' -or -not $info.os.system) { throw 'os.system empty' }
           if (-not $info.os.machine) { throw 'os.machine empty' }
           if ($info.cpu.processor -eq 'unknown' -or -not $info.cpu.processor) { throw 'cpu.processor empty' }
           if ($fileVersion -notlike '1.0.6*') { throw "exe version resource wrong: $fileVersion" }
+          if ($dt.Minute -ne 30 -or ($dt.Hour -ne 16 -and $dt.Hour -ne 17)) { throw "cron tz wrong: $($dt.ToString('HH:mm')) UTC (expected 16:30 or 17:30)" }
           Write-Host "SMOKE OK $($info.os.system) $($info.os.machine)"
 
       - name: Package server

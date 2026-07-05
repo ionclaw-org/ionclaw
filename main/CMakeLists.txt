@@ -111,6 +111,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/heartbeat/HeartbeatService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/cron/CronService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/cron/CronParser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/cron/WindowsTimeZone.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/channel/ChannelManager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/channel/TelegramRunner.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/ChannelRoutes.cpp
