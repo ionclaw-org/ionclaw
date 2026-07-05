@@ -46,9 +46,12 @@ jobs:
           restore-keys: cpm-${{ runner.os }}-x86_64-
 
       - name: Configure
-        run: cmake -B build/release -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+        run: cmake -B build/release -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_TESTS=ON
       - name: Build
         run: cmake --build build/release --config ${{ env.BUILD_TYPE }} -j$(nproc)
+
+      - name: Run tests
+        run: ctest --test-dir build/release --output-on-failure
 
       - name: Verify binary
         run: ./build/release/bin/ionclaw-server --help

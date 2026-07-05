@@ -10,6 +10,7 @@ set(IONCLAW_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/session_key_utils_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tool_policy_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/cron_parser_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/http_client_test.cpp
 )
 
 add_executable(ionclaw-tests ${IONCLAW_TEST_SOURCES})
