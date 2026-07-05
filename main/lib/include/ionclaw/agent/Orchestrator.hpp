@@ -86,7 +86,6 @@ private:
     std::atomic<bool> running{false};
     std::thread workerThread;
 
-    // guards the service pointers and config against the start/stop/restart swap racing http-thread readers
     mutable std::mutex lifecycleMutex;
 
     std::map<std::string, std::shared_ptr<ActiveTurnHandle>> activeTurns;

@@ -21,8 +21,11 @@ void EventDispatcher::addNamedHandler(const std::string &id, EventHandler handle
 
 void EventDispatcher::removeHandler(const std::string &id)
 {
-    std::lock_guard<std::mutex> lock(mutex);
+    std::unique_lock<std::mutex> lock(mutex);
     namedHandlers.erase(id);
+
+    // wait for in-flight broadcasts to drain so a removed handler is never invoked on a destroyed owner
+    idle.wait(lock, [this]() { return broadcasting == 0; });
 }
 
 void EventDispatcher::broadcast(const std::string &eventType, const nlohmann::json &data)
@@ -37,6 +40,7 @@ void EventDispatcher::broadcast(const std::string &eventType, const nlohmann::js
         {
             namedCopy.push_back(h);
         }
+        ++broadcasting;
     }
 
     for (const auto &handler : handlersCopy)
@@ -61,6 +65,13 @@ void EventDispatcher::broadcast(const std::string &eventType, const nlohmann::js
         {
             spdlog::error("[EventDispatcher] named handler exception: {}", e.what());
         }
+    }
+
+    std::lock_guard<std::mutex> lock(mutex);
+
+    if (--broadcasting == 0)
+    {
+        idle.notify_all();
     }
 }
 

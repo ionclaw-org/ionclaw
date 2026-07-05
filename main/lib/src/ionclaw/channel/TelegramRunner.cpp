@@ -65,23 +65,40 @@ TelegramRunner::~TelegramRunner()
 
 void TelegramRunner::startTypingTicker(const std::string &chatId)
 {
+    std::thread previous;
+    {
+        std::lock_guard<std::mutex> lock(typingMutex);
+
+        // already ticking for this chat
+        if (typingActive.count(chatId) && typingActive[chatId])
+        {
+            return;
+        }
+
+        // take ownership of any lingering stopped ticker to join it outside the lock
+        auto it = typingTickers.find(chatId);
+        if (it != typingTickers.end())
+        {
+            previous = std::move(it->second);
+            typingTickers.erase(it);
+        }
+    }
+
+    // join with the chat still inactive so the old ticker's predicate lets it exit
+    if (previous.joinable())
+    {
+        previous.join();
+    }
+
     std::lock_guard<std::mutex> lock(typingMutex);
 
-    // already ticking for this chat
+    // a concurrent start may have reactivated this chat while we joined
     if (typingActive.count(chatId) && typingActive[chatId])
     {
         return;
     }
 
     typingActive[chatId] = true;
-
-    // clean up previous thread if joinable
-    auto it = typingTickers.find(chatId);
-    if (it != typingTickers.end() && it->second.joinable())
-    {
-        it->second.join();
-        typingTickers.erase(it);
-    }
 
     // clang-format off
     typingTickers.emplace(chatId, std::thread([this, chatId]() {

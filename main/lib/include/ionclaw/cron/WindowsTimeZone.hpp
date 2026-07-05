@@ -14,7 +14,6 @@ namespace ionclaw
 namespace cron
 {
 
-// resolves iana timezone names to native windows time zone rules for dst-correct cron scheduling
 class WindowsTimeZone
 {
 public:

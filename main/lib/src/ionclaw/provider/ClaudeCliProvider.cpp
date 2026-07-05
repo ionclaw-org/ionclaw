@@ -13,10 +13,7 @@
 #include <string>
 #include <vector>
 
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#elif !defined(IONCLAW_NO_PROCESS_EXEC)
+#if !defined(_WIN32) && !defined(IONCLAW_NO_PROCESS_EXEC)
 #include <cerrno>
 #include <csignal>
 #include <fcntl.h>
@@ -36,72 +33,33 @@ namespace ionclaw
 namespace provider
 {
 
-namespace
+ClaudeCliProvider::TempPromptFile::TempPromptFile(const std::string &content)
+    : path(std::filesystem::temp_directory_path() / ("ionclaw-claude-" + util::UniqueId::uuid() + ".txt"))
 {
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
 
-// api credentials are removed from the child environment so the cli falls back to the logged-in session
-const std::array<const char *, 10> SCRUBBED_ENV_KEYS = {
-    "ANTHROPIC_API_KEY",
-    "ANTHROPIC_BASE_URL",
-    "ANTHROPIC_MODEL",
-    "OPENAI_API_KEY",
-    "OPENAI_BASE_URL",
-    "OPENAI_ORG_ID",
-    "OPENAI_PROJECT",
-    "GOOGLE_API_KEY",
-    "GEMINI_API_KEY",
-    "GOOGLE_APPLICATION_CREDENTIALS",
-};
-
-constexpr size_t MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
-constexpr size_t BUFFER_SIZE = 4096;
-
-struct CliResult
-{
-    std::string output;
-    int exitCode = -1;
-    bool timedOut = false;
-    bool cancelled = false;
-};
-
-// writes the prompt to a private temp file and removes it when the invocation ends
-class TempPromptFile
-{
-public:
-    explicit TempPromptFile(const std::string &content)
-        : path(std::filesystem::temp_directory_path() / ("ionclaw-claude-" + util::UniqueId::uuid() + ".txt"))
+    if (!file)
     {
-        std::ofstream file(path, std::ios::binary | std::ios::trunc);
-
-        if (!file)
-        {
-            throw std::runtime_error("[ClaudeCliProvider] Failed to create prompt file: " + path.string());
-        }
-
-        file.write(content.data(), static_cast<std::streamsize>(content.size()));
+        throw std::runtime_error("[ClaudeCliProvider] Failed to create prompt file: " + path.string());
     }
 
-    ~TempPromptFile()
-    {
-        std::error_code ec;
-        std::filesystem::remove(path, ec);
-    }
+    file.write(content.data(), static_cast<std::streamsize>(content.size()));
+}
 
-    TempPromptFile(const TempPromptFile &) = delete;
-    TempPromptFile &operator=(const TempPromptFile &) = delete;
+ClaudeCliProvider::TempPromptFile::~TempPromptFile()
+{
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+}
 
-    const std::filesystem::path &get() const
-    {
-        return path;
-    }
-
-private:
-    std::filesystem::path path;
-};
+const std::filesystem::path &ClaudeCliProvider::TempPromptFile::get() const
+{
+    return path;
+}
 
 #ifdef _WIN32
 
-std::string resolveBinary(const std::string &name)
+std::string ClaudeCliProvider::resolveBinary(const std::string &name)
 {
     const char *pathEnv = std::getenv("PATH");
 
@@ -139,7 +97,7 @@ std::string resolveBinary(const std::string &name)
     return "";
 }
 
-std::wstring toWide(const std::string &text)
+std::wstring ClaudeCliProvider::toWide(const std::string &text)
 {
     if (text.empty())
     {
@@ -154,7 +112,7 @@ std::wstring toWide(const std::string &text)
 }
 
 // compares a wide environment key against an ascii name without allocating
-bool asciiKeyEquals(const wchar_t *key, size_t keyLen, const char *name)
+bool ClaudeCliProvider::asciiKeyEquals(const wchar_t *key, size_t keyLen, const char *name)
 {
     size_t i = 0;
 
@@ -169,7 +127,7 @@ bool asciiKeyEquals(const wchar_t *key, size_t keyLen, const char *name)
     return i == keyLen && name[i] == '\0';
 }
 
-std::wstring buildCommandLine(const std::string &binaryPath, const std::vector<std::string> &args)
+std::wstring ClaudeCliProvider::buildCommandLine(const std::string &binaryPath, const std::vector<std::string> &args)
 {
     // quote each argument so spaces and special characters survive the command line
     // clang-format off
@@ -201,7 +159,7 @@ std::wstring buildCommandLine(const std::string &binaryPath, const std::vector<s
     return line;
 }
 
-std::wstring buildScrubbedEnvironment()
+std::wstring ClaudeCliProvider::buildScrubbedEnvironment()
 {
     // build a unicode environment block minus the scrubbed keys from the process environment
     LPWCH block = GetEnvironmentStringsW();
@@ -220,7 +178,7 @@ std::wstring buildScrubbedEnvironment()
 
         bool scrubbed = false;
 
-        for (const auto *key : SCRUBBED_ENV_KEYS)
+        for (const auto *key : scrubbedEnvKeys)
         {
             if (asciiKeyEquals(entry, keyLen, key))
             {
@@ -236,14 +194,14 @@ std::wstring buildScrubbedEnvironment()
         }
     }
 
-    // a double null terminates the block; an all-scrubbed env still needs the trailing null
+    // a double null terminates the block, so an all-scrubbed env still needs the trailing null
     result.push_back(L'\0');
     FreeEnvironmentStringsW(block);
 
     return result;
 }
 
-CliResult runClaude(const std::string &binaryPath, const std::vector<std::string> &args, const std::filesystem::path &promptPath, int timeoutSeconds, const CancelPredicate &isCancelled)
+ClaudeCliProvider::CliResult ClaudeCliProvider::runClaude(const std::string &binaryPath, const std::vector<std::string> &args, const std::filesystem::path &promptPath, int timeoutSeconds, const CancelPredicate &isCancelled)
 {
     CliResult result;
 
@@ -363,12 +321,12 @@ CliResult runClaude(const std::string &binaryPath, const std::vector<std::string
 
 #elif defined(IONCLAW_NO_PROCESS_EXEC) // tvOS, watchOS (no fork/exec)
 
-std::string resolveBinary(const std::string &)
+std::string ClaudeCliProvider::resolveBinary(const std::string &)
 {
     return "";
 }
 
-CliResult runClaude(const std::string &, const std::vector<std::string> &, const std::filesystem::path &, int, const CancelPredicate &)
+ClaudeCliProvider::CliResult ClaudeCliProvider::runClaude(const std::string &, const std::vector<std::string> &, const std::filesystem::path &, int, const CancelPredicate &)
 {
     CliResult result;
     result.output = "Error: process execution is not available on this platform";
@@ -381,7 +339,7 @@ CliResult runClaude(const std::string &, const std::vector<std::string> &, const
 extern "C" char **environ;
 
 // keeps every current environment entry except the scrubbed credentials, pointing at the existing strings
-std::vector<char *> buildScrubbedEnvp()
+std::vector<char *> ClaudeCliProvider::buildScrubbedEnvp()
 {
     std::vector<char *> envp;
 
@@ -393,7 +351,7 @@ std::vector<char *> buildScrubbedEnvp()
 
         bool scrubbed = false;
 
-        for (const auto *key : SCRUBBED_ENV_KEYS)
+        for (const auto *key : scrubbedEnvKeys)
         {
             if (keyName == key)
             {
@@ -412,7 +370,7 @@ std::vector<char *> buildScrubbedEnvp()
     return envp;
 }
 
-std::string resolveBinary(const std::string &name)
+std::string ClaudeCliProvider::resolveBinary(const std::string &name)
 {
     const char *pathEnv = std::getenv("PATH");
 
@@ -446,7 +404,7 @@ std::string resolveBinary(const std::string &name)
     return "";
 }
 
-CliResult runClaude(const std::string &binaryPath, const std::vector<std::string> &args, const std::filesystem::path &promptPath, int timeoutSeconds, const CancelPredicate &isCancelled)
+ClaudeCliProvider::CliResult ClaudeCliProvider::runClaude(const std::string &binaryPath, const std::vector<std::string> &args, const std::filesystem::path &promptPath, int timeoutSeconds, const CancelPredicate &isCancelled)
 {
     CliResult result;
 
@@ -620,8 +578,6 @@ CliResult runClaude(const std::string &binaryPath, const std::vector<std::string
 }
 
 #endif
-
-} // namespace
 
 ClaudeCliProvider::ClaudeCliProvider(const std::string &model, int timeout)
     : model(model)
