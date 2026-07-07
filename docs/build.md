@@ -5,13 +5,19 @@ IonClaw uses a Makefile to orchestrate all build targets. Run `make help` for a 
 ## Prerequisites
 
 - **CMake** >= 3.20
-- **C++17** compiler (Clang, GCC, or MSVC)
+- **C++20** compiler (Clang 14+, GCC 11+, or MSVC 2022)
 - **Node.js** >= 18 (for web client)
 - **Xcode** command-line tools (for iOS/macOS targets)
 - **Android NDK** (for Android targets — set `ANDROID_NDK_ROOT` or pass `ANDROID_NDK=...`)
 - **Flutter** SDK (for Flutter targets)
 - **XcodeGen** (for the native Apple app — `brew install xcodegen`)
 - **Docker** (for container targets)
+
+## Dependencies
+
+All C++ dependencies are fetched and built from source by CPM during configure: Poco, OpenSSL, spdlog, nlohmann/json, yaml-cpp, jwt-cpp, stb, and (optionally) llama.cpp.
+
+Cron scheduling is DST-correct against the IANA time zone database. On Linux and macOS this is provided by the [HowardHinnant/date](https://github.com/HowardHinnant/date) library reading the system zone database (`/usr/share/zoneinfo`), so that path must be present. On Windows the zone rules come from the OS directly, so no bundled database is needed.
 
 ## Build Commands
 

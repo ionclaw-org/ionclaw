@@ -180,7 +180,7 @@ ToolResult ToolRegistry::executeTool(const std::string &name, const nlohmann::js
         spdlog::debug("[ToolRegistry] Tool {} completed, output size: {} bytes", name, result.text.size());
 
         // append hint to error results
-        if (result.text.rfind("Error", 0) == 0)
+        if (result.text.starts_with("Error"))
         {
             result.text += HINT;
             return result;
@@ -354,13 +354,13 @@ std::vector<std::string> ToolRegistry::applyToolPolicy(const std::vector<std::st
         ionclaw::util::StringHelper::toLowerInPlace(lower);
 
         // deny takes precedence
-        if (denySet.count(lower) > 0)
+        if (denySet.contains(lower))
         {
             continue;
         }
 
         // if allow list is non-empty, only include listed tools
-        if (!allowSet.empty() && allowSet.count(lower) == 0)
+        if (!allowSet.empty() && allowSet.contains(lower) == 0)
         {
             continue;
         }

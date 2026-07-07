@@ -199,7 +199,6 @@ std::string OpenAIImageGenerator::editImage(const std::string &prompt, const std
     std::string urlStr = baseUrl + "/v1/images/edits";
     Poco::URI uri(urlStr);
     auto host = uri.getHost();
-    auto port = uri.getPort();
     auto path = uri.getPathAndQuery();
 
     if (path.empty())

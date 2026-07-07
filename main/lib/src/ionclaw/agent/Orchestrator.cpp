@@ -225,7 +225,7 @@ void Orchestrator::start()
     }
 
     // create classifier (prefer "main" agent provider, fallback to first)
-    auto defaultProvider = providers.count("main") ? providers["main"] : firstProvider;
+    auto defaultProvider = providers.contains("main") ? providers["main"] : firstProvider;
 
     if (defaultProvider)
     {
@@ -522,7 +522,7 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
     std::vector<ionclaw::session::SessionMessage> history;
     {
         auto historyAgent = !previousAffinity.empty() ? previousAffinity : !targetAgent.empty() ? targetAgent
-                                                                                                : (agentLoops.count("main") ? "main" : agentLoops.begin()->first);
+                                                                                                : (agentLoops.contains("main") ? "main" : agentLoops.begin()->first);
         auto historyKey = ionclaw::session::SessionKeyUtils::build(historyAgent, channel, message.chatId);
         history = sessionManager->getHistory(historyKey, 20);
     }
@@ -542,7 +542,7 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
 
     if (targetAgent.empty() || agentLoops.find(targetAgent) == agentLoops.end())
     {
-        targetAgent = agentLoops.count("main") ? "main" : agentLoops.begin()->first;
+        targetAgent = agentLoops.contains("main") ? "main" : agentLoops.begin()->first;
         spdlog::debug("[Orchestrator] Falling back to default agent: {}", targetAgent);
     }
 

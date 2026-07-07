@@ -129,6 +129,8 @@ void Routes::handleSchedulerCreate(Poco::Net::HTTPServerRequest &req, Poco::Net:
                 return;
             }
 
+            // let mktime resolve dst for the local wall-clock time
+            tm.tm_isdst = -1;
             auto epochTime = std::mktime(&tm);
 
             if (epochTime <= std::time(nullptr))
@@ -224,6 +226,8 @@ void Routes::handleSchedulerUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net:
                 return;
             }
 
+            // let mktime resolve dst for the local wall-clock time
+            tm.tm_isdst = -1;
             auto epochTime = std::mktime(&tm);
 
             if (epochTime <= std::time(nullptr))

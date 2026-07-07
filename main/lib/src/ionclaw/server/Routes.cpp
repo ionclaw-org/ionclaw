@@ -160,7 +160,7 @@ nlohmann::json Routes::buildFileTreeImpl(const std::string &dirPath, const std::
             continue;
         }
 
-        if (skipNonEssential && entry.is_directory() && SKIP_DIR_NAMES.count(name) != 0)
+        if (skipNonEssential && entry.is_directory() && SKIP_DIR_NAMES.contains(name))
         {
             continue;
         }

@@ -27,7 +27,7 @@ RequestHandlerFactory::RequestHandlerFactory(std::shared_ptr<Routes> routes, std
 {
 }
 
-// poco framework requires raw pointer ownership transfer from createRequestHandler;
+// poco takes ownership of the raw handler pointer returned from createRequestHandler
 Poco::Net::HTTPRequestHandler *RequestHandlerFactory::createRequestHandler(const Poco::Net::HTTPServerRequest &req)
 {
     auto path = Poco::URI(req.getURI()).getPath();

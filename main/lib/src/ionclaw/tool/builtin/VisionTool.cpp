@@ -81,7 +81,9 @@ const std::set<std::string> NON_IMAGE_EXTENSIONS = {
     ".rs",
 };
 
-std::string normalizeExtension(const std::string &pathOrUrl)
+} // anonymous namespace
+
+std::string VisionTool::normalizeExtension(const std::string &pathOrUrl)
 {
     auto clean = pathOrUrl;
     auto queryPos = clean.find('?');
@@ -111,7 +113,7 @@ std::string normalizeExtension(const std::string &pathOrUrl)
     return ext;
 }
 
-std::string detectMimeType(const std::string &pathOrUrl)
+std::string VisionTool::detectMimeType(const std::string &pathOrUrl)
 {
     auto ext = normalizeExtension(pathOrUrl);
 
@@ -142,7 +144,7 @@ std::string detectMimeType(const std::string &pathOrUrl)
     return "image/png";
 }
 
-std::string detectMimeFromContentType(const std::string &contentType)
+std::string VisionTool::detectMimeFromContentType(const std::string &contentType)
 {
     // extract mime type from Content-Type header (strip charset etc.)
     auto pos = contentType.find(';');
@@ -163,14 +165,12 @@ std::string detectMimeFromContentType(const std::string &contentType)
 }
 
 // stb callback that appends to a vector<unsigned char>
-void stbWriteToVector(void *context, void *data, int size)
+void VisionTool::stbWriteToVector(void *context, void *data, int size)
 {
     auto *vec = static_cast<std::vector<unsigned char> *>(context);
     auto *bytes = static_cast<unsigned char *>(data);
     vec->insert(vec->end(), bytes, bytes + size);
 }
-
-} // anonymous namespace
 
 ToolResult VisionTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
@@ -236,7 +236,7 @@ ToolResult VisionTool::execute(const nlohmann::json &params, const ToolContext &
         // reject non-image files (audio, video, documents, code, etc.)
         auto fileExt = normalizeExtension(path);
 
-        if (NON_IMAGE_EXTENSIONS.count(fileExt) > 0)
+        if (NON_IMAGE_EXTENSIONS.contains(fileExt))
         {
             return "Error: '" + path + "' is not an image file (" + fileExt + "). "
                                                                               "The vision tool only processes images. "
@@ -334,7 +334,7 @@ ToolResult VisionTool::execute(const nlohmann::json &params, const ToolContext &
             rawBytes = std::move(response.body);
 
             // detect mime from Content-Type header first, fallback to URL extension
-            auto contentType = response.headers.count("Content-Type") ? response.headers.at("Content-Type") : (response.headers.count("content-type") ? response.headers.at("content-type") : "");
+            auto contentType = response.headers.contains("Content-Type") ? response.headers.at("Content-Type") : (response.headers.contains("content-type") ? response.headers.at("content-type") : "");
 
             mimeType = detectMimeFromContentType(contentType);
 

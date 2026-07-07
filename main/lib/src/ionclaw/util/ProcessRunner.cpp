@@ -297,6 +297,8 @@ ProcessResult ProcessRunner::run(const std::string &command, int timeoutSeconds,
                 result.timedOut = true;
             }
 
+            // the child is already reaped here, so keep the -1 status from being re-collected below
+            childExited = true;
             result.exitCode = -1;
             break;
         }

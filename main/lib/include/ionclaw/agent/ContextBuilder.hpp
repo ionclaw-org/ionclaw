@@ -56,6 +56,7 @@ private:
 
     static std::string getChannelGuidance(const std::string &channel);
     static std::string contentToText(const nlohmann::json &content);
+    static bool hasImportantTail(const std::string &content, size_t scanBytes = 2000);
 
     std::string readProjectFile(const std::string &filename) const;
     std::string buildDirectoryContext() const;

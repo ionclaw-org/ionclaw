@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import Button from 'primevue/button'
 import { useApi } from '../../composables/useApi'
+import { useToast } from 'primevue/usetoast'
 
 const props = defineProps({
   path: { type: String, default: '' },
@@ -11,6 +12,7 @@ const props = defineProps({
 })
 
 const api = useApi()
+const toast = useToast()
 const downloading = ref(false)
 
 const filename = computed(() => props.path.split('/').pop())
@@ -27,6 +29,8 @@ async function onDownload() {
   downloading.value = true
   try {
     await api.downloadFile(props.path, filename.value)
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Download failed', detail: e.message, life: 3000 })
   } finally {
     downloading.value = false
   }

@@ -125,6 +125,15 @@ void SsrfGuard::validateUrl(const std::string &url)
     validateUrlImpl(url, false);
 }
 
+void SsrfGuard::validatePeerAddress(const Poco::Net::IPAddress &addr, bool allowLoopback)
+{
+    // recheck the actually connected ip so a dns rebind between validation and connect cannot reach a private host
+    if (isPrivateIp(addr, allowLoopback))
+    {
+        throw std::runtime_error("[SsrfGuard] Connection resolved to a private IP address: " + addr.toString());
+    }
+}
+
 void SsrfGuard::validateUrlAllowLoopback(const std::string &url)
 {
     validateUrlImpl(url, true);

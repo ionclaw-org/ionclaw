@@ -82,6 +82,20 @@ CPMAddPackage(
         "YAML_CPP_BUILD_TOOLS OFF"
 )
 
+# iana time zone database for thread-safe zone conversions on posix, where apple libc++ ships no std::chrono tzdb
+# windows keeps its native WindowsTimeZone path, so the tz library is only needed off windows
+if(NOT WIN32)
+    CPMAddPackage(
+        NAME "date"
+        VERSION "3.0.4"
+        GITHUB_REPOSITORY "HowardHinnant/date"
+        GIT_TAG "v3.0.4"
+        OPTIONS
+            "BUILD_TZ_LIB ON"
+            "USE_SYSTEM_TZ_DB ON"
+    )
+endif()
+
 # stb image for local image generation (png output)
 CPMAddPackage(
     NAME "stb"
@@ -184,6 +198,21 @@ target_link_libraries(ionclaw-lib PUBLIC
 if(WIN32)
     # advapi32 provides the registry apis used for system information
     target_link_libraries(ionclaw-lib PUBLIC advapi32)
+endif()
+
+# the tz library backs cron zone conversions on posix, so a missing fetch is a hard error rather than a silent fallback
+if(NOT WIN32)
+    if(NOT TARGET date-tz)
+        message(FATAL_ERROR "IonClaw: the date tz library is required on this platform but was not fetched")
+    endif()
+
+    target_link_libraries(ionclaw-lib PRIVATE date-tz)
+    target_compile_definitions(ionclaw-lib PRIVATE IONCLAW_HAS_TZ_LIB)
+
+    if(IONCLAW_BUILD_SHARED)
+        target_link_libraries(ionclaw-shared PRIVATE date-tz)
+        target_compile_definitions(ionclaw-shared PRIVATE IONCLAW_HAS_TZ_LIB)
+    endif()
 endif()
 
 target_compile_definitions(ionclaw-lib PUBLIC IONCLAW_HAS_SSL)

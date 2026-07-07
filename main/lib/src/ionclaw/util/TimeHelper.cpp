@@ -64,7 +64,7 @@ int64_t TimeHelper::diffSeconds(const std::string &from, const std::string &to)
 
         if (iss.fail())
         {
-            return 0;
+            return static_cast<std::time_t>(-1);
         }
 
 #if defined(_WIN32)
@@ -76,6 +76,13 @@ int64_t TimeHelper::diffSeconds(const std::string &from, const std::string &to)
 
     auto fromTime = parse(from);
     auto toTime = parse(to);
+
+    // a malformed timestamp would otherwise diff against 1970 and return a decades-off value
+    if (fromTime == static_cast<std::time_t>(-1) || toTime == static_cast<std::time_t>(-1))
+    {
+        return 0;
+    }
+
     return static_cast<int64_t>(std::difftime(toTime, fromTime));
 }
 

@@ -357,7 +357,9 @@ int64_t CronService::computeNextRunMs(const CronSchedule &schedule)
 
     if (schedule.kind == "every")
     {
-        return nowMs + schedule.everyMs;
+        // floor the interval so a misconfigured non-positive value cannot busy-fire every tick
+        int64_t intervalMs = schedule.everyMs > 0 ? schedule.everyMs : 60000;
+        return nowMs + intervalMs;
     }
 
     if (schedule.kind == "cron")

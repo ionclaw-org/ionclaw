@@ -39,6 +39,7 @@ extern char **environ;
 #include "Poco/URI.h"
 #include "spdlog/spdlog.h"
 
+#include "ionclaw/config/Config.hpp"
 #include "ionclaw/tool/builtin/ToolHelper.hpp"
 #include "ionclaw/util/Base64.hpp"
 #include "ionclaw/util/HttpClient.hpp"
@@ -1503,7 +1504,11 @@ private:
 
 // ── action helpers ─────────────────────────────────────────────────────────
 
-std::string ensureBrowser(bool headless)
+// groups the cdp action helpers so they are class methods rather than free functions
+struct BrowserActions
+{
+
+static std::string ensureBrowser(bool headless)
 {
     auto &chrome = ChromeManager::instance();
 
@@ -1526,7 +1531,7 @@ struct TabResult
     std::string error;
 };
 
-TabResult ensureTab(bool headless)
+static TabResult ensureTab(bool headless)
 {
     auto err = ensureBrowser(headless);
 
@@ -1548,7 +1553,7 @@ TabResult ensureTab(bool headless)
 }
 
 // safe accessor for CDP evaluate results — avoids throws on missing "result" key
-nlohmann::json evalResult(const nlohmann::json &cdpResponse)
+static nlohmann::json evalResult(const nlohmann::json &cdpResponse)
 {
     return cdpResponse.value("result", nlohmann::json::object());
 }
@@ -1561,7 +1566,7 @@ struct PageInfo
     std::string title;
 };
 
-PageInfo getPageInfo(CdpTab &tab)
+static PageInfo getPageInfo(CdpTab &tab)
 {
     PageInfo info;
     auto result = tab.sendCommand(cdp::runtime::Evaluate, {
@@ -1579,7 +1584,7 @@ PageInfo getPageInfo(CdpTab &tab)
     return info;
 }
 
-std::string formatTabContext()
+static std::string formatTabContext()
 {
     auto tabs = TabManager::instance().listTabs();
     auto currentId = TabManager::instance().currentTargetId();
@@ -1597,7 +1602,7 @@ std::string formatTabContext()
     return "(tab " + std::to_string(currentIdx) + "/" + std::to_string(tabs.size()) + ")";
 }
 
-std::string formatPageState(CdpTab &tab)
+static std::string formatPageState(CdpTab &tab)
 {
     PageInfo info;
 
@@ -1623,7 +1628,7 @@ std::string formatPageState(CdpTab &tab)
     return out.str();
 }
 
-ElementPos getElementCenter(CdpTab &tab, const std::string &selector)
+static ElementPos getElementCenter(CdpTab &tab, const std::string &selector)
 {
     auto safeSelector = ToolHelper::escapeForJs(selector);
 
@@ -1648,7 +1653,7 @@ ElementPos getElementCenter(CdpTab &tab, const std::string &selector)
     return {value["x"].get<double>(), value["y"].get<double>(), true};
 }
 
-void performClick(CdpTab &tab, double x, double y, const std::string &button = "left", bool doubleClick = false)
+static void performClick(CdpTab &tab, double x, double y, const std::string &button = "left", bool doubleClick = false)
 {
     auto cdpButton = (button == "right") ? "right" : ((button == "middle") ? "middle" : "left");
     int buttons = (button == "right") ? 2 : ((button == "middle") ? 4 : 1);
@@ -1701,7 +1706,7 @@ void performClick(CdpTab &tab, double x, double y, const std::string &button = "
     }
 }
 
-void typeCharacters(CdpTab &tab, const std::string &text, bool slowly = false)
+static void typeCharacters(CdpTab &tab, const std::string &text, bool slowly = false)
 {
     for (char c : text)
     {
@@ -1725,7 +1730,7 @@ void typeCharacters(CdpTab &tab, const std::string &text, bool slowly = false)
     }
 }
 
-std::string pressKey(CdpTab &tab, const std::string &keyName)
+static std::string pressKey(CdpTab &tab, const std::string &keyName)
 {
     std::string lower = keyName;
     ionclaw::util::StringHelper::toLowerInPlace(lower);
@@ -1760,7 +1765,7 @@ std::string pressKey(CdpTab &tab, const std::string &keyName)
     return "";
 }
 
-bool matchGlob(const std::string &text, const std::string &pattern)
+static bool matchGlob(const std::string &text, const std::string &pattern)
 {
     size_t ti = 0, pi = 0;
     size_t starTi = std::string::npos, starPi = std::string::npos;
@@ -1799,7 +1804,7 @@ bool matchGlob(const std::string &text, const std::string &pattern)
 // base64 alias for ionclaw::util::Base64
 using Base64 = ionclaw::util::Base64;
 
-std::filesystem::path browserTempDir()
+static std::filesystem::path browserTempDir()
 {
     auto dir = std::filesystem::temp_directory_path() / "ionclaw" / "browser";
     std::error_code ec;
@@ -1813,14 +1818,14 @@ std::filesystem::path browserTempDir()
     return dir;
 }
 
-std::string tempFileName(const std::string &prefix, const std::string &ext)
+static std::string tempFileName(const std::string &prefix, const std::string &ext)
 {
     auto now = std::chrono::system_clock::now().time_since_epoch();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
     return prefix + "_" + std::to_string(ms) + ext;
 }
 
-bool saveToFile(const std::filesystem::path &path, const std::string &data)
+static bool saveToFile(const std::filesystem::path &path, const std::string &data)
 {
     std::ofstream out(path, std::ios::binary);
 
@@ -1836,7 +1841,7 @@ bool saveToFile(const std::filesystem::path &path, const std::string &data)
 
 #ifdef IONCLAW_HAS_STB_IMAGE_WRITE
 // stb callback that appends to a vector<unsigned char>
-void stbWriteToVector(void *context, void *data, int size)
+static void stbWriteToVector(void *context, void *data, int size)
 {
     auto *vec = static_cast<std::vector<unsigned char> *>(context);
     auto *bytes = static_cast<unsigned char *>(data);
@@ -1844,7 +1849,7 @@ void stbWriteToVector(void *context, void *data, int size)
 }
 #endif
 
-std::string capResult(std::string text, int maxChars = MAX_TOOL_RESULT_CHARS)
+static std::string capResult(std::string text, int maxChars = MAX_TOOL_RESULT_CHARS)
 {
     if (maxChars > 0 && text.size() > static_cast<size_t>(maxChars))
     {
@@ -1856,7 +1861,7 @@ std::string capResult(std::string text, int maxChars = MAX_TOOL_RESULT_CHARS)
 
 // ── action implementations ─────────────────────────────────────────────────
 
-std::string actionStatus()
+static std::string actionStatus()
 {
     auto &chrome = ChromeManager::instance();
 
@@ -1869,7 +1874,7 @@ std::string actionStatus()
     return "Browser is running. " + std::to_string(tabs.size()) + " tab(s) open.";
 }
 
-std::string actionStart(bool headless)
+static std::string actionStart(bool headless)
 {
     auto err = ensureBrowser(headless);
 
@@ -1889,14 +1894,14 @@ std::string actionStart(bool headless)
     return "Browser started with " + std::to_string(tabs.size()) + " tab(s)." + (currentUrl.empty() ? "" : " Current page: " + currentUrl) + " Use action='navigate' with a URL to go to a page.";
 }
 
-std::string actionStop()
+static std::string actionStop()
 {
     TabManager::instance().disconnectAll();
     ChromeManager::instance().shutdown();
     return "Browser stopped.";
 }
 
-std::string actionTabs()
+static std::string actionTabs()
 {
     auto tabs = TabManager::instance().listTabs();
 
@@ -1923,7 +1928,7 @@ std::string actionTabs()
 }
 
 // blocks navigation to private, loopback, and metadata addresses while allowing the blank tab sentinel
-std::string validateBrowserUrl(const std::string &url)
+static std::string validateBrowserUrl(const std::string &url)
 {
     if (url.empty() || url == "about:blank")
     {
@@ -1942,7 +1947,7 @@ std::string validateBrowserUrl(const std::string &url)
     return "";
 }
 
-std::string actionOpen(bool headless, const std::string &url)
+static std::string actionOpen(bool headless, const std::string &url)
 {
     auto urlError = validateBrowserUrl(url);
 
@@ -1971,7 +1976,7 @@ std::string actionOpen(bool headless, const std::string &url)
                                                                                                                       "it uses the current tab without opening new ones.";
 }
 
-std::string actionFocus(const std::string &targetId)
+static std::string actionFocus(const std::string &targetId)
 {
     if (targetId.empty())
     {
@@ -1994,7 +1999,7 @@ std::string actionFocus(const std::string &targetId)
     return "Focused tab: " + targetId + " " + formatTabContext();
 }
 
-std::string actionClose(const std::string &targetId)
+static std::string actionClose(const std::string &targetId)
 {
     if (!TabManager::instance().closeTab(targetId))
     {
@@ -2023,7 +2028,7 @@ std::string actionClose(const std::string &targetId)
     return "Tab closed. " + std::to_string(tabs.size()) + " tab(s) remaining. " + "Current tab: " + (currentUrl.empty() ? "(unknown)" : currentUrl);
 }
 
-std::string actionNavigate(CdpTab &tab, const std::string &url)
+static std::string actionNavigate(CdpTab &tab, const std::string &url)
 {
     if (url.empty())
     {
@@ -2090,7 +2095,7 @@ std::string actionNavigate(CdpTab &tab, const std::string &url)
     return out.str();
 }
 
-std::string actionBack(CdpTab &tab)
+static std::string actionBack(CdpTab &tab)
 {
     auto historyResult = tab.sendCommand(cdp::page::GetNavigationHistory);
     int currentIndex = historyResult.value("currentIndex", 0);
@@ -2126,7 +2131,7 @@ std::string actionBack(CdpTab &tab)
     return "Navigated back to: " + (info.url.empty() ? "(unknown)" : info.url) + (info.title.empty() ? "" : " | Title: \"" + info.title + "\"") + " " + formatTabContext();
 }
 
-std::string actionForward(CdpTab &tab)
+static std::string actionForward(CdpTab &tab)
 {
     auto historyResult = tab.sendCommand(cdp::page::GetNavigationHistory);
     int currentIndex = historyResult.value("currentIndex", 0);
@@ -2156,7 +2161,7 @@ std::string actionForward(CdpTab &tab)
     return "Navigated forward to: " + (info.url.empty() ? "(unknown)" : info.url) + (info.title.empty() ? "" : " | Title: \"" + info.title + "\"") + " " + formatTabContext();
 }
 
-std::string actionReload(CdpTab &tab)
+static std::string actionReload(CdpTab &tab)
 {
     tab.sendCommand(cdp::page::Reload);
     tab.waitForEvent(cdp::page::LoadEventFired, 30000);
@@ -2175,7 +2180,7 @@ std::string actionReload(CdpTab &tab)
     return "Reloaded: " + (info.url.empty() ? "(unknown)" : info.url) + (info.title.empty() ? "" : " | Title: \"" + info.title + "\"") + " " + formatTabContext();
 }
 
-std::string actionScroll(CdpTab &tab, const nlohmann::json &params)
+static std::string actionScroll(CdpTab &tab, const nlohmann::json &params)
 {
     auto direction = params.value("direction", "down");
     int amount = params.value("amount", 0);
@@ -2226,7 +2231,7 @@ std::string actionScroll(CdpTab &tab, const nlohmann::json &params)
     return "Scrolled " + direction + " " + std::to_string(scrolledAmount) + "px. " + "Position: " + std::to_string(scrollPos) + "/" + std::to_string(totalSize) + "px" + (totalSize > 0 && viewportSize > 0 ? " (" + std::to_string(std::min(100, (scrollPos + viewportSize) * 100 / totalSize)) + "% visible)" : "");
 }
 
-std::string actionWait(CdpTab *tab, const nlohmann::json &params)
+static std::string actionWait(CdpTab *tab, const nlohmann::json &params)
 {
     int seconds = std::max(1, std::min(MAX_WAIT_SECONDS, params.value("seconds", 2)));
 
@@ -2343,7 +2348,7 @@ std::string actionWait(CdpTab *tab, const nlohmann::json &params)
     return failMsg.str();
 }
 
-std::string actionSnapshot(CdpTab &tab, const nlohmann::json &params)
+static std::string actionSnapshot(CdpTab &tab, const nlohmann::json &params)
 {
     int maxChars = params.value("max_chars", DEFAULT_SNAPSHOT_MAX_CHARS);
     auto format = params.value("format", "text");
@@ -2494,7 +2499,7 @@ std::string actionSnapshot(CdpTab &tab, const nlohmann::json &params)
     return text;
 }
 
-ToolResult actionScreenshot(CdpTab &tab, const nlohmann::json &params)
+static ToolResult actionScreenshot(CdpTab &tab, const nlohmann::json &params, const ToolContext &context)
 {
     bool fullPage = params.value("full_page", false);
     auto imageType = params.value("image_type", "png");
@@ -2582,7 +2587,8 @@ ToolResult actionScreenshot(CdpTab &tab, const nlohmann::json &params)
 
     if (!outputPath.empty())
     {
-        filePath = std::filesystem::path(outputPath);
+        bool restrict = !context.config || context.config->tools.restrictToWorkspace;
+        filePath = std::filesystem::path(ToolHelper::validateAndResolvePath(context.projectPath, context.workspacePath, outputPath, context.publicPath, restrict));
         std::error_code ec;
         std::filesystem::create_directories(filePath.parent_path(), ec);
 
@@ -2674,7 +2680,7 @@ ToolResult actionScreenshot(CdpTab &tab, const nlohmann::json &params)
 #endif
 }
 
-std::string actionInspect(CdpTab &tab)
+static std::string actionInspect(CdpTab &tab)
 {
     auto js = R"(
         (function() {
@@ -2767,7 +2773,7 @@ std::string actionInspect(CdpTab &tab)
     return capResult(out.str());
 }
 
-std::string actionEvaluate(CdpTab &tab, const std::string &script)
+static std::string actionEvaluate(CdpTab &tab, const std::string &script)
 {
     if (script.empty())
     {
@@ -2825,7 +2831,7 @@ std::string actionEvaluate(CdpTab &tab, const std::string &script)
     return capResult(value.dump(2));
 }
 
-std::string actionClick(CdpTab &tab, const nlohmann::json &params)
+static std::string actionClick(CdpTab &tab, const nlohmann::json &params)
 {
     auto selector = params.value("selector", "");
 
@@ -2848,7 +2854,7 @@ std::string actionClick(CdpTab &tab, const nlohmann::json &params)
     return "Clicked: " + selector + (doubleClick ? " (double-click)" : "");
 }
 
-std::string actionType(CdpTab &tab, const nlohmann::json &params)
+static std::string actionType(CdpTab &tab, const nlohmann::json &params)
 {
     auto text = params.value("text", "");
 
@@ -2884,7 +2890,7 @@ std::string actionType(CdpTab &tab, const nlohmann::json &params)
     return "Typed: " + text + (submit ? " (submitted)" : "");
 }
 
-std::string actionPress(CdpTab &tab, const nlohmann::json &params)
+static std::string actionPress(CdpTab &tab, const nlohmann::json &params)
 {
     auto key = params.value("key", "");
 
@@ -2903,7 +2909,7 @@ std::string actionPress(CdpTab &tab, const nlohmann::json &params)
     return "Pressed: " + key;
 }
 
-std::string actionHover(CdpTab &tab, const nlohmann::json &params)
+static std::string actionHover(CdpTab &tab, const nlohmann::json &params)
 {
     auto selector = params.value("selector", "");
 
@@ -2928,7 +2934,7 @@ std::string actionHover(CdpTab &tab, const nlohmann::json &params)
     return "Hovered: " + selector;
 }
 
-std::string actionSelect(CdpTab &tab, const nlohmann::json &params)
+static std::string actionSelect(CdpTab &tab, const nlohmann::json &params)
 {
     auto selector = params.value("selector", "");
 
@@ -2975,7 +2981,7 @@ std::string actionSelect(CdpTab &tab, const nlohmann::json &params)
     return capResult("Selected: " + selected.dump());
 }
 
-std::string actionFill(CdpTab &tab, const nlohmann::json &params)
+static std::string actionFill(CdpTab &tab, const nlohmann::json &params)
 {
     auto fields = params.value("fields", nlohmann::json::array());
 
@@ -3080,7 +3086,7 @@ std::string actionFill(CdpTab &tab, const nlohmann::json &params)
     return "Filled " + std::to_string(filled) + " field(s)." + (skipped > 0 ? " Warning: " + std::to_string(skipped) + " field(s) skipped (missing selector)." : "");
 }
 
-std::string actionDrag(CdpTab &tab, const nlohmann::json &params)
+static std::string actionDrag(CdpTab &tab, const nlohmann::json &params)
 {
     auto selector = params.value("selector", "");
     auto endSelector = params.value("end_selector", "");
@@ -3146,7 +3152,7 @@ std::string actionDrag(CdpTab &tab, const nlohmann::json &params)
     return "Dragged from " + selector + " to " + endSelector;
 }
 
-std::string actionScrollIntoView(CdpTab &tab, const nlohmann::json &params)
+static std::string actionScrollIntoView(CdpTab &tab, const nlohmann::json &params)
 {
     auto selector = params.value("selector", "");
 
@@ -3174,7 +3180,7 @@ std::string actionScrollIntoView(CdpTab &tab, const nlohmann::json &params)
     return "Scrolled into view: " + selector;
 }
 
-std::string actionResize(CdpTab &tab, const nlohmann::json &params)
+static std::string actionResize(CdpTab &tab, const nlohmann::json &params)
 {
     int width = params.value("width", 1280);
     int height = params.value("height", 720);
@@ -3199,7 +3205,7 @@ std::string actionResize(CdpTab &tab, const nlohmann::json &params)
     return "Viewport resized to " + std::to_string(width) + "x" + std::to_string(height);
 }
 
-std::string actionConsole(CdpTab &tab, const nlohmann::json &params)
+static std::string actionConsole(CdpTab &tab, const nlohmann::json &params)
 {
     tab.drainEvents();
     auto level = params.value("level", "");
@@ -3234,7 +3240,7 @@ std::string actionConsole(CdpTab &tab, const nlohmann::json &params)
     return capResult(out.str());
 }
 
-std::string actionErrors(CdpTab &tab, const nlohmann::json &params)
+static std::string actionErrors(CdpTab &tab, const nlohmann::json &params)
 {
     tab.drainEvents();
     bool clear = params.value("clear", false);
@@ -3263,7 +3269,7 @@ std::string actionErrors(CdpTab &tab, const nlohmann::json &params)
     return capResult(out.str());
 }
 
-std::string actionRequests(CdpTab &tab, const nlohmann::json &params)
+static std::string actionRequests(CdpTab &tab, const nlohmann::json &params)
 {
     tab.drainEvents();
     auto filter = params.value("filter", "");
@@ -3305,7 +3311,7 @@ std::string actionRequests(CdpTab &tab, const nlohmann::json &params)
     return capResult(out.str());
 }
 
-std::string actionResponseBody(CdpTab &tab, const nlohmann::json &params)
+static std::string actionResponseBody(CdpTab &tab, const nlohmann::json &params)
 {
     auto filter = params.value("filter", "");
     int maxChars = params.value("max_chars", DEFAULT_SNAPSHOT_MAX_CHARS);
@@ -3355,7 +3361,7 @@ std::string actionResponseBody(CdpTab &tab, const nlohmann::json &params)
     return body;
 }
 
-std::string actionPdf(CdpTab &tab, const nlohmann::json &params)
+static std::string actionPdf(CdpTab &tab, const nlohmann::json &params, const ToolContext &context)
 {
     auto result = tab.sendCommand(cdp::page::PrintToPDF, {
                                                              {"landscape", false},
@@ -3383,7 +3389,8 @@ std::string actionPdf(CdpTab &tab, const nlohmann::json &params)
 
     if (!outputPath.empty())
     {
-        filePath = std::filesystem::path(outputPath);
+        bool restrict = !context.config || context.config->tools.restrictToWorkspace;
+        filePath = std::filesystem::path(ToolHelper::validateAndResolvePath(context.projectPath, context.workspacePath, outputPath, context.publicPath, restrict));
         std::error_code ec;
         std::filesystem::create_directories(filePath.parent_path(), ec);
 
@@ -3406,7 +3413,7 @@ std::string actionPdf(CdpTab &tab, const nlohmann::json &params)
     return "PDF saved: " + filePath.string() + " (" + std::to_string(sizeKB) + "KB)";
 }
 
-std::string actionGetCookies(CdpTab &tab, const nlohmann::json &params)
+static std::string actionGetCookies(CdpTab &tab, const nlohmann::json &params)
 {
     auto urlsParam = nlohmann::json::object();
     auto url = params.value("url", "");
@@ -3440,7 +3447,7 @@ std::string actionGetCookies(CdpTab &tab, const nlohmann::json &params)
     return capResult(out.str());
 }
 
-std::string actionSetCookie(CdpTab &tab, const nlohmann::json &params)
+static std::string actionSetCookie(CdpTab &tab, const nlohmann::json &params)
 {
     auto name = params.value("name", "");
     auto value = params.value("value", "");
@@ -3482,13 +3489,13 @@ std::string actionSetCookie(CdpTab &tab, const nlohmann::json &params)
     return "Cookie set: " + name + "=" + value;
 }
 
-std::string actionClearCookies(CdpTab &tab)
+static std::string actionClearCookies(CdpTab &tab)
 {
     tab.sendCommand(cdp::network::ClearBrowserCookies);
     return "Cookies cleared.";
 }
 
-std::string actionGetStorage(CdpTab &tab, const nlohmann::json &params)
+static std::string actionGetStorage(CdpTab &tab, const nlohmann::json &params)
 {
     auto kind = params.value("kind", "local");
     auto storageObj = (kind == "session") ? "sessionStorage" : "localStorage";
@@ -3509,7 +3516,7 @@ std::string actionGetStorage(CdpTab &tab, const nlohmann::json &params)
     return capResult(parsed.dump(2));
 }
 
-std::string actionSetStorage(CdpTab &tab, const nlohmann::json &params)
+static std::string actionSetStorage(CdpTab &tab, const nlohmann::json &params)
 {
     auto kind = params.value("kind", "local");
     auto name = params.value("name", "");
@@ -3532,7 +3539,7 @@ std::string actionSetStorage(CdpTab &tab, const nlohmann::json &params)
     return kind + " storage set: " + name + "=" + value;
 }
 
-std::string actionClearStorage(CdpTab &tab, const nlohmann::json &params)
+static std::string actionClearStorage(CdpTab &tab, const nlohmann::json &params)
 {
     auto kind = params.value("kind", "local");
     auto storageObj = (kind == "session") ? "sessionStorage" : "localStorage";
@@ -3545,7 +3552,7 @@ std::string actionClearStorage(CdpTab &tab, const nlohmann::json &params)
     return kind + " storage cleared.";
 }
 
-std::string actionSetOffline(CdpTab &tab, const nlohmann::json &params)
+static std::string actionSetOffline(CdpTab &tab, const nlohmann::json &params)
 {
     bool enabled = params.value("enabled", true);
 
@@ -3559,7 +3566,7 @@ std::string actionSetOffline(CdpTab &tab, const nlohmann::json &params)
     return "Offline mode " + std::string(enabled ? "enabled" : "disabled") + ".";
 }
 
-std::string actionSetHeaders(CdpTab &tab, const nlohmann::json &params)
+static std::string actionSetHeaders(CdpTab &tab, const nlohmann::json &params)
 {
     auto headers = params.value("headers", nlohmann::json::object());
 
@@ -3575,7 +3582,7 @@ std::string actionSetHeaders(CdpTab &tab, const nlohmann::json &params)
     return "Custom headers set (" + std::to_string(headers.size()) + " headers).";
 }
 
-std::string actionSetCredentials(CdpTab &tab, const nlohmann::json &params)
+static std::string actionSetCredentials(CdpTab &tab, const nlohmann::json &params)
 {
     auto username = params.value("username", "");
     auto password = params.value("password", "");
@@ -3601,7 +3608,7 @@ std::string actionSetCredentials(CdpTab &tab, const nlohmann::json &params)
     return "HTTP credentials set for " + username + ".";
 }
 
-std::string actionSetGeolocation(CdpTab &tab, const nlohmann::json &params)
+static std::string actionSetGeolocation(CdpTab &tab, const nlohmann::json &params)
 {
     bool clear = params.value("clear", false);
 
@@ -3628,7 +3635,7 @@ std::string actionSetGeolocation(CdpTab &tab, const nlohmann::json &params)
     return "Geolocation set to " + std::to_string(latitude) + ", " + std::to_string(longitude) + ".";
 }
 
-std::string actionSetMedia(CdpTab &tab, const nlohmann::json &params)
+static std::string actionSetMedia(CdpTab &tab, const nlohmann::json &params)
 {
     auto media = params.value("media", "");
 
@@ -3649,7 +3656,7 @@ std::string actionSetMedia(CdpTab &tab, const nlohmann::json &params)
     return "Media emulation set to: " + media;
 }
 
-std::string actionSetTimezone(CdpTab &tab, const nlohmann::json &params)
+static std::string actionSetTimezone(CdpTab &tab, const nlohmann::json &params)
 {
     auto timezone = params.value("timezone", "");
 
@@ -3668,7 +3675,7 @@ std::string actionSetTimezone(CdpTab &tab, const nlohmann::json &params)
     return "Timezone set to: " + timezone;
 }
 
-std::string actionSetLocale(CdpTab &tab, const nlohmann::json &params)
+static std::string actionSetLocale(CdpTab &tab, const nlohmann::json &params)
 {
     auto locale = params.value("locale", "");
 
@@ -3684,7 +3691,7 @@ std::string actionSetLocale(CdpTab &tab, const nlohmann::json &params)
     return "Locale set to: " + locale;
 }
 
-std::string actionSetDevice(CdpTab &tab, const nlohmann::json &params)
+static std::string actionSetDevice(CdpTab &tab, const nlohmann::json &params)
 {
     auto device = params.value("device", "");
     bool clear = params.value("clear", false);
@@ -3752,7 +3759,7 @@ std::string actionSetDevice(CdpTab &tab, const nlohmann::json &params)
     return "Error: specify 'device' preset name or 'width'+'height'";
 }
 
-std::string actionDialog(CdpTab &tab, const nlohmann::json &params)
+static std::string actionDialog(CdpTab &tab, const nlohmann::json &params)
 {
     bool accept = params.value("accept", true);
     auto promptText = params.value("prompt_text", "");
@@ -3771,7 +3778,7 @@ std::string actionDialog(CdpTab &tab, const nlohmann::json &params)
     return "Dialog " + std::string(accept ? "accepted" : "dismissed") + ".";
 }
 
-std::string actionUpload(CdpTab &tab, const nlohmann::json &params)
+static std::string actionUpload(CdpTab &tab, const nlohmann::json &params, const ToolContext &context)
 {
     auto selector = params.value("selector", "");
     auto path = params.value("path", "");
@@ -3785,6 +3792,10 @@ std::string actionUpload(CdpTab &tab, const nlohmann::json &params)
     {
         return "Error: 'path' is required for upload action";
     }
+
+    // confine the uploaded file to the workspace so the tool cannot exfiltrate arbitrary local files
+    bool restrict = !context.config || context.config->tools.restrictToWorkspace;
+    path = ToolHelper::validateAndResolvePath(context.projectPath, context.workspacePath, path, context.publicPath, restrict);
 
     if (!std::filesystem::exists(path))
     {
@@ -3832,11 +3843,13 @@ std::string actionUpload(CdpTab &tab, const nlohmann::json &params)
     return "File uploaded: " + path;
 }
 
+}; // struct BrowserActions
+
 } // anonymous namespace
 
 // ── BrowserTool public interface ───────────────────────────────────────────
 
-ToolResult BrowserTool::execute(const nlohmann::json &params, const ToolContext & /*context*/)
+ToolResult BrowserTool::execute(const nlohmann::json &params, const ToolContext &context)
 {
     auto action = params.value("action", "");
 
@@ -3862,58 +3875,58 @@ ToolResult BrowserTool::execute(const nlohmann::json &params, const ToolContext 
         // lifecycle actions (no tab needed)
         if (action == "status")
         {
-            return actionStatus();
+            return BrowserActions::actionStatus();
         }
 
         if (action == "start")
         {
-            return actionStart(headless);
+            return BrowserActions::actionStart(headless);
         }
 
         if (action == "stop")
         {
-            return actionStop();
+            return BrowserActions::actionStop();
         }
 
         // tab management actions (browser must be running)
         if (action == "tabs")
         {
-            auto err = ensureBrowser(headless);
+            auto err = BrowserActions::ensureBrowser(headless);
 
             if (!err.empty())
             {
                 return err;
             }
 
-            return actionTabs();
+            return BrowserActions::actionTabs();
         }
 
         if (action == "open")
         {
             auto url = params.value("url", "about:blank");
-            return actionOpen(headless, url);
+            return BrowserActions::actionOpen(headless, url);
         }
 
         if (action == "focus")
         {
-            return actionFocus(params.value("target_id", ""));
+            return BrowserActions::actionFocus(params.value("target_id", ""));
         }
 
         // wait can work without a tab for simple time waits
         if (action == "wait")
         {
-            auto result = ensureTab(headless);
-            return actionWait(result.tab, params);
+            auto result = BrowserActions::ensureTab(headless);
+            return BrowserActions::actionWait(result.tab, params);
         }
 
         // close tab
         if (action == "close")
         {
-            return actionClose(params.value("target_id", ""));
+            return BrowserActions::actionClose(params.value("target_id", ""));
         }
 
         // all remaining actions need a connected tab
-        auto tabResult = ensureTab(headless);
+        auto tabResult = BrowserActions::ensureTab(headless);
 
         if (!tabResult.tab)
         {
@@ -3925,204 +3938,204 @@ ToolResult BrowserTool::execute(const nlohmann::json &params, const ToolContext 
         // navigation
         if (action == "navigate")
         {
-            return actionNavigate(*tab, params.value("url", ""));
+            return BrowserActions::actionNavigate(*tab, params.value("url", ""));
         }
 
         if (action == "back")
         {
-            return actionBack(*tab);
+            return BrowserActions::actionBack(*tab);
         }
 
         if (action == "forward")
         {
-            return actionForward(*tab);
+            return BrowserActions::actionForward(*tab);
         }
 
         if (action == "reload")
         {
-            return actionReload(*tab);
+            return BrowserActions::actionReload(*tab);
         }
 
         if (action == "scroll")
         {
-            return actionScroll(*tab, params);
+            return BrowserActions::actionScroll(*tab, params);
         }
 
         // observation
         if (action == "snapshot")
         {
-            return actionSnapshot(*tab, params);
+            return BrowserActions::actionSnapshot(*tab, params);
         }
 
         if (action == "screenshot")
         {
-            return actionScreenshot(*tab, params);
+            return BrowserActions::actionScreenshot(*tab, params, context);
         }
 
         if (action == "inspect")
         {
-            return actionInspect(*tab);
+            return BrowserActions::actionInspect(*tab);
         }
 
         if (action == "console")
         {
-            return actionConsole(*tab, params);
+            return BrowserActions::actionConsole(*tab, params);
         }
 
         if (action == "errors")
         {
-            return actionErrors(*tab, params);
+            return BrowserActions::actionErrors(*tab, params);
         }
 
         if (action == "requests")
         {
-            return actionRequests(*tab, params);
+            return BrowserActions::actionRequests(*tab, params);
         }
 
         if (action == "response_body")
         {
-            return actionResponseBody(*tab, params);
+            return BrowserActions::actionResponseBody(*tab, params);
         }
 
         if (action == "pdf")
         {
-            return actionPdf(*tab, params);
+            return BrowserActions::actionPdf(*tab, params, context);
         }
 
         // interaction
         if (action == "click")
         {
-            return actionClick(*tab, params);
+            return BrowserActions::actionClick(*tab, params);
         }
 
         if (action == "type")
         {
-            return actionType(*tab, params);
+            return BrowserActions::actionType(*tab, params);
         }
 
         if (action == "press")
         {
-            return actionPress(*tab, params);
+            return BrowserActions::actionPress(*tab, params);
         }
 
         if (action == "hover")
         {
-            return actionHover(*tab, params);
+            return BrowserActions::actionHover(*tab, params);
         }
 
         if (action == "select")
         {
-            return actionSelect(*tab, params);
+            return BrowserActions::actionSelect(*tab, params);
         }
 
         if (action == "fill")
         {
-            return actionFill(*tab, params);
+            return BrowserActions::actionFill(*tab, params);
         }
 
         if (action == "drag")
         {
-            return actionDrag(*tab, params);
+            return BrowserActions::actionDrag(*tab, params);
         }
 
         if (action == "scroll_into_view")
         {
-            return actionScrollIntoView(*tab, params);
+            return BrowserActions::actionScrollIntoView(*tab, params);
         }
 
         if (action == "resize")
         {
-            return actionResize(*tab, params);
+            return BrowserActions::actionResize(*tab, params);
         }
 
         // evaluation
         if (action == "evaluate")
         {
-            return actionEvaluate(*tab, params.value("script", ""));
+            return BrowserActions::actionEvaluate(*tab, params.value("script", ""));
         }
 
         // cookies
         if (action == "cookies")
         {
-            return actionGetCookies(*tab, params);
+            return BrowserActions::actionGetCookies(*tab, params);
         }
 
         if (action == "set_cookie")
         {
-            return actionSetCookie(*tab, params);
+            return BrowserActions::actionSetCookie(*tab, params);
         }
 
         if (action == "clear_cookies")
         {
-            return actionClearCookies(*tab);
+            return BrowserActions::actionClearCookies(*tab);
         }
 
         // storage
         if (action == "get_storage")
         {
-            return actionGetStorage(*tab, params);
+            return BrowserActions::actionGetStorage(*tab, params);
         }
 
         if (action == "set_storage")
         {
-            return actionSetStorage(*tab, params);
+            return BrowserActions::actionSetStorage(*tab, params);
         }
 
         if (action == "clear_storage")
         {
-            return actionClearStorage(*tab, params);
+            return BrowserActions::actionClearStorage(*tab, params);
         }
 
         // emulation
         if (action == "set_offline")
         {
-            return actionSetOffline(*tab, params);
+            return BrowserActions::actionSetOffline(*tab, params);
         }
 
         if (action == "set_headers")
         {
-            return actionSetHeaders(*tab, params);
+            return BrowserActions::actionSetHeaders(*tab, params);
         }
 
         if (action == "set_credentials")
         {
-            return actionSetCredentials(*tab, params);
+            return BrowserActions::actionSetCredentials(*tab, params);
         }
 
         if (action == "set_geolocation")
         {
-            return actionSetGeolocation(*tab, params);
+            return BrowserActions::actionSetGeolocation(*tab, params);
         }
 
         if (action == "set_media")
         {
-            return actionSetMedia(*tab, params);
+            return BrowserActions::actionSetMedia(*tab, params);
         }
 
         if (action == "set_timezone")
         {
-            return actionSetTimezone(*tab, params);
+            return BrowserActions::actionSetTimezone(*tab, params);
         }
 
         if (action == "set_locale")
         {
-            return actionSetLocale(*tab, params);
+            return BrowserActions::actionSetLocale(*tab, params);
         }
 
         if (action == "set_device")
         {
-            return actionSetDevice(*tab, params);
+            return BrowserActions::actionSetDevice(*tab, params);
         }
 
         // file/dialog handling
         if (action == "dialog")
         {
-            return actionDialog(*tab, params);
+            return BrowserActions::actionDialog(*tab, params);
         }
 
         if (action == "upload")
         {
-            return actionUpload(*tab, params);
+            return BrowserActions::actionUpload(*tab, params, context);
         }
 
         return "Error: unknown action: " + action;

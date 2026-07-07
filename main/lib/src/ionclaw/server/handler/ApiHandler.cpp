@@ -337,11 +337,8 @@ void ApiHandler::routeRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
         std::string name = (slash != std::string::npos) ? checkSuffix.substr(slash + 1) : "";
         if (!name.empty())
         {
-            // decode URL-encoded parameters (e.g. names with special characters)
-            std::string decodedSource, decodedName;
-            Poco::URI::decode(source, decodedSource);
-            Poco::URI::decode(name, decodedName);
-            routes->handleMarketplaceCheck(req, resp, decodedSource, decodedName);
+            // path already comes url-decoded from Poco::URI::getPath, so a second decode would let %252e bypass the traversal guard
+            routes->handleMarketplaceCheck(req, resp, source, name);
             return;
         }
     }

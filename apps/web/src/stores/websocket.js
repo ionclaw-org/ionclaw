@@ -26,7 +26,8 @@ export const useWebSocketStore = defineStore('websocket', () => {
     connected.value = false
 
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
-    ws = new WebSocket(`${proto}//${location.host}/ws?token=${auth.token}`)
+    // pass the token as a subprotocol instead of a query string so it never lands in server access logs or history
+    ws = new WebSocket(`${proto}//${location.host}/ws`, ['access_token', auth.token])
 
     ws.onopen = () => {
       connected.value = true

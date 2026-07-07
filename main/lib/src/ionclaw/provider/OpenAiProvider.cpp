@@ -234,12 +234,14 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
         }
         else
         {
-            std::map<std::string, int> budgets = {{"low", 2048}, {"medium", 8192}, {"high", 32768}};
-            auto it = budgets.find(thinkingLevel);
-            int budget = (it != budgets.end()) ? it->second : 8192;
+            // openai-compatible providers use the standard reasoning_effort field, not anthropic's thinking block which they reject
+            std::string effort = thinkingLevel == "adaptive" ? "medium" : thinkingLevel;
 
-            body["thinking"] = {{"type", "enabled"}, {"budget_tokens", budget}};
-            body["temperature"] = 1; // required for extended thinking
+            if (effort == "low" || effort == "medium" || effort == "high")
+            {
+                body["reasoning_effort"] = effort;
+                body["temperature"] = 1; // openai reasoning models only accept the default temperature
+            }
         }
     }
 
@@ -673,6 +675,32 @@ void OpenAiProvider::chatStream(const ChatCompletionRequest &request, StreamCall
         }
     }, isCancelled);
     // clang-format on
+
+    // some openai-compatible servers close the stream without a [DONE] sentinel, so flush any pending state on stream end
+    if (!doneEmitted)
+    {
+        if (!pendingToolCalls.empty() && actualFinishReason != "length")
+        {
+            for (auto &[index, ptc] : pendingToolCalls)
+            {
+                ToolCall tc;
+                tc.id = ProviderHelper::sanitizeToolCallId(ptc.id);
+                tc.name = ptc.name;
+                tc.arguments = ProviderHelper::repairJsonArgs(ptc.arguments);
+
+                StreamChunk chunk;
+                chunk.type = "tool_call";
+                chunk.toolCall = tc;
+                callback(chunk);
+            }
+        }
+
+        StreamChunk chunk;
+        chunk.type = "done";
+        chunk.finishReason = actualFinishReason.empty() ? "stop" : actualFinishReason;
+        callback(chunk);
+        doneEmitted = true;
+    }
 }
 
 } // namespace provider

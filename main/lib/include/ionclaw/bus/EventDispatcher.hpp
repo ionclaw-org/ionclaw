@@ -30,6 +30,7 @@ private:
     std::mutex mutex;
     std::condition_variable idle;
     int broadcasting = 0;
+    static thread_local int broadcastDepth;
 };
 
 } // namespace bus

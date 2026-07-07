@@ -115,7 +115,7 @@ void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
         {
             for (auto &[fieldName, fieldValue] : cred.raw.items())
             {
-                if (knownFields.count(fieldName) > 0)
+                if (knownFields.contains(fieldName))
                 {
                     continue;
                 }
@@ -410,7 +410,7 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
                     auto ws = agentData["workspace"].get<std::string>();
 
                     // strip projectPath prefix to keep it relative
-                    if (!config->projectPath.empty() && ws.rfind(config->projectPath, 0) == 0)
+                    if (!config->projectPath.empty() && ws.starts_with(config->projectPath))
                     {
                         ws = ws.substr(config->projectPath.size());
 

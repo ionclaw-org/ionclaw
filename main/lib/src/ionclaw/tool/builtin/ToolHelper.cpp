@@ -47,7 +47,7 @@ bool ToolHelper::isPathWithinWorkspace(const std::string &workspacePath, const s
         workspace += '/';
     }
 
-    return target == workspace.substr(0, workspace.size() - 1) || target.rfind(workspace, 0) == 0;
+    return target == workspace.substr(0, workspace.size() - 1) || target.starts_with(workspace);
 }
 
 std::string ToolHelper::validateAndResolvePath(const std::string &projectPath, const std::string &workspacePath, const std::string &rawPath, const std::string &publicPath, bool restrictToWorkspace)
@@ -120,7 +120,7 @@ std::string ToolHelper::toRelativePath(const std::string &absolutePath, const st
         root += '/';
     }
 
-    if (abs.rfind(root, 0) == 0)
+    if (abs.starts_with(root))
     {
         return abs.substr(root.size());
     }

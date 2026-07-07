@@ -166,7 +166,8 @@ SessionQueue::SessionQueueState &SessionQueue::getOrCreate(const std::string &se
 
 bool SessionQueue::applyDropPolicy(SessionQueueState &state, const std::string &content)
 {
-    if (state.items.size() < static_cast<size_t>(state.cap))
+    // a non-positive cap would wrap to a huge size_t and disable the limit, so treat it as accept-all explicitly
+    if (state.cap <= 0 || state.items.size() < static_cast<size_t>(state.cap))
     {
         return true;
     }

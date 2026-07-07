@@ -4,6 +4,7 @@
 #include <string>
 
 #include "Poco/Net/HTTPServer.h"
+#include "Poco/ThreadPool.h"
 
 #include "ionclaw/config/Config.hpp"
 #include "ionclaw/mcp/McpDispatcher.hpp"
@@ -33,6 +34,7 @@ private:
     ionclaw::config::ServerConfig serverConfig;
     std::string webDir;
     std::string publicDir;
+    std::unique_ptr<Poco::ThreadPool> threadPool;
     std::unique_ptr<Poco::Net::HTTPServer> server;
 };
 

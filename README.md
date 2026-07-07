@@ -8,7 +8,7 @@
 
 <p align="center">
     <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-yellow?style=flat-square" alt="License: MIT"></a>
-    <a href="https://en.cppreference.com/w/cpp/17"><img src="https://img.shields.io/badge/C%2B%2B-17-blue?style=flat-square" alt="C++17"></a>
+    <a href="https://en.cppreference.com/w/cpp/20"><img src="https://img.shields.io/badge/C%2B%2B-20-blue?style=flat-square" alt="C++20"></a>
     <a href="https://cmake.org/"><img src="https://img.shields.io/badge/CMake-3.20%2B-brightgreen?style=flat-square" alt="CMake 3.20+"></a>
 </p>
 
@@ -65,7 +65,7 @@ See [screenshots](docs/screenshots.md) for some platforms running IonClaw.
 
 ## Quick Start
 
-**Requirements:** CMake 3.20+, C++17 compiler, Node.js 18+ (for web client).
+**Requirements:** CMake 3.20+, C++20 compiler, Node.js 18+ (for web client).
 
 ```bash
 git clone https://github.com/ionclaw-org/ionclaw.git

@@ -894,6 +894,17 @@ void SessionManager::evictIfNeeded()
     {
         auto mtx = getSessionMutex(snapshot.key);
         std::lock_guard<std::mutex> lock(*mtx);
+
+        // skip if the session was recreated after eviction, since the live session owns the file and our stale snapshot would clobber it
+        {
+            std::lock_guard<std::mutex> glock(globalMutex);
+
+            if (cache.find(snapshot.key) != cache.end())
+            {
+                continue;
+            }
+        }
+
         writeSessionFile(snapshot);
     }
 

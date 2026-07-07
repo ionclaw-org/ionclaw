@@ -293,7 +293,7 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
         auto ext = fs::path(path).extension().string();
         ionclaw::util::StringHelper::toLowerInPlace(ext);
 
-        if (AUDIO_EXTENSIONS.count(ext) == 0)
+        if (AUDIO_EXTENSIONS.contains(ext) == 0)
         {
             continue;
         }
@@ -1247,7 +1247,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
                 // tool call deduplication: skip if identical call was already executed in this iteration
                 auto fingerprint = tc.name + ":" + tc.arguments.dump();
 
-                if (turnState.recentToolFingerprints.count(fingerprint) > 0)
+                if (turnState.recentToolFingerprints.contains(fingerprint))
                 {
                     spdlog::debug("[AgentLoop] Skipping duplicate tool call: {}", tc.name);
                     ContextBuilder::addToolResult(messages, tc.id, tc.name, "[duplicate call skipped]");
@@ -1299,7 +1299,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
                 auto requestedTool = tc.name;
                 ionclaw::util::StringHelper::toLowerInPlace(requestedTool);
 
-                if (allowedTools.count(requestedTool) == 0)
+                if (allowedTools.contains(requestedTool) == 0)
                 {
                     spdlog::warn("[AgentLoop] Tool {} is not permitted for agent {}", tc.name, effectiveName);
                     ContextBuilder::addToolResult(messages, tc.id, tc.name, "Error: tool '" + tc.name + "' is not available to this agent");
@@ -1318,7 +1318,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
                     hookCtx.data = {
                         {"tool", tc.name},
                         {"arguments", args},
-                        {"success", result.text.rfind("Error", 0) != 0},
+                        {"success", !result.text.starts_with("Error")},
                     };
                     hookRunnerPtr->run(HookPoint::AfterToolCall, hookCtx);
                 }

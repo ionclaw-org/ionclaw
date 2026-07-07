@@ -471,11 +471,11 @@ std::string ContextBuilder::buildMediaAnnotation(const std::vector<nlohmann::jso
                 mime = "application/pdf";
         }
 
-        if (mime.rfind("audio/", 0) == 0)
+        if (mime.starts_with("audio/"))
         {
             annotation += "\n[media attached: " + path + " (" + mime + ") — audio already transcribed above]";
         }
-        else if (mime.rfind("image/", 0) == 0)
+        else if (mime.starts_with("image/"))
         {
             annotation += "\n[image attached: " + path + " — use vision tool with path=\"" + path + "\" to analyze]";
         }
@@ -699,11 +699,8 @@ std::string ContextBuilder::buildSubagentContext(int depth, int maxDepth)
     return ctx.str();
 }
 
-namespace
-{
-
 // detect error/diagnostic content in the tail of a tool result
-bool hasImportantTail(const std::string &content, size_t scanBytes = 2000)
+bool ContextBuilder::hasImportantTail(const std::string &content, size_t scanBytes)
 {
     static const std::vector<std::string> patterns = {
         "error",
@@ -745,8 +742,6 @@ bool hasImportantTail(const std::string &content, size_t scanBytes = 2000)
 
     return false;
 }
-
-} // anonymous namespace
 
 void ContextBuilder::enforceToolResultBudget(std::vector<ionclaw::provider::Message> &messages, int maxTotalChars)
 {
@@ -968,7 +963,7 @@ void ContextBuilder::repairToolUseResultPairing(std::vector<ionclaw::provider::M
             }
 
             // drop duplicate tool results
-            if (seenResultIds.count(msg.toolCallId) > 0)
+            if (seenResultIds.contains(msg.toolCallId))
             {
                 spdlog::debug("[ContextBuilder] Dropping duplicate tool result (id={})", msg.toolCallId);
                 continue;

@@ -70,7 +70,7 @@ void TelegramRunner::startTypingTicker(const std::string &chatId)
         std::lock_guard<std::mutex> lock(typingMutex);
 
         // already ticking for this chat
-        if (typingActive.count(chatId) && typingActive[chatId])
+        if (typingActive.contains(chatId) && typingActive[chatId])
         {
             return;
         }
@@ -93,7 +93,7 @@ void TelegramRunner::startTypingTicker(const std::string &chatId)
     std::lock_guard<std::mutex> lock(typingMutex);
 
     // a concurrent start may have reactivated this chat while we joined
-    if (typingActive.count(chatId) && typingActive[chatId])
+    if (typingActive.contains(chatId) && typingActive[chatId])
     {
         return;
     }

@@ -65,7 +65,7 @@ void WebSocketManager::broadcast(const std::string &eventType, const nlohmann::j
         {
             std::lock_guard<std::mutex> sendLock(conn->sendMutex);
 
-            // poco sendFrame expects int for size; clamp to INT_MAX to prevent overflow
+            // clamp to int max because poco sendFrame takes an int size and would otherwise overflow
             auto frameSize = std::min(payload.size(), static_cast<size_t>(std::numeric_limits<int>::max()));
             conn->socket.sendFrame(payload.data(), static_cast<int>(frameSize), Poco::Net::WebSocket::FRAME_TEXT);
         }

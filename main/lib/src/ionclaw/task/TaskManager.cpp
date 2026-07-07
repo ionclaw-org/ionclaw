@@ -57,9 +57,11 @@ Task TaskManager::createTask(const std::string &title, const std::string &descri
 
         tasks[task.id] = task;
         snapshot = task;
+
+        // persist under the lock so concurrent mutations never append out of order and revert a later state
+        appendToFile(snapshot);
     }
 
-    appendToFile(snapshot);
     broadcastUpdate(snapshot);
 
     spdlog::info("[TaskManager] Task created: {}", snapshot.id);
@@ -86,9 +88,11 @@ void TaskManager::mutateTask(const std::string &taskId, const char *caller, Muta
         it->second.updatedAt = util::TimeHelper::now();
         mutate(it->second);
         snapshot = it->second;
+
+        // persist under the lock so concurrent mutations never append out of order and revert a later state
+        appendToFile(snapshot);
     }
 
-    appendToFile(snapshot);
     broadcastUpdate(snapshot);
 }
 

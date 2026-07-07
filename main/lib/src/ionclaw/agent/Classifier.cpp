@@ -34,7 +34,7 @@ std::string Classifier::classify(const std::string &message, const std::string &
     }
 
     // prefer "main" agent as default, fallback to first configured
-    std::string defaultAgent = agents.count("main") ? "main" : agents.begin()->first;
+    std::string defaultAgent = agents.contains("main") ? "main" : agents.begin()->first;
 
     // build tool-based classification
     std::ostringstream systemPrompt;

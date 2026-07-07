@@ -8,9 +8,13 @@
 #include "Poco/Net/HTTPClientSession.h"
 #include "Poco/Net/HTTPRequest.h"
 #include "Poco/Net/HTTPResponse.h"
+#include "Poco/Net/SocketAddress.h"
+#include "Poco/Net/StreamSocket.h"
 #include "Poco/StreamCopier.h"
 #include "Poco/URI.h"
 #include "spdlog/spdlog.h"
+
+#include "ionclaw/util/SsrfGuard.hpp"
 
 #ifdef IONCLAW_HAS_SSL
 #include "Poco/Net/Context.h"
@@ -277,7 +281,7 @@ void HttpClient::postStream(const std::string &path, const std::string &body, St
         }
 
         // parse SSE data lines
-        if (line.rfind("data: ", 0) == 0)
+        if (line.starts_with("data: "))
         {
             auto data = line.substr(6);
             callback(data);
@@ -327,6 +331,12 @@ HttpResponse HttpClient::request(const std::string &method, const std::string &u
             session->sendRequest(request);
         }
 
+        // revalidate the ip we actually connected to, closing the dns-rebinding window for ssrf callers and blocking any redirect into a private range
+        if (redirectValidator || redirect > 0)
+        {
+            SsrfGuard::validatePeerAddress(session->socket().peerAddress().host());
+        }
+
         Poco::Net::HTTPResponse response;
         auto &rs = session->receiveResponse(response);
 
@@ -345,7 +355,7 @@ HttpResponse HttpClient::request(const std::string &method, const std::string &u
             // resolve relative redirects
             Poco::URI prevUri(currentUrl);
 
-            if (location.rfind("http", 0) != 0)
+            if (!location.starts_with("http"))
             {
                 Poco::URI resolved(prevUri, location);
                 currentUrl = resolved.toString();
@@ -361,9 +371,9 @@ HttpResponse HttpClient::request(const std::string &method, const std::string &u
                 redirectValidator(currentUrl);
             }
 
-            // strip authorization on cross-domain redirects to prevent credential leak
+            // strip authorization on any host, scheme, or port change so credentials never leak across origins or over a downgrade to http
             Poco::URI nextUri(currentUrl);
-            if (nextUri.getHost() != prevUri.getHost())
+            if (nextUri.getHost() != prevUri.getHost() || nextUri.getScheme() != prevUri.getScheme() || nextUri.getPort() != prevUri.getPort())
             {
                 activeHeaders.erase("Authorization");
                 activeHeaders.erase("authorization");

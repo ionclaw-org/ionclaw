@@ -223,11 +223,17 @@ void Routes::handleMarketplaceInstall(Poco::Net::HTTPServerRequest &req, Poco::N
 
                 fs::path outputPath = targetDir / relativePath;
 
-                // zip slip protection: verify resolved path is within target directory
+                // zip slip protection: verify the resolved path is within the target directory
                 auto resolvedOutput = fs::weakly_canonical(outputPath).string();
                 auto resolvedTarget = fs::weakly_canonical(targetDir).string();
 
-                if (resolvedOutput.rfind(resolvedTarget, 0) != 0)
+                // append the separator so a sibling like target-evil cannot pass the prefix check
+                if (!resolvedTarget.empty() && resolvedTarget.back() != static_cast<char>(fs::path::preferred_separator))
+                {
+                    resolvedTarget += static_cast<char>(fs::path::preferred_separator);
+                }
+
+                if (!resolvedOutput.starts_with(resolvedTarget))
                 {
                     spdlog::warn("[Routes] Zip entry escapes target dir: {}", entryName);
                     continue;

@@ -1,5 +1,7 @@
 #include "ionclaw/server/handler/WebSocketHandler.hpp"
 
+#include <vector>
+
 #include "Poco/Net/HTTPServerRequest.h"
 #include "Poco/Net/HTTPServerResponse.h"
 #include "Poco/Net/WebSocket.h"
@@ -30,16 +32,37 @@ void WebSocketHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Ne
 
     try
     {
-        // extract token from query parameter
-        Poco::URI uri(req.getURI());
+        // read the token from the websocket subprotocol so it never lands in a url or an access log
         std::string token;
+        auto protoHeader = req.get("Sec-WebSocket-Protocol", "");
 
-        for (const auto &param : uri.getQueryParameters())
+        // the client offers the marker protocol followed by the bearer token as the second entry
+        std::vector<std::string> protocols;
+        std::string current;
+
+        for (char c : protoHeader)
         {
-            if (param.first == "token")
+            if (c == ',')
             {
-                token = param.second;
+                protocols.push_back(current);
+                current.clear();
+                continue;
             }
+
+            if (c != ' ' && c != '\t')
+            {
+                current += c;
+            }
+        }
+
+        if (!current.empty())
+        {
+            protocols.push_back(current);
+        }
+
+        if (protocols.size() >= 2 && protocols[0] == "access_token")
+        {
+            token = protocols[1];
         }
 
         // verify authentication
@@ -49,6 +72,9 @@ void WebSocketHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Ne
             resp.send();
             return;
         }
+
+        // echo the marker protocol so the browser accepts the negotiated subprotocol
+        resp.set("Sec-WebSocket-Protocol", "access_token");
 
         // upgrade to websocket
         Poco::Net::WebSocket ws(req, resp);

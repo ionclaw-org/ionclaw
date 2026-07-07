@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onBeforeUnmount } from 'vue'
 import Button from 'primevue/button'
 import Textarea from 'primevue/textarea'
 import { useChatStore } from '../../stores/chat'
@@ -10,6 +10,7 @@ const fileInput = ref(null)
 const recording = ref(false)
 const canRecord = computed(() => !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined')
 let mediaRecorder = null
+let mediaStream = null
 let audioChunks = []
 
 function handleSend() {
@@ -69,6 +70,7 @@ async function toggleRecording() {
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    mediaStream = stream
     audioChunks = []
     const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
     mediaRecorder = new MediaRecorder(stream, { mimeType })
@@ -98,6 +100,14 @@ async function toggleRecording() {
     recording.value = false
   }
 }
+
+// release the microphone if the component unmounts while a recording is still active
+onBeforeUnmount(() => {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop()
+  }
+  mediaStream?.getTracks().forEach((t) => t.stop())
+})
 </script>
 
 <template>

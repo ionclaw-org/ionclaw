@@ -36,7 +36,7 @@ std::string Routes::resolveWorkspaceForSkill(const std::string &skillName) const
     auto rootLoader = createSkillsLoader(*config, "");
     auto rootSkills = rootLoader.discoverSkills();
 
-    if (rootSkills.count(skillName))
+    if (rootSkills.contains(skillName))
     {
         return "";
     }
@@ -54,7 +54,7 @@ std::string Routes::resolveWorkspaceForSkill(const std::string &skillName) const
         auto loader = createSkillsLoader(*config, agentCfg.workspace);
         auto skills = loader.discoverSkills();
 
-        if (skills.count(skillName))
+        if (skills.contains(skillName))
         {
             return agentCfg.workspace;
         }

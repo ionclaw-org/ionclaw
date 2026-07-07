@@ -2,8 +2,12 @@
 import { ref, watch } from 'vue'
 import { MdEditor, MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
+import DOMPurify from 'dompurify'
 import Button from 'primevue/button'
 import { useDark } from '../../composables/useDark'
+
+// md-editor-v3 does not sanitize by default, so run every rendered document through dompurify
+const sanitizeHtml = (html) => DOMPurify.sanitize(html)
 
 const props = defineProps({
   content: { type: String, default: '' },
@@ -52,6 +56,7 @@ function save() {
       :code-style-reverse="false"
       language="en-US"
       :preview="false"
+      :sanitize="sanitizeHtml"
       :toolbars="[
         'bold',
         'underline',
@@ -87,6 +92,7 @@ function save() {
       code-theme="github"
       :code-style-reverse="false"
       language="en-US"
+      :sanitize="sanitizeHtml"
       class="md-preview-fill"
     />
   </div>

@@ -658,7 +658,7 @@ std::string ConfigLoader::toYaml(const Config &config)
             // save workspace as relative path to avoid absolute paths in config
             auto ws = agent.workspace;
 
-            if (!config.projectPath.empty() && ws.rfind(config.projectPath, 0) == 0)
+            if (!config.projectPath.empty() && ws.starts_with(config.projectPath))
             {
                 ws = ws.substr(config.projectPath.size());
 
@@ -847,7 +847,7 @@ std::string ConfigLoader::toYaml(const Config &config)
             {
                 for (auto &[fieldName, fieldValue] : cred.raw.items())
                 {
-                    if (knownFields.count(fieldName) > 0)
+                    if (knownFields.contains(fieldName))
                     {
                         continue;
                     }

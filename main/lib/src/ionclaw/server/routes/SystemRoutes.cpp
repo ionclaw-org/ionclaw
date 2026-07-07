@@ -1,5 +1,6 @@
 #include "ionclaw/server/Routes.hpp"
 
+#include <cstring>
 #include <fstream>
 #include <thread>
 
@@ -84,19 +85,19 @@ void Routes::handleSystemInfo(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
         DWORD size = sizeof(value);
         if (RegQueryValueExA(osKey, "ProductName", nullptr, nullptr, reinterpret_cast<LPBYTE>(value), &size) == ERROR_SUCCESS)
         {
-            productName = value;
+            productName.assign(value, strnlen(value, size));
         }
 
         size = sizeof(value);
         if (RegQueryValueExA(osKey, "DisplayVersion", nullptr, nullptr, reinterpret_cast<LPBYTE>(value), &size) == ERROR_SUCCESS)
         {
-            displayVersion = value;
+            displayVersion.assign(value, strnlen(value, size));
         }
 
         size = sizeof(value);
         if (RegQueryValueExA(osKey, "CurrentBuild", nullptr, nullptr, reinterpret_cast<LPBYTE>(value), &size) == ERROR_SUCCESS)
         {
-            build = value;
+            build.assign(value, strnlen(value, size));
         }
 
         RegCloseKey(osKey);
@@ -203,7 +204,7 @@ void Routes::handleSystemInfo(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
 
         if (RegQueryValueExA(cpuKey, "ProcessorNameString", nullptr, nullptr, reinterpret_cast<LPBYTE>(value), &size) == ERROR_SUCCESS)
         {
-            processorName = value;
+            processorName.assign(value, strnlen(value, size));
         }
 
         RegCloseKey(cpuKey);

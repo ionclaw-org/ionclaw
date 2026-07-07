@@ -37,18 +37,10 @@ struct CommonSamplerDeleter
 
 using CommonSamplerPtr = std::unique_ptr<common_sampler, CommonSamplerDeleter>;
 
-struct SamplerParams
-{
-    int32_t maxTokens = 4096;
-    int32_t topK = 40;
-    int32_t repeatLastN = 64;
-    double temperature = 0.7;
-    double topP = 0.95;
-    double repeatPenalty = 1.1;
-};
+} // namespace
 
 // returns the number of trailing bytes that form an incomplete utf-8 sequence
-size_t incompleteUtf8Tail(const std::string &text)
+size_t LlamaProvider::incompleteUtf8Tail(const std::string &text)
 {
     const size_t n = text.size();
 
@@ -87,12 +79,12 @@ size_t incompleteUtf8Tail(const std::string &text)
     return tail;
 }
 
-bool shouldStop(const std::atomic<bool> &aborted, const CancelPredicate &isCancelled)
+bool LlamaProvider::shouldStop(const std::atomic<bool> &aborted, const CancelPredicate &isCancelled)
 {
     return aborted.load(std::memory_order_relaxed) || (isCancelled && isCancelled());
 }
 
-SamplerParams resolveSamplerParams(const ChatCompletionRequest &request)
+LlamaProvider::SamplerParams LlamaProvider::resolveSamplerParams(const ChatCompletionRequest &request)
 {
     SamplerParams p;
     p.maxTokens = request.maxTokens;
@@ -115,7 +107,7 @@ SamplerParams resolveSamplerParams(const ChatCompletionRequest &request)
 }
 
 // maps the request history and tool definitions into the chat-template input format
-common_chat_templates_inputs buildChatInputs(const ChatCompletionRequest &request)
+common_chat_templates_inputs LlamaProvider::buildChatInputs(const ChatCompletionRequest &request)
 {
     common_chat_templates_inputs inputs;
     inputs.add_generation_prompt = true;
@@ -165,7 +157,7 @@ common_chat_templates_inputs buildChatInputs(const ChatCompletionRequest &reques
 }
 
 // translates our sampling settings and the template's tool-call grammar into a common sampler config
-common_params_sampling buildSamplingParams(const common_chat_params &chatParams, const SamplerParams &params, const llama_vocab *vocab)
+common_params_sampling LlamaProvider::buildSamplingParams(const common_chat_params &chatParams, const SamplerParams &params, const llama_vocab *vocab)
 {
     common_params_sampling sp;
     sp.seed = 0;
@@ -220,7 +212,7 @@ common_params_sampling buildSamplingParams(const common_chat_params &chatParams,
     return sp;
 }
 
-std::vector<llama_token> tokenizePrompt(const llama_vocab *vocab, const std::string &prompt, uint32_t nCtx)
+std::vector<llama_token> LlamaProvider::tokenizePrompt(const llama_vocab *vocab, const std::string &prompt, uint32_t nCtx)
 {
     // a negative return means the buffer was too small and its absolute value is the required size
     std::vector<llama_token> tokens(nCtx);
@@ -247,7 +239,7 @@ std::vector<llama_token> tokenizePrompt(const llama_vocab *vocab, const std::str
 }
 
 // feeds the prompt in n_batch chunks, returning false when the user cancels mid-prefill
-bool prefill(llama_context *ctx, std::vector<llama_token> &tokens, const std::atomic<bool> &aborted, const CancelPredicate &isCancelled)
+bool LlamaProvider::prefill(llama_context *ctx, std::vector<llama_token> &tokens, const std::atomic<bool> &aborted, const CancelPredicate &isCancelled)
 {
     const int32_t nTokens = static_cast<int32_t>(tokens.size());
     const int32_t nBatch = static_cast<int32_t>(llama_n_batch(ctx));
@@ -281,7 +273,7 @@ bool prefill(llama_context *ctx, std::vector<llama_token> &tokens, const std::at
 }
 
 // streams the content and reasoning that appeared since the previous parse, holding back partial utf-8
-void emitContentDeltas(const std::string &generated, common_chat_msg &previous, const common_chat_parser_params &parserParams, std::string &utf8Pending, const StreamCallback &callback)
+void LlamaProvider::emitContentDeltas(const std::string &generated, common_chat_msg &previous, const common_chat_parser_params &parserParams, std::string &utf8Pending, const StreamCallback &callback)
 {
     common_chat_msg current;
 
@@ -328,7 +320,7 @@ void emitContentDeltas(const std::string &generated, common_chat_msg &previous, 
 }
 
 // trims a trailing stop string required by the template and reports whether one matched
-bool stripAdditionalStop(std::string &generated, const std::vector<std::string> &stops)
+bool LlamaProvider::stripAdditionalStop(std::string &generated, const std::vector<std::string> &stops)
 {
     for (const auto &stop : stops)
     {
@@ -346,8 +338,6 @@ bool stripAdditionalStop(std::string &generated, const std::vector<std::string> 
 
     return false;
 }
-
-} // namespace
 
 void LlamaProvider::acquireBackend()
 {

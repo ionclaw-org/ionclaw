@@ -19,11 +19,8 @@ namespace ionclaw
 namespace provider
 {
 
-namespace
-{
-
 // llama runs a local gguf file pointed to by base_url, so it bypasses the credential-based flow
-std::shared_ptr<LlmProvider> makeLlamaProvider(const std::string &modelPath, const nlohmann::json &params)
+std::shared_ptr<LlmProvider> ProviderFactory::makeLlamaProvider(const std::string &modelPath, const nlohmann::json &params)
 {
 #ifdef IONCLAW_HAS_LLAMA_CPP
     if (modelPath.empty())
@@ -39,13 +36,13 @@ std::shared_ptr<LlmProvider> makeLlamaProvider(const std::string &modelPath, con
 #endif
 }
 
-std::string fileNameOf(const std::string &path)
+std::string ProviderFactory::fileNameOf(const std::string &path)
 {
     auto pos = path.find_last_of("/\\");
     return pos == std::string::npos ? path : path.substr(pos + 1);
 }
 
-bool startsWithCaseInsensitive(const std::string &text, const std::string &prefix)
+bool ProviderFactory::startsWithCaseInsensitive(const std::string &text, const std::string &prefix)
 {
     if (prefix.size() > text.size())
     {
@@ -63,7 +60,7 @@ bool startsWithCaseInsensitive(const std::string &text, const std::string &prefi
     return true;
 }
 
-bool isModelFile(const std::string &fileName)
+bool ProviderFactory::isModelFile(const std::string &fileName)
 {
     static const std::string suffix = ".gguf";
 
@@ -76,7 +73,7 @@ bool isModelFile(const std::string &fileName)
 }
 
 // finds the provider whose base_url file name matches the term after "llama/", skipping anything that is not a model file
-const ionclaw::config::ProviderConfig &resolveLlamaProvider(const ionclaw::config::Config &config, const std::string &requested)
+const ionclaw::config::ProviderConfig &ProviderFactory::resolveLlamaProvider(const ionclaw::config::Config &config, const std::string &requested)
 {
     for (const auto &[key, provider] : config.providers)
     {
@@ -97,8 +94,6 @@ const ionclaw::config::ProviderConfig &resolveLlamaProvider(const ionclaw::confi
 
     throw std::runtime_error("[ProviderFactory] no provider has a model file matching 'llama/" + requested + "'");
 }
-
-} // namespace
 
 std::string ProviderFactory::defaultBaseUrl(const std::string &providerName)
 {

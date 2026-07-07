@@ -94,7 +94,7 @@ std::map<std::string, std::string> EnvironmentHelper::readDotEnv(const std::stri
             continue;
         }
 
-        if (entry.rfind("export ", 0) == 0)
+        if (entry.starts_with("export "))
         {
             entry = StringHelper::trim(entry.substr(7));
         }

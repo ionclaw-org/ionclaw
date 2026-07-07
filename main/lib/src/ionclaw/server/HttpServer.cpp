@@ -32,16 +32,20 @@ void HttpServer::start()
     socket.bind(address, true);
     socket.listen(64);
 
-    // configure thread pool
+    // websocket and sse handlers each hold their worker thread for the whole connection, so size the pool for many long-lived clients
+    static constexpr int MAX_SERVER_THREADS = 128;
+
     auto params = new Poco::Net::HTTPServerParams;
-    params->setMaxQueued(64);
-    params->setMaxThreads(16);
+    params->setMaxQueued(256);
+    params->setMaxThreads(MAX_SERVER_THREADS);
     params->setThreadIdleTime(Poco::Timespan(10, 0));
+
+    threadPool = std::make_unique<Poco::ThreadPool>(8, MAX_SERVER_THREADS, 10);
 
     // create and start server with request handler factory
     auto factory = new handler::RequestHandlerFactory(routes, auth, wsManager, mcpDispatcher, webDir, publicDir);
 
-    server = std::make_unique<Poco::Net::HTTPServer>(factory, socket, params);
+    server = std::make_unique<Poco::Net::HTTPServer>(factory, *threadPool, socket, params);
     server->start();
 
     spdlog::info("[HttpServer] HTTP server started on {}:{}", serverConfig.host, serverConfig.port);
@@ -51,8 +55,14 @@ void HttpServer::stop()
 {
     if (server)
     {
-        server->stop();
+        // abort current connections so long-lived websocket and sse handlers unblock instead of hanging shutdown
+        server->stopAll(true);
         spdlog::info("[HttpServer] HTTP server stopped");
+    }
+
+    if (threadPool)
+    {
+        threadPool->joinAll();
     }
 }
 

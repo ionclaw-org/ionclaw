@@ -92,7 +92,7 @@ nlohmann::json McpClientTool::sendRpcRequest(const std::string &url, const nlohm
                 line.pop_back();
             }
 
-            if (line.rfind("data: ", 0) == 0)
+            if (line.starts_with("data: "))
             {
                 lastData = line.substr(6);
             }

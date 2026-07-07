@@ -7,6 +7,7 @@
 #include "ionclaw/tool/builtin/ToolHelper.hpp"
 #include "ionclaw/util/PipeGuard.hpp"
 #include "ionclaw/util/StringHelper.hpp"
+#include "ionclaw/util/UniqueId.hpp"
 #include "nlohmann/json.hpp"
 #include "spdlog/spdlog.h"
 
@@ -29,9 +30,9 @@ std::string LocalTranscriptionProvider::providerName() const
 
 TranscriptionResult LocalTranscriptionProvider::transcribe(const std::string &audioData, const std::string &format, const TranscriptionContext &context) const
 {
-    // write audio to temporary file
+    // write audio to a uniquely named temporary file so concurrent transcriptions never collide
     auto tmpDir = fs::temp_directory_path();
-    auto tmpFile = tmpDir / ("ionclaw_audio_" + std::to_string(std::hash<std::string>{}(audioData.substr(0, 64))) + "." + format);
+    auto tmpFile = tmpDir / ("ionclaw_audio_" + ionclaw::util::UniqueId::uuid() + "." + format);
 
     {
         std::ofstream ofs(tmpFile, std::ios::binary);
