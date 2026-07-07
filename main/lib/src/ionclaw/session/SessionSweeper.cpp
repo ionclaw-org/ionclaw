@@ -78,7 +78,7 @@ void SessionSweeper::sweepIfNeeded(const std::vector<std::string> &excludeFilena
         if (entry.is_regular_file() && entry.path().extension() == ".jsonl")
         {
             // skip files for sessions currently active in cache
-            if (excluded.contains(entry.path().filename().string()) > 0)
+            if (excluded.contains(entry.path().filename().string()))
             {
                 continue;
             }

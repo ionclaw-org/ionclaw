@@ -76,7 +76,9 @@ const elapsed = computed(() => {
   const start = props.task.started_at || props.task.created_at
   if (!start) return 0
   const startMs = new Date(start).getTime()
+  if (Number.isNaN(startMs)) return 0
   const end = props.task.state === 'DOING' ? now.value : new Date(props.task.updated_at).getTime()
+  if (Number.isNaN(end)) return 0
   return Math.max(0, end - startMs)
 })
 

@@ -61,9 +61,14 @@ void Routes::handleSchedulerCreate(Poco::Net::HTTPServerRequest &req, Poco::Net:
         auto to = body.value("to", "");
 
         // a cron job without its own zone inherits the configured timezone so it matches the assistant's clock
-        if (timezone.empty() && !cronExpr.empty() && !config->timezone.empty())
+        if (timezone.empty() && !cronExpr.empty())
         {
-            timezone = config->timezone;
+            std::lock_guard<std::mutex> lock(configMutex);
+
+            if (!config->timezone.empty())
+            {
+                timezone = config->timezone;
+            }
         }
 
         if (message.empty())
@@ -155,7 +160,7 @@ void Routes::handleSchedulerCreate(Poco::Net::HTTPServerRequest &req, Poco::Net:
             return;
         }
 
-        auto job = cronService->addJob(name, schedule, message, true, channel, to, deleteAfterRun);
+        auto job = cronService->addJob(name, schedule, message, channel, to, deleteAfterRun);
 
         sendJson(resp, {{"status", "ok"}, {"id", job.id}});
     }
@@ -177,6 +182,17 @@ void Routes::handleSchedulerUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net:
         auto everySeconds = body.value("every_seconds", 0);
         auto at = body.value("at", "");
         auto timezone = body.value("timezone", "");
+
+        // a cron job without its own zone inherits the configured timezone so an edit does not silently drop it
+        if (timezone.empty() && !cronExpr.empty())
+        {
+            std::lock_guard<std::mutex> lock(configMutex);
+
+            if (!config->timezone.empty())
+            {
+                timezone = config->timezone;
+            }
+        }
 
         if (!timezone.empty() && cronExpr.empty())
         {

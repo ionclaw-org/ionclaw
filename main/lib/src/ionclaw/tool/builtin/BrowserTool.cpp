@@ -27,8 +27,11 @@
 #include <signal.h>
 #if !defined(__ANDROID__) && !defined(IONCLAW_NO_PROCESS_EXEC)
 #include <spawn.h>
+#include <sys/wait.h>
 extern char **environ;
 #endif
+#else
+#include <windows.h>
 #endif
 
 #include "Poco/Net/HTTPClientSession.h"
@@ -42,6 +45,7 @@ extern char **environ;
 #include "ionclaw/config/Config.hpp"
 #include "ionclaw/tool/builtin/ToolHelper.hpp"
 #include "ionclaw/util/Base64.hpp"
+#include "ionclaw/util/UniqueId.hpp"
 #include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/SsrfGuard.hpp"
 #include "ionclaw/util/StringHelper.hpp"
@@ -207,7 +211,7 @@ constexpr int MAX_SNAPSHOT_NODES = 500;
 constexpr int MAX_WAIT_SECONDS = 60;
 constexpr int SLOW_TYPE_DELAY_MS = 75;
 constexpr int DEFAULT_SNAPSHOT_MAX_CHARS = 50000;
-constexpr int MAX_TOOL_RESULT_CHARS = 100000; // safety cap for any tool result
+constexpr int MAX_BROWSER_RESULT_CHARS = 100000; // safety cap for any browser tool result
 constexpr int CHROME_LAUNCH_RETRIES = 30;
 constexpr int CHROME_LAUNCH_RETRY_MS = 200;
 constexpr int EVENT_DRAIN_TIMEOUT_MS = 100;
@@ -329,15 +333,23 @@ public:
             return false;
         }
 
-#ifndef _WIN32
-        // check if process is actually alive
-        if (kill(static_cast<pid_t>(pid.load()), 0) != 0)
+#ifdef _WIN32
+        // the tracked process handle tells us whether the browser we launched is still alive
+        auto handle = chromeProcess.load();
+        return handle != nullptr && WaitForSingleObject(handle, 0) == WAIT_TIMEOUT;
+#elif defined(__ANDROID__) || defined(IONCLAW_NO_PROCESS_EXEC)
+        return false;
+#else
+        // reap the child if it has exited so a zombie is not misread as still running by kill(pid, 0)
+        int status = 0;
+
+        if (waitpid(static_cast<pid_t>(pid.load()), &status, WNOHANG) == static_cast<pid_t>(pid.load()))
         {
             return false;
         }
-#endif
 
-        return true;
+        return kill(static_cast<pid_t>(pid.load()), 0) == 0;
+#endif
     }
 
     std::string launch(bool headless)
@@ -347,8 +359,29 @@ public:
         if (pid > 0)
         {
             // verify process is still alive
-#ifndef _WIN32
-            if (kill(static_cast<pid_t>(pid.load()), 0) == 0)
+#ifdef _WIN32
+            auto handle = chromeProcess.load();
+
+            if (handle != nullptr && WaitForSingleObject(handle, 0) == WAIT_TIMEOUT)
+            {
+                return "";
+            }
+
+            // process died, reset and re-launch
+            spdlog::warn("[BrowserTool] browser: Chrome process {} is dead, re-launching", pid.load());
+
+            if (handle != nullptr)
+            {
+                CloseHandle(handle);
+                chromeProcess = nullptr;
+            }
+
+            pid = 0;
+#elif !defined(__ANDROID__) && !defined(IONCLAW_NO_PROCESS_EXEC)
+            // reap first so an exited-but-unreaped chrome is not misread as alive
+            int status = 0;
+
+            if (waitpid(static_cast<pid_t>(pid.load()), &status, WNOHANG) != static_cast<pid_t>(pid.load()) && kill(static_cast<pid_t>(pid.load()), 0) == 0)
             {
                 return "";
             }
@@ -356,8 +389,6 @@ public:
             // process died, reset and re-launch
             spdlog::warn("[BrowserTool] browser: Chrome process {} is dead, re-launching", pid.load());
             pid = 0;
-#else
-            return "";
 #endif
         }
 
@@ -426,16 +457,20 @@ public:
         cmd << " about:blank";
 
 #ifdef _WIN32
-        // launch detached through start so the call returns immediately instead of blocking on chrome
-        auto cmdStr = "start \"\" /b " + cmd.str() + " >nul 2>&1";
-        auto result = std::system(cmdStr.c_str());
+        // launch via createprocess so the real process handle is tracked, allowing a targeted shutdown instead of killing every chrome
+        std::wstring wideCmd = utf8ToWide(cmd.str());
+        STARTUPINFOW si{};
+        si.cb = sizeof(si);
+        PROCESS_INFORMATION procInfo{};
 
-        if (result != 0)
+        if (!CreateProcessW(nullptr, wideCmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &procInfo))
         {
             return "Error: failed to launch Chrome";
         }
 
-        pid = 1;
+        CloseHandle(procInfo.hThread);
+        chromeProcess = procInfo.hProcess;
+        pid = static_cast<int>(procInfo.dwProcessId);
 #elif defined(__ANDROID__)
         return "Error: browser tool is not supported on Android";
 #elif defined(IONCLAW_NO_PROCESS_EXEC)
@@ -493,9 +528,20 @@ public:
         if (pid > 0)
         {
 #ifdef _WIN32
-            std::system("taskkill /F /IM chrome.exe > nul 2>&1");
+            // terminate only the browser we launched, not every chrome on the machine
+            if (auto handle = chromeProcess.load())
+            {
+                TerminateProcess(handle, 0);
+                CloseHandle(handle);
+                chromeProcess = nullptr;
+            }
 #elif !defined(__ANDROID__) && !defined(IONCLAW_NO_PROCESS_EXEC)
-            kill(static_cast<pid_t>(pid.load()), SIGTERM);
+            auto childPid = static_cast<pid_t>(pid.load());
+            kill(childPid, SIGTERM);
+
+            // reap the terminated child so it does not linger as a zombie
+            int status = 0;
+            waitpid(childPid, &status, 0);
 #endif
             pid = 0;
             spdlog::info("[BrowserTool] browser: Chrome shut down");
@@ -579,8 +625,28 @@ private:
 #endif
     }
 
+#ifdef _WIN32
+    static std::wstring utf8ToWide(const std::string &text)
+    {
+        if (text.empty())
+        {
+            return std::wstring();
+        }
+
+        int count = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+        std::wstring wide(static_cast<size_t>(count), L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), wide.data(), count);
+        return wide;
+    }
+#endif
+
     std::atomic<int> pid{0};
     std::mutex mutex;
+
+#ifdef _WIN32
+    // handle to the chrome process we launched, so shutdown can target it directly
+    std::atomic<void *> chromeProcess{nullptr};
+#endif
 };
 
 // ── CdpTab ─────────────────────────────────────────────────────────────────
@@ -1813,6 +1879,20 @@ static std::filesystem::path browserTempDir()
     if (ec)
     {
         spdlog::error("[BrowserTool] Failed to create temp dir: {}", ec.message());
+        return dir;
+    }
+
+    // prune stale screenshots/pdfs so default-location temp files do not accumulate without bound
+    auto cutoff = std::filesystem::file_time_type::clock::now() - std::chrono::hours(1);
+
+    for (std::filesystem::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec))
+    {
+        std::error_code entryEc;
+
+        if (it->is_regular_file(entryEc) && std::filesystem::last_write_time(it->path(), entryEc) < cutoff && !entryEc)
+        {
+            std::filesystem::remove(it->path(), entryEc);
+        }
     }
 
     return dir;
@@ -1820,9 +1900,8 @@ static std::filesystem::path browserTempDir()
 
 static std::string tempFileName(const std::string &prefix, const std::string &ext)
 {
-    auto now = std::chrono::system_clock::now().time_since_epoch();
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
-    return prefix + "_" + std::to_string(ms) + ext;
+    // a unique id avoids collisions between concurrent captures that a millisecond timestamp would share
+    return prefix + "_" + ionclaw::util::UniqueId::shortId() + ext;
 }
 
 static bool saveToFile(const std::filesystem::path &path, const std::string &data)
@@ -1849,7 +1928,7 @@ static void stbWriteToVector(void *context, void *data, int size)
 }
 #endif
 
-static std::string capResult(std::string text, int maxChars = MAX_TOOL_RESULT_CHARS)
+static std::string capResult(std::string text, int maxChars = MAX_BROWSER_RESULT_CHARS)
 {
     if (maxChars > 0 && text.size() > static_cast<size_t>(maxChars))
     {

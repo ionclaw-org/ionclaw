@@ -40,7 +40,7 @@ struct InteractView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(60)
-        .background(Color(hex: 0x1A1A2E).ignoresSafeArea())
+        .background(Theme.header.ignoresSafeArea())
         .navigationTitle("Talk to IonClaw")
         .defaultFocus($fieldFocused, true)
     }

@@ -131,6 +131,8 @@ if(NOT IONCLAW_BUILD_SHARED AND (WIN32 OR APPLE OR CMAKE_SYSTEM_NAME STREQUAL "L
         set(CPACK_DEB_COMPONENT_INSTALL ON)
         set(CPACK_DEBIAN_PACKAGE_MAINTAINER "IonClaw")
         set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+        # shlibdeps cannot see the runtime zone database, so require tzdata explicitly for iana cron scheduling
+        set(CPACK_DEBIAN_PACKAGE_DEPENDS "tzdata")
         set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
     endif()
 

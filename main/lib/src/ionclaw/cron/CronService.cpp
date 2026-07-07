@@ -9,6 +9,7 @@
 
 #include "ionclaw/bus/Events.hpp"
 #include "ionclaw/cron/CronParser.hpp"
+#include "ionclaw/util/FileHelper.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
 #include "ionclaw/util/UniqueId.hpp"
@@ -57,14 +58,13 @@ void CronService::stop()
     spdlog::info("[CronService] stopped");
 }
 
-CronJob CronService::addJob(const std::string &name, const CronSchedule &schedule, const std::string &message, bool deliver, const std::string &channel, const std::string &to, bool deleteAfterRun)
+CronJob CronService::addJob(const std::string &name, const CronSchedule &schedule, const std::string &message, const std::string &channel, const std::string &to, bool deleteAfterRun)
 {
     CronJob job;
     job.id = ionclaw::util::UniqueId::shortId();
     job.name = name;
     job.schedule = schedule;
     job.payload.message = message;
-    job.payload.deliver = deliver;
     job.payload.channel = channel;
     job.payload.to = to;
     job.state.nextRunMs = computeNextRunMs(schedule);
@@ -323,22 +323,12 @@ void CronService::persist()
             data["jobs"].push_back(jobToJson(job));
         }
 
-        std::ofstream file(storePath);
+        auto error = ionclaw::util::FileHelper::atomicWrite(storePath, data.dump(2));
 
-        if (!file.is_open())
+        if (!error.empty())
         {
-            spdlog::error("[CronService] failed to open file for writing: {}", storePath);
-            return;
+            spdlog::error("[CronService] {}", error);
         }
-
-        file << data.dump(2);
-
-        if (!file.good())
-        {
-            spdlog::error("[CronService] failed to write to file: {}", storePath);
-        }
-
-        file.close();
     }
     catch (const std::exception &e)
     {
@@ -384,7 +374,6 @@ nlohmann::json CronService::jobToJson(const CronJob &job)
           {"tz", job.schedule.tz}}},
         {"payload",
          {{"message", job.payload.message},
-          {"deliver", job.payload.deliver},
           {"channel", job.payload.channel},
           {"to", job.payload.to}}},
         {"state",
@@ -418,7 +407,6 @@ CronJob CronService::jobFromJson(const nlohmann::json &j)
     {
         auto &p = j["payload"];
         job.payload.message = p.value("message", "");
-        job.payload.deliver = p.value("deliver", true);
         job.payload.channel = p.value("channel", "");
         job.payload.to = p.value("to", "");
     }

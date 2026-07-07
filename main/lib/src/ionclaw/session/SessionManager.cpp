@@ -5,8 +5,10 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <set>
 #include <sstream>
 
+#include "ionclaw/util/FileHelper.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
 #include "nlohmann/json.hpp"
@@ -109,14 +111,17 @@ SessionManager::SessionManager(const std::string &sessionsDir, int64_t maxDiskBy
 
 std::shared_ptr<std::mutex> SessionManager::getSessionMutex(const std::string &key)
 {
+    // key the mutex on the on-disk filename so two session keys that sanitize to the same file share one lock and never tear it
+    auto fileKey = sanitizeFilename(key);
+
     std::lock_guard<std::mutex> lock(globalMutex);
 
-    auto it = sessionMutexes.find(key);
+    auto it = sessionMutexes.find(fileKey);
 
     if (it == sessionMutexes.end())
     {
         auto mtx = std::make_shared<std::mutex>();
-        sessionMutexes[key] = mtx;
+        sessionMutexes[fileKey] = mtx;
         return mtx;
     }
 
@@ -630,14 +635,6 @@ void SessionManager::writeSessionFile(const Session &session)
 {
     auto filePath = sessionFilePath(session.key);
 
-    std::ofstream ofs(filePath, std::ios::trunc);
-
-    if (!ofs.is_open())
-    {
-        spdlog::error("[SessionManager] Failed to open session file for save: {}", filePath);
-        return;
-    }
-
     // write metadata
     nlohmann::json meta;
     meta["_type"] = "metadata";
@@ -659,22 +656,20 @@ void SessionManager::writeSessionFile(const Session &session)
     {
         meta["aborted_last_run"] = true;
         meta["abort_cutoff_index"] = session.abortCutoffMessageIndex;
-        meta["abort_cutoff_timestamp"] = session.abortCutoffTimestamp;
     }
 
-    ofs << meta.dump() << "\n";
+    std::string content = meta.dump() + "\n";
 
-    // write messages
     for (const auto &msg : session.messages)
     {
-        ofs << msg.toJson().dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << "\n";
+        content += msg.toJson().dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) + "\n";
     }
 
-    ofs.flush();
+    auto error = ionclaw::util::FileHelper::atomicWrite(filePath, content);
 
-    if (!ofs.good())
+    if (!error.empty())
     {
-        spdlog::error("[SessionManager] Failed to flush session file: {}", filePath);
+        spdlog::error("[SessionManager] {}", error);
     }
 }
 
@@ -714,8 +709,6 @@ void SessionManager::setAbortCutoffAll()
         }
     }
 
-    auto timestamp = util::TimeHelper::now();
-
     for (const auto &key : keys)
     {
         auto mtx = getSessionMutex(key);
@@ -733,7 +726,6 @@ void SessionManager::setAbortCutoffAll()
 
             it->second.abortedLastRun = true;
             it->second.abortCutoffMessageIndex = static_cast<int>(std::min(it->second.messages.size(), static_cast<size_t>(std::numeric_limits<int>::max())));
-            it->second.abortCutoffTimestamp = timestamp;
             snapshot = it->second;
         }
 
@@ -764,7 +756,6 @@ void SessionManager::clearAbortFlag(const std::string &sessionKey)
 
         it->second.abortedLastRun = false;
         it->second.abortCutoffMessageIndex = -1;
-        it->second.abortCutoffTimestamp.clear();
 
         snapshot = it->second;
     }
@@ -913,9 +904,17 @@ void SessionManager::evictIfNeeded()
     {
         std::lock_guard<std::mutex> glock(globalMutex);
 
+        // mutexes are keyed by sanitized filename, so compare against the sanitized filenames of cached sessions
+        std::set<std::string> cachedFileKeys;
+
+        for (const auto &[cachedKey, _] : cache)
+        {
+            cachedFileKeys.insert(sanitizeFilename(cachedKey));
+        }
+
         for (auto it = sessionMutexes.begin(); it != sessionMutexes.end();)
         {
-            if (cache.find(it->first) == cache.end() && it->second.use_count() == 1)
+            if (cachedFileKeys.find(it->first) == cachedFileKeys.end() && it->second.use_count() == 1)
             {
                 it = sessionMutexes.erase(it);
             }
@@ -1053,7 +1052,6 @@ void SessionManager::loadFromDisk(const std::string &sessionKey)
 
                 session.abortedLastRun = j.value("aborted_last_run", false);
                 session.abortCutoffMessageIndex = j.value("abort_cutoff_index", -1);
-                session.abortCutoffTimestamp = j.value("abort_cutoff_timestamp", "");
 
                 firstLine = false;
                 validLines.push_back(line);

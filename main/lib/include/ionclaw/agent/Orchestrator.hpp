@@ -17,7 +17,6 @@
 #include "ionclaw/agent/ContextBuilder.hpp"
 #include "ionclaw/agent/HookRunner.hpp"
 #include "ionclaw/agent/MemoryStore.hpp"
-#include "ionclaw/agent/SkillsLoader.hpp"
 #include "ionclaw/agent/SubagentRegistry.hpp"
 #include "ionclaw/bus/EventDispatcher.hpp"
 #include "ionclaw/bus/MessageBus.hpp"
@@ -76,7 +75,6 @@ private:
     std::map<std::string, std::shared_ptr<AgentLoop>> agentLoops;
     std::map<std::string, std::shared_ptr<ionclaw::provider::LlmProvider>> providers;
     std::map<std::string, std::unique_ptr<ContextBuilder>> contextBuilders;
-    std::map<std::string, std::shared_ptr<SkillsLoader>> skillsLoaders;
 
     std::shared_ptr<SubagentRegistry> subagentRegistry;
     std::shared_ptr<AnnounceQueue> announceQueue;

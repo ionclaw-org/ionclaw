@@ -165,13 +165,34 @@ std::string OpenAiProvider::name() const
     return "openai";
 }
 
+bool OpenAiProvider::isReasoningModel(const std::string &model)
+{
+    auto m = model;
+    ionclaw::util::StringHelper::toLowerInPlace(m);
+
+    // o1/o3/o4 families (o1, o1-mini, o3-mini, o4-mini) and the gpt-5 reasoning family
+    return m.starts_with("o1") || m.starts_with("o3") || m.starts_with("o4") || m.starts_with("gpt-5");
+}
+
 nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &request) const
 {
     // set base request fields
     nlohmann::json body;
-    body["model"] = ProviderHelper::stripProviderPrefix(request.model);
-    body["temperature"] = request.temperature;
-    body["max_tokens"] = request.maxTokens;
+    auto modelName = ProviderHelper::stripProviderPrefix(request.model);
+    body["model"] = modelName;
+
+    // reasoning models use max_completion_tokens and reject a non-default temperature, so they omit both max_tokens and temperature
+    bool reasoningModel = isReasoningModel(modelName);
+
+    if (reasoningModel)
+    {
+        body["max_completion_tokens"] = request.maxTokens;
+    }
+    else
+    {
+        body["temperature"] = request.temperature;
+        body["max_tokens"] = request.maxTokens;
+    }
 
     // apply model params from config
     std::string thinkingLevel;
@@ -189,6 +210,12 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
             {
                 thinkingLevel = value.is_string() ? value.get<std::string>() : "";
                 continue; // handled separately below
+            }
+
+            // reasoning models reject these, so they are not passed through from config
+            if (reasoningModel && (key == "temperature" || key == "max_tokens"))
+            {
+                continue;
             }
 
             body[key] = value;
@@ -228,7 +255,7 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
                     body["reasoning"] = {{"effort", effort}};
                 }
 
-                // remove legacy flat reasoning_effort that conflicts with nested format
+                // remove the flat reasoning_effort field, which conflicts with the nested reasoning.effort format
                 body.erase("reasoning_effort");
             }
         }
@@ -252,6 +279,9 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
     {
         nlohmann::json m;
         m["role"] = msg.role;
+
+        // openai rejects images inside a tool message, so any are carried in a user message pushed right after
+        nlohmann::json pendingImageMessage = nullptr;
 
         // convert assistant messages with tool calls
         if (msg.role == "assistant" && !msg.toolCalls.empty())
@@ -289,10 +319,11 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
                 m["name"] = msg.name;
             }
 
-            // use content blocks with image when available
+            // the tool message keeps only text; images are moved to a following user message so openai accepts the request
             if (msg.contentBlocks.is_array() && !msg.contentBlocks.empty())
             {
-                auto openaiBlocks = nlohmann::json::array();
+                std::string toolText;
+                auto imageBlocks = nlohmann::json::array();
 
                 for (const auto &block : msg.contentBlocks)
                 {
@@ -305,18 +336,28 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
                         nlohmann::json imageBlock;
                         imageBlock["type"] = "image_url";
                         imageBlock["image_url"]["url"] = "data:" + mediaType + ";base64," + data;
-                        openaiBlocks.push_back(imageBlock);
+                        imageBlocks.push_back(imageBlock);
                     }
                     else if (blockType == "text")
                     {
-                        nlohmann::json textBlock;
-                        textBlock["type"] = "text";
-                        textBlock["text"] = block.value("text", "");
-                        openaiBlocks.push_back(textBlock);
+                        if (!toolText.empty())
+                        {
+                            toolText += "\n";
+                        }
+
+                        toolText += block.value("text", "");
                     }
                 }
 
-                m["content"] = openaiBlocks;
+                if (!imageBlocks.empty())
+                {
+                    auto suffix = std::string("[image result included in the following message]");
+                    toolText = toolText.empty() ? suffix : toolText + "\n" + suffix;
+
+                    pendingImageMessage = {{"role", "user"}, {"content", imageBlocks}};
+                }
+
+                m["content"] = toolText;
             }
             else
             {
@@ -374,6 +415,11 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
         }
 
         messages.push_back(m);
+
+        if (!pendingImageMessage.is_null())
+        {
+            messages.push_back(pendingImageMessage);
+        }
     }
 
     // sanitize and validate message ordering
@@ -575,6 +621,14 @@ void OpenAiProvider::chatStream(const ChatCompletionRequest &request, StreamCall
 
             if (!json.contains("choices") || !json["choices"].is_array() || json["choices"].empty())
             {
+                // openai-compatible servers deliver in-band failures as data:{"error":...} over http 200, so surface them instead of ending as a clean stop
+                if (json.contains("error"))
+                {
+                    const auto &err = json["error"];
+                    auto errMsg = err.is_object() ? err.value("message", err.dump()) : err.dump();
+                    throw std::runtime_error("Provider stream error: " + errMsg);
+                }
+
                 // could be a usage-only message
                 if (json.contains("usage"))
                 {

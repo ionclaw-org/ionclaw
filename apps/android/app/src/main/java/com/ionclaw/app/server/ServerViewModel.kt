@@ -41,6 +41,11 @@ class ServerViewModel(application: Application) : AndroidViewModel(application) 
     fun start() {
         if (isBusy || isRunning) return
 
+        if (config.port !in 1..65535) {
+            lastError = "Invalid port ${config.port}: must be between 1 and 65535"
+            return
+        }
+
         isBusy = true
         lastError = null
 

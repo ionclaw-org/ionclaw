@@ -21,7 +21,6 @@ struct SkillInfo
     std::string source;
     std::string publisher;
     std::string location;
-    std::string agent;
 };
 
 class SkillsLoader

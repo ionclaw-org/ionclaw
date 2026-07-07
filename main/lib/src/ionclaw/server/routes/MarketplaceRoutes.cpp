@@ -26,9 +26,13 @@ void Routes::handleMarketplaceTargets(Poco::Net::HTTPServerRequest &, Poco::Net:
     nlohmann::json arr = nlohmann::json::array();
     arr.push_back({{"label", "Project"}, {"value", ""}});
 
-    for (const auto &[name, _] : config->agents)
     {
-        arr.push_back({{"label", name}, {"value", name}});
+        std::lock_guard<std::mutex> lock(configMutex);
+
+        for (const auto &[name, _] : config->agents)
+        {
+            arr.push_back({{"label", name}, {"value", name}});
+        }
     }
 
     sendJson(resp, arr);
@@ -77,29 +81,33 @@ void Routes::handleMarketplaceCheck(Poco::Net::HTTPServerRequest &req, Poco::Net
     // resolve skill path based on agent
     std::string skillPath;
 
-    if (agent.empty())
     {
-        skillPath = config->projectPath + "/skills/" + source + "/" + name + "/SKILL.md";
-    }
-    else
-    {
-        auto it = config->agents.find(agent);
+        std::lock_guard<std::mutex> lock(configMutex);
 
-        if (it == config->agents.end())
+        if (agent.empty())
         {
-            sendJson(resp, {{"installed", false}});
-            return;
+            skillPath = config->projectPath + "/skills/" + source + "/" + name + "/SKILL.md";
         }
-
-        std::string workspace = it->second.workspace;
-
-        if (workspace.empty())
+        else
         {
-            sendJson(resp, {{"installed", false}});
-            return;
-        }
+            auto it = config->agents.find(agent);
 
-        skillPath = workspace + "/skills/" + source + "/" + name + "/SKILL.md";
+            if (it == config->agents.end())
+            {
+                sendJson(resp, {{"installed", false}});
+                return;
+            }
+
+            std::string workspace = it->second.workspace;
+
+            if (workspace.empty())
+            {
+                sendJson(resp, {{"installed", false}});
+                return;
+            }
+
+            skillPath = workspace + "/skills/" + source + "/" + name + "/SKILL.md";
+        }
     }
 
     bool installed = fs::exists(skillPath) && fs::is_regular_file(skillPath);
@@ -130,27 +138,31 @@ void Routes::handleMarketplaceInstall(Poco::Net::HTTPServerRequest &req, Poco::N
         // resolve base directory for skill installation
         std::string baseDir;
 
-        if (agent.empty())
         {
-            baseDir = config->projectPath + "/skills";
-        }
-        else
-        {
-            auto it = config->agents.find(agent);
+            std::lock_guard<std::mutex> lock(configMutex);
 
-            if (it == config->agents.end())
+            if (agent.empty())
             {
-                sendError(resp, "Unknown agent", 404);
-                return;
+                baseDir = config->projectPath + "/skills";
             }
-
-            if (it->second.workspace.empty())
+            else
             {
-                sendError(resp, "Agent has no workspace");
-                return;
-            }
+                auto it = config->agents.find(agent);
 
-            baseDir = it->second.workspace + "/skills";
+                if (it == config->agents.end())
+                {
+                    sendError(resp, "Unknown agent", 404);
+                    return;
+                }
+
+                if (it->second.workspace.empty())
+                {
+                    sendError(resp, "Agent has no workspace");
+                    return;
+                }
+
+                baseDir = it->second.workspace + "/skills";
+            }
         }
 
         // download skill package

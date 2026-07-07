@@ -7,6 +7,7 @@
 
 #include "spdlog/spdlog.h"
 
+#include "ionclaw/util/FileHelper.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 
 namespace ionclaw
@@ -120,19 +121,20 @@ std::map<std::string, std::string> EnvironmentHelper::readDotEnv(const std::stri
 void EnvironmentHelper::writeDotEnv(const std::string &projectPath, const std::map<std::string, std::string> &values)
 {
     auto path = std::filesystem::path(projectPath) / ".env";
-    std::ofstream file(path, std::ios::trunc);
-
-    if (!file.is_open())
-    {
-        spdlog::error("[EnvironmentHelper] Failed to write .env at {}", path.string());
-        return;
-    }
+    std::string content;
 
     for (const auto &[key, value] : values)
     {
         // quote values containing whitespace or comment markers so they round-trip cleanly
         bool quoted = value.find_first_of(" \t#") != std::string::npos;
-        file << key << "=" << (quoted ? "\"" + value + "\"" : value) << "\n";
+        content += key + "=" + (quoted ? "\"" + value + "\"" : value) + "\n";
+    }
+
+    auto error = ionclaw::util::FileHelper::atomicWrite(path.string(), content);
+
+    if (!error.empty())
+    {
+        spdlog::error("[EnvironmentHelper] {}", error);
     }
 }
 

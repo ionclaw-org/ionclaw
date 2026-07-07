@@ -53,7 +53,6 @@ struct Session
 
     bool abortedLastRun = false;
     int abortCutoffMessageIndex = -1;
-    std::string abortCutoffTimestamp;
 
     // transient flag: the user stopped the previous run, consumed once to prime the next turn
     bool stoppedByUser = false;

@@ -57,7 +57,8 @@ bool HttpHelper::hasTraversalSegment(const std::string &path)
 
     while (start <= path.size())
     {
-        auto end = path.find('/', start);
+        // treat both separators as boundaries so a backslash segment cannot escape on windows
+        auto end = path.find_first_of("/\\", start);
         auto segmentLen = (end == std::string::npos ? path.size() : end) - start;
 
         if (path.compare(start, segmentLen, "..") == 0)

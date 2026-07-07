@@ -149,7 +149,19 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
 
                 if (sq)
                 {
-                    auto settings = ionclaw::bus::SessionQueue::resolveQueueSettings(*config, "web", inbound.queueMode);
+                    ionclaw::bus::QueueSettings settings;
+
+                    {
+                        std::lock_guard<std::mutex> lock(configMutex);
+                        settings = ionclaw::bus::SessionQueue::resolveQueueSettings(*config, "web", inbound.queueMode);
+                    }
+
+                    // tag both copies with a shared id so the followup backup is dropped if the steer copy is consumed
+                    if (mode == ionclaw::bus::QueueMode::SteerBacklog)
+                    {
+                        inbound.metadata["backlog_id"] = ionclaw::util::UniqueId::shortId();
+                    }
+
                     sq->enqueue(sessionKey, inbound, ionclaw::bus::QueueMode::Steer, settings);
 
                     // also enqueue followup backup for steer_backlog
@@ -165,7 +177,22 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
         }
 
         // publish to message bus for async processing
-        bus->publishInbound(inbound);
+        auto publishResult = bus->publishInbound(inbound);
+
+        // a rejected message must resolve its task, never leave it pending forever
+        if (publishResult == ionclaw::bus::PublishResult::QueueFull)
+        {
+            taskManager->updateState(task.id, ionclaw::task::TaskState::Error, "Server is busy: too many pending messages. Please retry shortly.");
+            sendError(resp, "Server is busy: too many pending messages. Please retry shortly.", 429);
+            return;
+        }
+
+        if (publishResult == ionclaw::bus::PublishResult::Duplicate)
+        {
+            taskManager->updateState(task.id, ionclaw::task::TaskState::Done, "Duplicate of a recent message, ignored.");
+            sendJson(resp, {{"task_id", task.id}, {"session_id", "web:" + chatId}, {"duplicate", true}});
+            return;
+        }
 
         sendJson(resp, {{"task_id", task.id}, {"session_id", "web:" + chatId}});
     }
@@ -220,11 +247,13 @@ void Routes::handleChatUpload(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
                     if (end != std::string::npos)
                     {
                         auto origName = disp.substr(start, end - start);
-                        auto dotPos = origName.rfind('.');
 
-                        if (dotPos != std::string::npos)
+                        // derive the extension from the basename only, so a crafted filename cannot inject path separators or traversal
+                        auto safeExt = std::filesystem::path(origName).filename().extension().string();
+
+                        if (!safeExt.empty())
                         {
-                            ext = origName.substr(dotPos);
+                            ext = safeExt;
                         }
                     }
                 }

@@ -1,5 +1,7 @@
 #include "ionclaw/tool/builtin/RssReaderTool.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <regex>
 #include <sstream>
 
@@ -103,6 +105,16 @@ ToolResult RssReaderTool::execute(const nlohmann::json &params, const ToolContex
         if (response.body.size() > MAX_FEED_SIZE)
         {
             return "Error: feed too large (max 2MB)";
+        }
+
+        // reject a doctype so internal entity definitions cannot drive an expansion (billion laughs) attack, as real feeds never carry one
+        static const std::string doctype = "<!doctype";
+        auto doctypePos = std::search(response.body.begin(), response.body.end(), doctype.begin(), doctype.end(),
+                                      [](char a, char b) { return std::tolower(static_cast<unsigned char>(a)) == b; });
+
+        if (doctypePos != response.body.end())
+        {
+            return "Error: feed contains a DOCTYPE declaration, which is not allowed";
         }
 
         // parse xml

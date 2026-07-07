@@ -17,6 +17,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/SsrfGuard.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/StringHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/EnvironmentHelper.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/FileHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/EmbeddedResources.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/bus/Events.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/bus/MessageBus.cpp
@@ -42,7 +43,6 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/image/GeminiImageGenerator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/image/GrokImageGenerator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/image/OpenAIImageGenerator.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/image/LocalImageGenerator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/transcription/TranscriptionProviderRegistry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/transcription/OpenAITranscriptionProvider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/transcription/LocalTranscriptionProvider.cpp

@@ -98,10 +98,10 @@ int ContextWindow::estimateTokens(const std::vector<ionclaw::provider::Message> 
         // count main content
         totalChars += static_cast<int64_t>(msg.content.size());
 
-        // count tool call arguments
+        // count tool call arguments plus the call id and name that also ship in the request
         for (const auto &tc : msg.toolCalls)
         {
-            totalChars += static_cast<int64_t>(tc.arguments.dump().size());
+            totalChars += static_cast<int64_t>(tc.arguments.dump().size() + tc.id.size() + tc.name.size());
         }
 
         // count reasoning content
@@ -110,11 +110,20 @@ int ContextWindow::estimateTokens(const std::vector<ionclaw::provider::Message> 
         // count content blocks
         if (msg.contentBlocks.is_array())
         {
+            // approximate per-image vision cost so image-heavy turns are not estimated as near-zero and skip compaction
+            static constexpr int64_t IMAGE_TOKEN_ESTIMATE = 1200;
+
             for (const auto &block : msg.contentBlocks)
             {
+                auto blockType = block.value("type", "");
+
                 if (block.contains("text") && block["text"].is_string())
                 {
                     totalChars += static_cast<int64_t>(block["text"].get<std::string>().size());
+                }
+                else if (blockType == "image" || blockType == "image_url")
+                {
+                    totalChars += IMAGE_TOKEN_ESTIMATE * 4;
                 }
             }
         }

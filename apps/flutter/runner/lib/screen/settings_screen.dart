@@ -19,6 +19,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadPackageInfo() async {
     final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
     setState(() => _packageInfo = info);
   }
 

@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <sstream>
 
+#include "ionclaw/util/FileHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
 #include "ionclaw/util/UniqueId.hpp"
 #include "spdlog/spdlog.h"
@@ -295,24 +296,18 @@ void TaskManager::save()
 
     std::lock_guard<std::mutex> flock(fileMutex);
 
-    std::ofstream ofs(tasksFilePath, std::ios::trunc);
-
-    if (!ofs.is_open())
-    {
-        spdlog::error("[TaskManager] Failed to open tasks file for save: {}", tasksFilePath);
-        return;
-    }
+    std::string content;
 
     for (const auto &j : snapshots)
     {
-        ofs << j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << "\n";
+        content += j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) + "\n";
     }
 
-    ofs.flush();
+    auto error = ionclaw::util::FileHelper::atomicWrite(tasksFilePath, content);
 
-    if (!ofs.good())
+    if (!error.empty())
     {
-        spdlog::error("[TaskManager] Failed to flush tasks file on save: {}", tasksFilePath);
+        spdlog::error("[TaskManager] {}", error);
     }
 }
 
@@ -351,21 +346,18 @@ void TaskManager::recoverStaleTasks()
     if (recovered > 0)
     {
         std::lock_guard<std::mutex> flock(fileMutex);
-        std::ofstream ofs(tasksFilePath, std::ios::trunc);
+        std::string content;
 
-        if (ofs.is_open())
+        for (const auto &t : snapshots)
         {
-            for (const auto &t : snapshots)
-            {
-                ofs << t.toJson().dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << "\n";
-            }
+            content += t.toJson().dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) + "\n";
+        }
 
-            ofs.flush();
+        auto error = ionclaw::util::FileHelper::atomicWrite(tasksFilePath, content);
 
-            if (!ofs.good())
-            {
-                spdlog::error("[TaskManager] Failed to flush tasks file on recovery: {}", tasksFilePath);
-            }
+        if (!error.empty())
+        {
+            spdlog::error("[TaskManager] {}", error);
         }
 
         spdlog::info("[TaskManager] Recovered {} stale DOING tasks to ERROR", recovered);

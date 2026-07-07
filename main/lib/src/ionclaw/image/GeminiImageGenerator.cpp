@@ -55,8 +55,7 @@ std::string GeminiImageGenerator::generate(const std::string &prompt, const std:
         baseUrl = "https://generativelanguage.googleapis.com";
     }
 
-    // the default resolveBaseUrl returns the OpenAI-compat endpoint
-    // (e.g. .../v1beta/openai); strip path to get the native API host
+    // resolveBaseUrl returns the openai-compat endpoint, so strip its path to reach the native api host
     Poco::URI baseUri(baseUrl);
     baseUrl = baseUri.getScheme() + "://" + baseUri.getAuthority();
 

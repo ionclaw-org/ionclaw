@@ -36,7 +36,6 @@ struct ChatCompletionRequest
     double temperature = 0.7;
     int maxTokens = 4096;
     std::vector<nlohmann::json> tools;
-    bool stream = false;
     nlohmann::json modelParams;
 };
 

@@ -26,7 +26,7 @@ public:
     void start();
     void stop();
 
-    CronJob addJob(const std::string &name, const CronSchedule &schedule, const std::string &message, bool deliver, const std::string &channel, const std::string &to, bool deleteAfterRun);
+    CronJob addJob(const std::string &name, const CronSchedule &schedule, const std::string &message, const std::string &channel, const std::string &to, bool deleteAfterRun);
 
     bool removeJob(const std::string &jobId);
     bool updateJob(const std::string &jobId, const CronJob &patch);

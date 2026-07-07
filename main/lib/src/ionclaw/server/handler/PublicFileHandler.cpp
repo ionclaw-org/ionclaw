@@ -68,12 +68,13 @@ void PublicFileHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::N
         return;
     }
 
-    // ensure the resolved path is within the public directory
+    // ensure the resolved path is within the public directory, using the platform separator so the prefix matches on windows
+    constexpr char sep = static_cast<char>(fs::path::preferred_separator);
     auto rootStr = canonicalRoot.string();
 
-    if (!rootStr.empty() && rootStr.back() != '/')
+    if (!rootStr.empty() && rootStr.back() != sep)
     {
-        rootStr += '/';
+        rootStr += sep;
     }
 
     if (canonicalPath.string().find(rootStr) != 0 && canonicalPath != canonicalRoot)

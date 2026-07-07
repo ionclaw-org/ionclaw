@@ -7,6 +7,7 @@ import 'package:ionclaw/ionclaw.dart';
 import 'package:ionclaw_runner/screen/browser_screen.dart';
 import 'package:ionclaw_runner/screen/settings_screen.dart';
 import 'package:ionclaw_runner/service/platform_handler.dart';
+import 'package:ionclaw_runner/theme/app_colors.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -119,13 +120,13 @@ class _HomeScreenState extends State<HomeScreen>
           ? const Color(0xFFFDECEA)
           : const Color(0xFFE8F5E9),
       colorText: isError
-          ? const Color(0xFFC62828)
-          : const Color(0xFF2E7D32),
+          ? AppColors.danger
+          : AppColors.success,
       icon: Icon(
         isError ? Icons.error_outline : Icons.check_circle_outline,
         color: isError
-            ? const Color(0xFFC62828)
-            : const Color(0xFF2E7D32),
+            ? AppColors.danger
+            : AppColors.success,
       ),
       snackStyle: SnackStyle.FLOATING,
     );
@@ -152,11 +153,19 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
 
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
     setState(() => _isLoading = true);
 
-    final data = IonClaw.instance.projectInit(_projectPath);
+    final Map<String, dynamic> data;
+    try {
+      data = IonClaw.instance.projectInit(_projectPath);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showToast('$e', isError: true);
+      return;
+    }
     final success = data['success'] as bool;
 
     setState(() => _isLoading = false);
@@ -174,7 +183,13 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() => _isLoading = true);
 
     if (_isRunning) {
-      IonClaw.instance.serverStop();
+      try {
+        IonClaw.instance.serverStop();
+      } catch (e) {
+        setState(() => _isLoading = false);
+        _showToast('$e', isError: true);
+        return;
+      }
 
       setState(() {
         _isRunning = false;
@@ -191,29 +206,40 @@ class _HomeScreenState extends State<HomeScreen>
 
       await _savePreferences(host, port);
 
-      final initData = IonClaw.instance.projectInit(_projectPath);
-      final initSuccess = initData['success'] as bool;
+      if (!mounted) return;
 
-      if (!initSuccess) {
-        final error =
-            initData['error'] as String? ?? 'Failed to initialize project';
+      final Map<String, dynamic> data;
+      try {
+        final initData = IonClaw.instance.projectInit(_projectPath);
+        final initSuccess = initData['success'] as bool;
+
+        if (!initSuccess) {
+          final error =
+              initData['error'] as String? ?? 'Failed to initialize project';
+          setState(() => _isLoading = false);
+          _showToast(error, isError: true);
+          return;
+        }
+
+        data = IonClaw.instance.serverStart(
+          projectPath: _projectPath,
+          host: host,
+          port: port,
+          rootPath: File(Platform.resolvedExecutable).parent.path,
+          webPath: _resolveWebPath(),
+        );
+      } catch (e) {
         setState(() => _isLoading = false);
-        _showToast(error, isError: true);
+        _showToast('$e', isError: true);
         return;
       }
-
-      final data = IonClaw.instance.serverStart(
-        projectPath: _projectPath,
-        host: host,
-        port: port,
-        rootPath: File(Platform.resolvedExecutable).parent.path,
-        webPath: _resolveWebPath(),
-      );
 
       final success = data['success'] as bool;
 
       if (success) {
         final addresses = await _getLocalAddresses();
+
+        if (!mounted) return;
 
         setState(() {
           _isRunning = true;
@@ -263,7 +289,7 @@ class _HomeScreenState extends State<HomeScreen>
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: AppColors.header,
       appBar: AppBar(
         title: Image.asset('assets/logo-dark.png', height: 32),
         actions: [
@@ -333,7 +359,7 @@ class _HomeScreenState extends State<HomeScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: (_isRunning
-                        ? const Color(0xFF4CAF50)
+                        ? AppColors.runningDot
                         : Colors.grey.shade400)
                     .withValues(alpha: 0.12),
               ),
@@ -367,7 +393,7 @@ class _HomeScreenState extends State<HomeScreen>
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
                 color: _isRunning
-                    ? const Color(0xFF2E7D32)
+                    ? AppColors.success
                     : Colors.grey.shade500,
                 letterSpacing: 0.5,
               ),
@@ -496,9 +522,9 @@ class _HomeScreenState extends State<HomeScreen>
               ? OutlinedButton(
                   onPressed: _onStartStop,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFC62828),
+                    foregroundColor: AppColors.danger,
                     side: const BorderSide(
-                        color: Color(0xFFC62828), width: 1.5),
+                        color: AppColors.danger, width: 1.5),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
@@ -595,10 +621,10 @@ class _HomeScreenState extends State<HomeScreen>
                     height: 32,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
-                      color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
+                      color: AppColors.runningDot.withValues(alpha: 0.1),
                     ),
                     child: const Icon(Icons.wifi,
-                        size: 18, color: Color(0xFF2E7D32)),
+                        size: 18, color: AppColors.success),
                   ),
                   const SizedBox(width: 12),
                   Text(

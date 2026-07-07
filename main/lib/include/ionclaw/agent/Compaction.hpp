@@ -50,7 +50,6 @@ struct CompactionResult
 class Compaction
 {
 public:
-    static std::vector<ionclaw::provider::Message> compact(const std::vector<ionclaw::provider::Message> &messages, std::shared_ptr<ionclaw::provider::LlmProvider> provider, const std::string &model, const nlohmann::json &modelParams = nlohmann::json(), const CompactionConfig &config = CompactionConfig());
     static CompactionResult compactWithResult(const std::vector<ionclaw::provider::Message> &messages, std::shared_ptr<ionclaw::provider::LlmProvider> provider, const std::string &model, const nlohmann::json &modelParams = nlohmann::json(), const CompactionConfig &config = CompactionConfig());
     static std::vector<ionclaw::provider::Message> pruneHistoryForContextShare(const std::vector<ionclaw::provider::Message> &messages, const std::string &model, const nlohmann::json &modelParams = nlohmann::json(), double maxHistoryShare = 0.5);
 

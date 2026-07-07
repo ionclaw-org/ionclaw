@@ -538,11 +538,13 @@ Stops the named channel. Returns error if not running.
 
 ### Connection
 
-Connect with a valid JWT token as a query parameter:
+Connect to `ws://host:port/ws` and pass the JWT token as a WebSocket subprotocol so it never lands in a URL or an access log. Offer two protocols: the marker `access_token` followed by the token itself. The server verifies the token and echoes back `access_token`.
 
+```javascript
+new WebSocket('ws://host:port/ws', ['access_token', JWT_TOKEN])
 ```
-ws://host:port/ws?token=JWT_TOKEN
-```
+
+A missing or invalid token is rejected with HTTP 401 during the handshake.
 
 ### Events (server → client)
 

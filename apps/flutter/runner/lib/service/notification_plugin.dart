@@ -11,6 +11,13 @@ import 'platform_plugin.dart';
 class NotificationPlugin extends PlatformPlugin {
   final _notifications = FlutterLocalNotificationsPlugin();
   bool _ready = false;
+  int _idCounter = 0;
+
+  // unique 32-bit id per notification to avoid overwriting previous ones
+  int _nextId() {
+    _idCounter = (_idCounter + 1) & 0x7FFFFFFF;
+    return _idCounter;
+  }
 
   @override
   Set<String> get functions => {'local-notification.send'};
@@ -108,7 +115,7 @@ class NotificationPlugin extends PlatformPlugin {
       );
 
       await _notifications.show(
-        id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        id: _nextId(),
         title: title,
         body: body,
         notificationDetails: details,

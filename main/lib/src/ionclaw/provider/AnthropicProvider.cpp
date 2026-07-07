@@ -237,6 +237,10 @@ nlohmann::json AnthropicProvider::buildRequestBody(const ChatCompletionRequest &
         auto it = budgets.find(thinkingLevel);
         int budget = (it != budgets.end()) ? it->second : 8192;
 
+        // anthropic requires max_tokens to exceed budget_tokens, so reserve output room on top of the thinking budget
+        int outputAllowance = std::max(request.maxTokens, 4096);
+        body["max_tokens"] = budget + outputAllowance;
+
         body["thinking"] = {{"type", "enabled"}, {"budget_tokens", budget}};
         body["temperature"] = 1; // required for Anthropic extended thinking
     }

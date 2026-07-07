@@ -46,6 +46,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +70,7 @@ import com.ionclaw.app.ui.theme.CardBorder
 import com.ionclaw.app.ui.theme.CardSurface
 import com.ionclaw.app.ui.theme.HeaderBackground
 import com.ionclaw.app.ui.theme.ScreenBackground
+import kotlinx.coroutines.delay
 
 private val ButtonShape = RoundedCornerShape(12.dp)
 
@@ -206,6 +208,13 @@ private fun OutlinedAction(label: String, icon: androidx.compose.ui.graphics.vec
 private fun NetworkCard(addresses: List<String>, port: Int) {
     val context = LocalContext.current
     var copiedAddress by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(copiedAddress) {
+        if (copiedAddress != null) {
+            delay(2000)
+            copiedAddress = null
+        }
+    }
 
     SectionCard(title = "Network", icon = { Icon(Icons.Outlined.Wifi, null, tint = BrandSuccess, modifier = Modifier.size(18.dp)) }, iconTint = BrandSuccess) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

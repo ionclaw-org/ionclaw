@@ -44,6 +44,11 @@ bot:
   description: ""                 # str  -- Short description.
 
 # ---------------------------------------------------------------------------
+# Timezone
+# ---------------------------------------------------------------------------
+timezone: ""                     # str  -- IANA zone (e.g. America/Sao_Paulo) for the assistant clock in the prompt and the cron default. Empty uses the server local zone.
+
+# ---------------------------------------------------------------------------
 # Server
 # ---------------------------------------------------------------------------
 server:
@@ -142,13 +147,16 @@ image:
 # Tools
 # ---------------------------------------------------------------------------
 tools:
+  restrict_to_workspace: true   # bool -- Confine file/exec/download tools to the workspace, project, and public dirs.
   exec_timeout: 60              # int  -- Max execution time for exec tool (seconds).
   web_search_provider: brave    # str  -- Search provider: "brave" or "duckduckgo".
   web_search_credential: brave  # str  -- Credential name for the search API.
+  web_search_max_results: 5     # int  -- Maximum results returned by the web_search tool.
   # Nested form (alternative, same effect):
   # web_search:
   #   provider: brave
   #   credential: brave
+  #   max_results: 5
 
 # ---------------------------------------------------------------------------
 # Channels
@@ -327,7 +335,12 @@ See [Custom Providers — Model Parameters Merge Order](custom-providers.md#mode
 
 Special model parameters:
 
-- **`thinking`** — Extended thinking/reasoning level. Values: `off`, `low`, `medium`, `high`. For Anthropic models, this maps to `budget_tokens` scaling. For OpenRouter models, this maps to `reasoning.effort`.
+- **`thinking`** — Extended thinking/reasoning level. Values: `off`, `low`, `medium`, `high`, `adaptive`. Mapping by provider:
+  - **Anthropic** — scales the `budget_tokens` of the thinking block; `off` disables it.
+  - **OpenRouter** — sets `reasoning.effort`.
+  - **OpenAI-compatible** — sets the flat `reasoning_effort` field (only `low`, `medium`, `high` are sent) and pins `temperature` to the default that reasoning models require.
+
+  `adaptive` is treated as `medium` on the OpenRouter and OpenAI-compatible paths.
 - **`context_window`** — Override the context window size for a specific model. Useful for custom or fine-tuned models whose context window size is not in the built-in lookup table.
 
 ### Auth profile failover

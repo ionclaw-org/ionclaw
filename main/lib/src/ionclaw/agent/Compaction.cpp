@@ -325,11 +325,6 @@ bool Compaction::hasRealConversationContent(const std::vector<ionclaw::provider:
     return false;
 }
 
-std::vector<ionclaw::provider::Message> Compaction::compact(const std::vector<ionclaw::provider::Message> &messages, std::shared_ptr<ionclaw::provider::LlmProvider> provider, const std::string &model, const nlohmann::json &modelParams, const CompactionConfig &config)
-{
-    return compactWithResult(messages, provider, model, modelParams, config).messages;
-}
-
 CompactionResult Compaction::compactWithResult(const std::vector<ionclaw::provider::Message> &messages, std::shared_ptr<ionclaw::provider::LlmProvider> provider, const std::string &model, const nlohmann::json &modelParams, const CompactionConfig &config)
 {
     CompactionResult result;

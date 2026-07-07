@@ -398,12 +398,16 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
 
             resizedOverlay.resize(static_cast<size_t>(overlayW) * static_cast<size_t>(overlayH) * 3);
 
-            if (stbir_resize_uint8_linear(over, ow, oh, 0, resizedOverlay.data(), overlayW, overlayH, 0, STBIR_RGB) != nullptr)
+            if (stbir_resize_uint8_linear(over, ow, oh, 0, resizedOverlay.data(), overlayW, overlayH, 0, STBIR_RGB) == nullptr)
             {
-                pasteW = overlayW;
-                pasteH = overlayH;
-                pasteSrc = resizedOverlay.data();
+                stbi_image_free(base);
+                stbi_image_free(over);
+                return "Error: failed to resize overlay to the requested dimensions.";
             }
+
+            pasteW = overlayW;
+            pasteH = overlayH;
+            pasteSrc = resizedOverlay.data();
         }
 
         // blend overlay onto base (clipping for negative x/y)

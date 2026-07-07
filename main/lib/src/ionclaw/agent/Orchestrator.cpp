@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "ionclaw/agent/SkillsLoader.hpp"
 #include "ionclaw/provider/ProviderFactory.hpp"
 #include "ionclaw/session/SessionKeyUtils.hpp"
 #include "ionclaw/util/StringHelper.hpp"
@@ -90,8 +91,8 @@ void Orchestrator::start()
     // create hook runner
     hookRunner = std::make_shared<HookRunner>();
 
-    // create subagent registry and announce queue
-    auto newSubagentRegistry = std::make_shared<SubagentRegistry>(config.projectPath);
+    // create subagent registry and announce queue, storing alongside cron_jobs.json under the shared workspace
+    auto newSubagentRegistry = std::make_shared<SubagentRegistry>(config.projectPath + "/workspace");
     newSubagentRegistry->load();
     newSubagentRegistry->recoverStaleRuns();
     auto newAnnounceQueue = std::make_shared<AnnounceQueue>();
@@ -106,9 +107,6 @@ void Orchestrator::start()
         announceQueue = newAnnounceQueue;
         sessionQueue = newSessionQueue;
     }
-
-    // mark sessions that were active during previous crash as aborted
-    sessionManager->setAbortCutoffAll();
 
     // create LLM providers and agent loops for each agent
     std::shared_ptr<ionclaw::provider::LlmProvider> firstProvider;
@@ -162,7 +160,6 @@ void Orchestrator::start()
             auto workspacePath = resolvedAgentConfig.workspace;
             auto memory = std::make_shared<MemoryStore>(workspacePath);
             auto skills = std::make_shared<SkillsLoader>(config.projectPath, workspacePath);
-            skillsLoaders[name] = skills;
 
             // create context builder with full context
             auto builder = std::make_unique<ContextBuilder>(config, workspacePath, memory, skills);
@@ -417,11 +414,15 @@ void Orchestrator::handleMessage(const ionclaw::bus::InboundMessage &message)
         break;
 
     case ionclaw::bus::QueueMode::SteerBacklog:
-        // try steer; also enqueue as followup backup
-        sessionQueue->enqueue(sessionKey, message, ionclaw::bus::QueueMode::Steer, settings);
-        sessionQueue->enqueue(sessionKey, message, ionclaw::bus::QueueMode::Followup, settings);
+    {
+        // steer now, and keep a followup backup tagged with a shared id so it is dropped if the steer copy is consumed
+        auto tagged = message;
+        tagged.metadata["backlog_id"] = ionclaw::util::UniqueId::shortId();
+        sessionQueue->enqueue(sessionKey, tagged, ionclaw::bus::QueueMode::Steer, settings);
+        sessionQueue->enqueue(sessionKey, tagged, ionclaw::bus::QueueMode::Followup, settings);
         spdlog::info("[Orchestrator] SteerBacklog: steer + followup queued for {}", sessionKey);
         break;
+    }
 
     case ionclaw::bus::QueueMode::Followup:
         sessionQueue->enqueue(sessionKey, message, ionclaw::bus::QueueMode::Followup, settings);
@@ -582,11 +583,11 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
         maxConcurrent = std::max(1, agentIt2->second.agentParams.maxConcurrent);
     }
 
-    int activeTurns = getAgentActiveTurnCount(targetAgent);
+    int activeTurnCount = getAgentActiveTurnCount(targetAgent);
 
-    if (activeTurns >= maxConcurrent)
+    if (activeTurnCount >= maxConcurrent)
     {
-        spdlog::warn("[Orchestrator] Agent '{}' at concurrency limit ({}/{}), queueing as followup", targetAgent, activeTurns, maxConcurrent);
+        spdlog::warn("[Orchestrator] Agent '{}' at concurrency limit ({}/{}), queueing as followup", targetAgent, activeTurnCount, maxConcurrent);
         sessionQueue->enqueue(baseKey, message, ionclaw::bus::QueueMode::Followup, ionclaw::bus::SessionQueue::resolveQueueSettings(config, channel));
         return;
     }
@@ -1275,7 +1276,6 @@ void Orchestrator::stop()
     agentLoops.clear();
     providers.clear();
     contextBuilders.clear();
-    skillsLoaders.clear();
     classifier.reset();
     hookRunner.reset();
 

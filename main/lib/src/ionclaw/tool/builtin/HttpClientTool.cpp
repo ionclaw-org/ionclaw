@@ -28,6 +28,7 @@
 #include "ionclaw/util/EnvironmentHelper.hpp"
 #include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/MimeType.hpp"
+#include "ionclaw/util/FileHelper.hpp"
 #include "ionclaw/util/SsrfGuard.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 
@@ -369,24 +370,13 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
                 return "Error: HTTP " + std::to_string(response.statusCode);
             }
 
-            // ensure parent directory exists
-            std::error_code ec;
-            std::filesystem::create_directories(std::filesystem::path(resolvedPath).parent_path(), ec);
+            // write atomically so a mid-write failure leaves no partial file and the error is surfaced instead of a false success
+            auto writeError = ionclaw::util::FileHelper::atomicWrite(resolvedPath, response.body);
 
-            if (ec)
+            if (!writeError.empty())
             {
-                return "Error: failed to create directory for download: " + ec.message();
+                return "Error: failed to save download: " + writeError;
             }
-
-            std::ofstream outFile(resolvedPath, std::ios::binary);
-
-            if (!outFile.is_open())
-            {
-                return "Error: cannot write to: " + downloadPath;
-            }
-
-            outFile << response.body;
-            outFile.close();
 
             nlohmann::json result = {
                 {"status", response.statusCode},
@@ -476,7 +466,10 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
             form.addPart(fieldName, new Poco::Net::FilePartSource(resolvedUpload, mimeType));
             form.prepareSubmit(request);
 
-            form.write(session->sendRequest(request));
+            // establish the connection, then revalidate the connected peer to close the dns-rebinding window before streaming the file
+            auto &requestStream = session->sendRequest(request);
+            ionclaw::util::SsrfGuard::validatePeerAddress(session->socket().peerAddress().host());
+            form.write(requestStream);
 
             Poco::Net::HTTPResponse httpResp;
             auto &rs = session->receiveResponse(httpResp);

@@ -243,12 +243,14 @@ Schedule reminders and recurring tasks.
 | `cron_expr` | string | Conditional | Cron expression (e.g. `0 9 * * *`) |
 | `at` | string | Conditional | ISO datetime for one-time execution |
 | `job_id` | string | Conditional | Job ID (required for `update`/`remove`) |
-| `tz` | string | No | IANA timezone for cron expressions |
+| `tz` | string | No | IANA timezone, only valid together with `cron_expr` |
 
 - **add** — Create a new scheduled job with a schedule type (interval, cron, or one-time).
 - **list** — List all scheduled jobs with their IDs, names, and schedule types.
 - **update** — Modify an existing job's name, message, or schedule (patch-style, only provided fields are changed).
 - **remove** — Delete a job by ID.
+
+A cron job created or updated without an explicit `tz` inherits the top-level [`timezone`](configuration.md) setting, so its schedule matches the assistant's clock. `tz` is rejected when passed without `cron_expr`. All next-run times are stored in UTC.
 
 Only available to the main agent when scheduler is enabled.
 

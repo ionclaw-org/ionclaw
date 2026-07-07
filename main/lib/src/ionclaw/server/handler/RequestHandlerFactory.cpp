@@ -35,7 +35,7 @@ Poco::Net::HTTPRequestHandler *RequestHandlerFactory::createRequestHandler(const
     // websocket upgrade
     if (path == "/ws")
     {
-        return new WebSocketHandler(auth, wsManager, routes);
+        return new WebSocketHandler(auth, wsManager);
     }
 
     // mcp server endpoint

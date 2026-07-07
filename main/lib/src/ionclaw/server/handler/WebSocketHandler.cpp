@@ -19,10 +19,9 @@ namespace server
 namespace handler
 {
 
-WebSocketHandler::WebSocketHandler(std::shared_ptr<Auth> auth, std::shared_ptr<WebSocketManager> wsManager, std::shared_ptr<Routes> routes)
+WebSocketHandler::WebSocketHandler(std::shared_ptr<Auth> auth, std::shared_ptr<WebSocketManager> wsManager)
     : auth(auth)
     , wsManager(wsManager)
-    , routes(routes)
 {
 }
 

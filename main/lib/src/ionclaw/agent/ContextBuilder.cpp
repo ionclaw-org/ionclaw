@@ -480,7 +480,7 @@ std::string ContextBuilder::buildMediaAnnotation(const std::vector<nlohmann::jso
 
         if (mime.starts_with("audio/"))
         {
-            annotation += "\n[media attached: " + path + " (" + mime + ") — audio already transcribed above]";
+            annotation += "\n[audio attached: " + path + " (" + mime + ") — any transcription or failure note is included above]";
         }
         else if (mime.starts_with("image/"))
         {

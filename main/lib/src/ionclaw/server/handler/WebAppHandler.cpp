@@ -82,7 +82,10 @@ void WebAppHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::
     auto canonicalPath = std::filesystem::weakly_canonical(filePath, ecPath);
     auto canonicalRoot = std::filesystem::weakly_canonical(webDir, ecRoot);
 
-    if (ecPath || ecRoot || (canonicalPath.string().find(canonicalRoot.string() + "/") != 0 && canonicalPath != canonicalRoot))
+    // use the platform separator for the boundary so the prefix check matches on windows
+    constexpr char sep = static_cast<char>(std::filesystem::path::preferred_separator);
+
+    if (ecPath || ecRoot || (canonicalPath.string().find(canonicalRoot.string() + sep) != 0 && canonicalPath != canonicalRoot))
     {
         resp.setStatus(Poco::Net::HTTPResponse::HTTP_FORBIDDEN);
         resp.setContentType("text/plain");

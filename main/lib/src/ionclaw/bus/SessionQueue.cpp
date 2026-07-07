@@ -230,6 +230,15 @@ bool SessionQueue::enqueue(const std::string &sessionKey, const InboundMessage &
         }
     }
 
+    // hard ceiling so even steer messages, which bypass the drop policy, cannot grow the queue without bound under a flood
+    static constexpr size_t HARD_QUEUE_CEILING = 500;
+
+    if (state.items.size() >= HARD_QUEUE_CEILING)
+    {
+        spdlog::warn("[SessionQueue] hard queue ceiling {} reached for {}, rejecting {} message", HARD_QUEUE_CEILING, sessionKey, queueModeToString(mode));
+        return false;
+    }
+
     QueuedItem item;
     item.message = msg;
     item.mode = mode;
@@ -278,6 +287,31 @@ std::vector<QueuedItem> SessionQueue::drainSteer(const std::string &sessionKey)
     }
 
     return result;
+}
+
+void SessionQueue::removeFollowupByBacklogId(const std::string &sessionKey, const std::string &backlogId)
+{
+    if (backlogId.empty())
+    {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(mutex);
+
+    auto it = queues.find(sessionKey);
+
+    if (it == queues.end())
+    {
+        return;
+    }
+
+    auto &items = it->second.items;
+
+    // clang-format off
+    items.erase(std::remove_if(items.begin(), items.end(), [&](const QueuedItem &item) {
+        return item.mode == QueueMode::Followup && item.message.metadata.value("backlog_id", "") == backlogId;
+    }), items.end());
+    // clang-format on
 }
 
 std::vector<QueuedItem> SessionQueue::drainFollowup(const std::string &sessionKey)

@@ -127,7 +127,7 @@ private struct Builder {
         let shortBlockLen = rawCodewords / numBlocks
 
         var blocks: [[UInt8]] = []
-        let divisor = reedSolomonDivisor(degree: blockEccLen)
+        let divisor = ReedSolomon.divisor(degree: blockEccLen)
         var k = 0
 
         for i in 0..<numBlocks {
@@ -135,7 +135,7 @@ private struct Builder {
             var block = Array(data[k..<(k + dataLen)])
             k += dataLen
 
-            let ecc = reedSolomonRemainder(block, divisor: divisor)
+            let ecc = ReedSolomon.remainder(block, divisor: divisor)
 
             if i < numShortBlocks {
                 block.append(0) // placeholder to align interleaving
@@ -437,45 +437,47 @@ private struct Builder {
 
 // MARK: reed-solomon over gf(256)
 
-private func reedSolomonDivisor(degree: Int) -> [UInt8] {
-    var result = [UInt8](repeating: 0, count: degree)
-    result[degree - 1] = 1
-    var root: UInt8 = 1
+private enum ReedSolomon {
+    static func divisor(degree: Int) -> [UInt8] {
+        var result = [UInt8](repeating: 0, count: degree)
+        result[degree - 1] = 1
+        var root: UInt8 = 1
 
-    for _ in 0..<degree {
-        for j in 0..<degree {
-            result[j] = gfMultiply(result[j], root)
-            if j + 1 < degree {
-                result[j] ^= result[j + 1]
+        for _ in 0..<degree {
+            for j in 0..<degree {
+                result[j] = gfMultiply(result[j], root)
+                if j + 1 < degree {
+                    result[j] ^= result[j + 1]
+                }
+            }
+            root = gfMultiply(root, 0x02)
+        }
+
+        return result
+    }
+
+    static func remainder(_ data: [UInt8], divisor: [UInt8]) -> [UInt8] {
+        var result = [UInt8](repeating: 0, count: divisor.count)
+
+        for byte in data {
+            let factor = byte ^ result.removeFirst()
+            result.append(0)
+            for i in 0..<result.count {
+                result[i] ^= gfMultiply(divisor[i], factor)
             }
         }
-        root = gfMultiply(root, 0x02)
+
+        return result
     }
 
-    return result
-}
-
-private func reedSolomonRemainder(_ data: [UInt8], divisor: [UInt8]) -> [UInt8] {
-    var result = [UInt8](repeating: 0, count: divisor.count)
-
-    for byte in data {
-        let factor = byte ^ result.removeFirst()
-        result.append(0)
-        for i in 0..<result.count {
-            result[i] ^= gfMultiply(divisor[i], factor)
+    static func gfMultiply(_ x: UInt8, _ y: UInt8) -> UInt8 {
+        var z: UInt8 = 0
+        for i in stride(from: 7, through: 0, by: -1) {
+            z = (z << 1) ^ ((z >> 7) * 0x1D)
+            z ^= ((y >> i) & 1) * x
         }
+        return z
     }
-
-    return result
-}
-
-private func gfMultiply(_ x: UInt8, _ y: UInt8) -> UInt8 {
-    var z: UInt8 = 0
-    for i in stride(from: 7, through: 0, by: -1) {
-        z = (z << 1) ^ ((z >> 7) * 0x1D)
-        z ^= ((y >> i) & 1) * x
-    }
-    return z
 }
 
 // MARK: spec tables (indexed [correction][version], version 1...40)

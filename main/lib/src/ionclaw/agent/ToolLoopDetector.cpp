@@ -281,11 +281,6 @@ LoopDetectionResult ToolLoopDetector::checkPingPong() const
     // detect alternating A-B-A-B pattern from the end
     auto sz = static_cast<int>(history.size());
 
-    if (sz < 4)
-    {
-        return {};
-    }
-
     auto sigA = history[sz - 1].signature;
     auto sigB = history[sz - 2].signature;
 

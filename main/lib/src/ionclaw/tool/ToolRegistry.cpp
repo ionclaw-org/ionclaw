@@ -360,7 +360,7 @@ std::vector<std::string> ToolRegistry::applyToolPolicy(const std::vector<std::st
         }
 
         // if allow list is non-empty, only include listed tools
-        if (!allowSet.empty() && allowSet.contains(lower) == 0)
+        if (!allowSet.empty() && !allowSet.contains(lower))
         {
             continue;
         }

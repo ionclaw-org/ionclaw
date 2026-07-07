@@ -51,20 +51,28 @@ void MessageBus::purgeExpiredDedup()
     }
 }
 
-void MessageBus::publishInbound(const InboundMessage &msg)
+PublishResult MessageBus::publishInbound(const InboundMessage &msg)
 {
     {
         std::lock_guard<std::mutex> lock(inboundMutex);
 
         if (isDuplicate(msg))
         {
-            return;
+            return PublishResult::Duplicate;
+        }
+
+        // reject once the backlog is saturated so a flood cannot grow memory without bound
+        if (inboundQueue.size() >= MAX_INBOUND_QUEUE)
+        {
+            spdlog::warn("[MessageBus] inbound queue full ({}), rejecting message from {}:{}", inboundQueue.size(), msg.channel, msg.chatId);
+            return PublishResult::QueueFull;
         }
 
         inboundQueue.push(msg);
     }
 
     inboundCv.notify_one();
+    return PublishResult::Accepted;
 }
 
 void MessageBus::publishOutbound(const OutboundMessage &msg)

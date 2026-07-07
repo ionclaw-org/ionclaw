@@ -33,6 +33,9 @@ private:
 
     static void sanitizeMessages(nlohmann::json &messages);
     static nlohmann::json validateTranscript(const nlohmann::json &messages);
+
+    // openai reasoning models (o1/o3/o4/gpt-5 class) reject max_tokens and non-default temperature
+    static bool isReasoningModel(const std::string &model);
 };
 
 } // namespace provider

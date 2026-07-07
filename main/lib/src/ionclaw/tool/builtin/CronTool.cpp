@@ -119,7 +119,7 @@ ToolResult CronTool::execute(const nlohmann::json &params, const ToolContext &co
             return "Error: one of 'every_seconds', 'cron_expr', or 'at' is required";
         }
 
-        auto job = context.cronService->addJob(ionclaw::util::StringHelper::utf8SafeTruncate(message, 30), schedule, message, true, channel, to, deleteAfterRun);
+        auto job = context.cronService->addJob(ionclaw::util::StringHelper::utf8SafeTruncate(message, 30), schedule, message, channel, to, deleteAfterRun);
 
         return "Created job '" + job.name + "' (id: " + job.id + ")";
     }
@@ -164,6 +164,12 @@ ToolResult CronTool::execute(const nlohmann::json &params, const ToolContext &co
         }
 
         auto tz = params.contains("tz") && params["tz"].is_string() ? params["tz"].get<std::string>() : "";
+
+        // reject a timezone that is not paired with a cron expression, matching the add path
+        if (!tz.empty() && !(params.contains("cron_expr") && params["cron_expr"].is_string()))
+        {
+            return "Error: tz can only be used with cron_expr";
+        }
 
         // update schedule if a new schedule type is provided
         if (params.contains("every_seconds") && params["every_seconds"].is_number_integer())

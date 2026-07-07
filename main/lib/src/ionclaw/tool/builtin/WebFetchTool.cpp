@@ -158,8 +158,18 @@ ToolResult WebFetchTool::execute(const nlohmann::json &params, const ToolContext
         }
         else if (contentType.find("text/html") != std::string::npos)
         {
-            // html: strip tags to readable text
-            text = stripHtml(response.body);
+            // bound the html fed to the regex passes so adversarial input cannot drive deep backtracking
+            static constexpr size_t MAX_HTML_BYTES = 2 * 1000 * 1000;
+
+            if (response.body.size() > MAX_HTML_BYTES)
+            {
+                text = stripHtml(response.body.substr(0, MAX_HTML_BYTES));
+            }
+            else
+            {
+                text = stripHtml(response.body);
+            }
+
             extractor = "html";
         }
         else

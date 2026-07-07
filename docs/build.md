@@ -297,20 +297,20 @@ make build-all          # rebuild everything
 
 ## CI/CD (GitHub Actions)
 
-### Build Workflow (`build.yml`)
+### Build Workflow (`build-all.yml`)
 
-Runs on push to `main` and pull requests. Builds and validates:
+Runs on push to `main` and pull requests (documentation-only changes are skipped). It is an orchestrator that calls one reusable per-platform workflow per job, so each platform can also be dispatched on its own:
 
-| Job | Runner | What it builds |
+| Job (`workflow_call`) | Runner | What it builds |
 |-----|--------|---------------|
-| macOS (arm64) | macos-15 | Server executable |
-| macOS (x86_64) | macos-15 | Server executable (cross-compiled) |
-| Linux (x86_64) | ubuntu-24.04 | Server executable |
-| Windows (x86_64) | windows-latest | Server executable |
-| iOS (XCFramework) | macos-15 | arm64 device + arm64/x86_64 simulator |
-| Android (arm64) | ubuntu-24.04 | arm64-v8a shared library |
+| `build-macos.yml` (arm64) | macos-15 | Server executable |
+| `build-macos.yml` (x86_64) | macos-15 | Server executable (cross-compiled) |
+| `build-linux.yml` (x86_64) | ubuntu-24.04 | Server executable |
+| `build-windows.yml` (x86_64) | windows-latest | Server executable |
+| `build-ios.yml` (XCFramework) | macos-15 | arm64 device + arm64/x86_64 simulator |
+| `build-android.yml` | ubuntu-24.04 | Android shared library |
 
-All desktop jobs build the web client (Node.js 22) before CMake. CPM packages are cached per OS.
+All desktop jobs build the web client (Node.js 22) before CMake. CPM packages are cached per OS. Every desktop job runs the outbound-HTTPS regression test. The `workflow_dispatch` `release` input additionally produces the platform installers (MSI/PKG/DEB) and release packages.
 
 ### Release Workflow (`release.yml`)
 

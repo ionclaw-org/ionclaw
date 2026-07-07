@@ -64,7 +64,7 @@ std::string OpenAITranscriptionProvider::audioMimeType(const std::string &format
     {
         return "audio/wav";
     }
-    if (format == "ogg")
+    if (format == "ogg" || format == "oga" || format == "opus")
     {
         return "audio/ogg";
     }

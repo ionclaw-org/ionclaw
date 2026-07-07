@@ -126,7 +126,7 @@ private:
 
     nlohmann::json resolveMedia(const std::vector<std::string> &paths, const std::string &projectRoot);
 
-    std::pair<std::string, std::vector<nlohmann::json>> runAgentLoop(std::vector<ionclaw::provider::Message> &messages, const std::string &taskId, const std::string &chatId, const std::string &sessionKey, const std::string &effectiveName, const ionclaw::tool::ToolContext &toolContext, AgentEventCallback &callback, TurnState &turnState);
+    std::string runAgentLoop(std::vector<ionclaw::provider::Message> &messages, const std::string &taskId, const std::string &chatId, const std::string &sessionKey, const std::string &effectiveName, const ionclaw::tool::ToolContext &toolContext, AgentEventCallback &callback, TurnState &turnState);
 
     bool tryMemoryFlush(std::vector<ionclaw::provider::Message> &messages, const ionclaw::tool::ToolContext &toolContext, const nlohmann::json &modelParams, TurnState &turnState);
 
