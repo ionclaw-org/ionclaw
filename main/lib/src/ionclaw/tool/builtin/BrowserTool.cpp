@@ -35,6 +35,10 @@ extern char **environ;
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+// prevent the min/max macros from clobbering std::min/std::max and numeric_limits::max
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #endif
 
