@@ -60,6 +60,12 @@ void Routes::handleSchedulerCreate(Poco::Net::HTTPServerRequest &req, Poco::Net:
         auto channel = body.value("channel", "");
         auto to = body.value("to", "");
 
+        // a cron job without its own zone inherits the configured timezone so it matches the assistant's clock
+        if (timezone.empty() && !cronExpr.empty() && !config->timezone.empty())
+        {
+            timezone = config->timezone;
+        }
+
         if (message.empty())
         {
             sendError(resp, "message is required");

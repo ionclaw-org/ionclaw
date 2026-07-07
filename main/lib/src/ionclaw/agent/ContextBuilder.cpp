@@ -157,7 +157,14 @@ std::string ContextBuilder::buildSystemPrompt(const std::string &agentName, cons
     }
 
     // 4. current date/time and user language
-    prompt << "\n\nCurrent date and time: " << ionclaw::util::TimeHelper::nowLocal() << ".";
+    prompt << "\n\nCurrent date and time: " << ionclaw::util::TimeHelper::nowInZone(config.timezone);
+
+    if (!config.timezone.empty())
+    {
+        prompt << " (" << ionclaw::util::StringHelper::sanitizeForPrompt(config.timezone) << ")";
+    }
+
+    prompt << ".";
 
     if (!userLanguage.empty())
     {

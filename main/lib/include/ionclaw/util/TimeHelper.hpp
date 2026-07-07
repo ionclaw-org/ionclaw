@@ -13,6 +13,7 @@ class TimeHelper
 public:
     static std::string now();
     static std::string nowLocal();
+    static std::string nowInZone(const std::string &timezone);
     static int64_t epochMs();
     static int64_t diffSeconds(const std::string &from, const std::string &to);
 };

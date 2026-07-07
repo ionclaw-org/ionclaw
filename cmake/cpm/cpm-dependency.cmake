@@ -82,9 +82,14 @@ CPMAddPackage(
         "YAML_CPP_BUILD_TOOLS OFF"
 )
 
-# iana time zone database for thread-safe zone conversions on posix, where apple libc++ ships no std::chrono tzdb
-# windows keeps its native WindowsTimeZone path, so the tz library is only needed off windows
-if(NOT WIN32)
+# iana time zone database for thread-safe cron zone conversions on desktop, where apple libc++ ships no std::chrono tzdb
+# disabled where it does not fit: windows keeps its native path, apple mobile bundles no system zoneinfo, android uses a bionic-specific layout
+set(IONCLAW_USE_TZ_LIB TRUE)
+if(WIN32 OR ANDROID OR CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS|watchOS|visionOS)$")
+    set(IONCLAW_USE_TZ_LIB FALSE)
+endif()
+
+if(IONCLAW_USE_TZ_LIB)
     CPMAddPackage(
         NAME "date"
         VERSION "3.0.4"
@@ -206,8 +211,8 @@ if(WIN32)
     target_link_libraries(ionclaw-lib PUBLIC advapi32)
 endif()
 
-# the tz library backs cron zone conversions on posix, so a missing fetch is a hard error rather than a silent fallback
-if(NOT WIN32)
+# the tz library backs cron zone conversions on desktop, so a missing fetch there is a hard error rather than a silent fallback
+if(IONCLAW_USE_TZ_LIB)
     if(NOT TARGET date-tz)
         message(FATAL_ERROR "IonClaw: the date tz library is required on this platform but was not fetched")
     endif()

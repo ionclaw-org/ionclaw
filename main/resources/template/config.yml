@@ -2,6 +2,9 @@ bot:
   name: "My Assistant"
   description: "A helpful AI assistant"
 
+# iana timezone for the assistant clock in the prompt and the default for cron jobs, empty uses the server local zone
+# timezone: "America/Sao_Paulo"
+
 server:
   host: "0.0.0.0"
   port: 8080

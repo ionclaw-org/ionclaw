@@ -167,6 +167,7 @@ struct Config
 {
     std::string projectPath;
     std::string publicDir;
+    std::string timezone;
 
     BotConfig bot;
     ServerConfig server;

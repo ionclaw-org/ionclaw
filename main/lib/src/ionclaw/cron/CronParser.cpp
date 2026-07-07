@@ -311,13 +311,18 @@ int64_t CronParser::nextRun(const std::string &expr, const std::string &tz)
 
         candidate += std::chrono::minutes(1);
     }
-#elif defined(_WIN32)
-    // windows fallback for zones the native resolver could not map: iterate in system local time
+#else
+    // fallback in device-local time where the tz library is absent: windows zones its native resolver could not map, and apple mobile without a bundled zone database
     auto now = std::chrono::system_clock::now();
     auto nowTime = std::chrono::system_clock::to_time_t(now);
 
     std::tm tm{};
+
+#if defined(_WIN32)
     localtime_s(&tm, &nowTime);
+#else
+    localtime_r(&nowTime, &tm);
+#endif
 
     tm.tm_sec = 0;
     tm.tm_min++;

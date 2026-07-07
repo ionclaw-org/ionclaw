@@ -5,6 +5,12 @@
 #include <iomanip>
 #include <sstream>
 
+#if defined(IONCLAW_HAS_TZ_LIB)
+#include "date/tz.h"
+#elif defined(_WIN32)
+#include "ionclaw/cron/WindowsTimeZone.hpp"
+#endif
+
 namespace ionclaw
 {
 namespace util
@@ -44,6 +50,41 @@ std::string TimeHelper::nowLocal()
     std::ostringstream oss;
     oss << std::put_time(&local, "%Y-%m-%dT%H:%M:%S");
     return oss.str();
+}
+
+std::string TimeHelper::nowInZone(const std::string &timezone)
+{
+    // an empty or unresolvable zone falls back to the server's local clock
+    if (timezone.empty())
+    {
+        return nowLocal();
+    }
+
+#if defined(IONCLAW_HAS_TZ_LIB)
+    try
+    {
+        auto now = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now());
+        return date::format("%Y-%m-%dT%H:%M:%S", date::make_zoned(date::locate_zone(timezone), now));
+    }
+    catch (const std::exception &)
+    {
+        return nowLocal();
+    }
+#elif defined(_WIN32)
+    auto time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    std::tm local{};
+
+    if (cron::WindowsTimeZone::isSupported(timezone) && cron::WindowsTimeZone::utcToLocal(timezone, time, local))
+    {
+        std::ostringstream oss;
+        oss << std::put_time(&local, "%Y-%m-%dT%H:%M:%S");
+        return oss.str();
+    }
+
+    return nowLocal();
+#else
+    return nowLocal();
+#endif
 }
 
 int64_t TimeHelper::epochMs()

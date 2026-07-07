@@ -245,6 +245,9 @@ Config ConfigLoader::loadFromNode(const YAML::Node &root)
 {
     Config config;
 
+    // iana timezone for the assistant's clock and the cron default, empty means the server's local zone
+    config.timezone = expandStr(root["timezone"]);
+
     // bot
     if (auto bot = root["bot"])
     {
