@@ -140,6 +140,10 @@ endif()
 
 # local llm inference via llama.cpp
 if(IONCLAW_LLAMA_CPP)
+    # this llama.cpp commit uses u8 string literals that become char8_t under C++20 and break MSVC, so pin its subproject to C++17
+    set(IONCLAW_SAVED_CXX_STANDARD ${CMAKE_CXX_STANDARD})
+    set(CMAKE_CXX_STANDARD 17)
+
     CPMAddPackage(
         NAME llama.cpp
         GITHUB_REPOSITORY ggml-org/llama.cpp
@@ -157,6 +161,8 @@ if(IONCLAW_LLAMA_CPP)
             # build for the architecture baseline instead of -mcpu=native, which keeps the binary portable and avoids host cpus the compiler may not know
             "GGML_NATIVE OFF"
     )
+
+    set(CMAKE_CXX_STANDARD ${IONCLAW_SAVED_CXX_STANDARD})
 
     if(NOT llama.cpp_ADDED)
         message(FATAL_ERROR "IonClaw: IONCLAW_LLAMA_CPP is ON but llama.cpp could not be fetched")
