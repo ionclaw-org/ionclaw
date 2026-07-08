@@ -19,9 +19,8 @@ namespace handler
 
 namespace fs = std::filesystem;
 
-PublicFileHandler::PublicFileHandler(const std::string &publicDir, bool rootMode)
+PublicFileHandler::PublicFileHandler(const std::string &publicDir)
     : publicDir(publicDir)
-    , rootMode(rootMode)
 {
 }
 
@@ -33,27 +32,17 @@ void PublicFileHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::N
     Poco::URI uri(req.getURI());
     auto path = uri.getPath();
 
-    // in root mode the url path is the file path directly; otherwise strip the /public prefix
-    if (!rootMode)
+    // strip /public prefix
+    if (path.size() < 7)
     {
-        if (path.size() < 7)
-        {
-            resp.setStatus(Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
-            resp.setContentType("text/plain");
-            auto &out = resp.send();
-            out << "Bad Request";
-            return;
-        }
-
-        path = path.substr(7);
-    }
-
-    // a bare root request has no file to serve, so send the browser to the app
-    if (rootMode && (path.empty() || path == "/"))
-    {
-        resp.redirect("/app/");
+        resp.setStatus(Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
+        resp.setContentType("text/plain");
+        auto &out = resp.send();
+        out << "Bad Request";
         return;
     }
+
+    path = path.substr(7);
 
     if (path.empty())
     {
@@ -72,12 +61,6 @@ void PublicFileHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::N
     }
     catch (const std::exception &)
     {
-        if (rootMode)
-        {
-            resp.redirect("/app/");
-            return;
-        }
-
         resp.setStatus(Poco::Net::HTTPResponse::HTTP_NOT_FOUND);
         resp.setContentType("text/plain");
         auto &out = resp.send();
@@ -118,13 +101,6 @@ void PublicFileHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::N
         resp.setStatus(Poco::Net::HTTPResponse::HTTP_OK);
         auto &out = resp.send();
         out << ifs.rdbuf();
-        return;
-    }
-
-    // a root-level path that is not a public file belongs to the app (client-side routing)
-    if (rootMode)
-    {
-        resp.redirect("/app/");
         return;
     }
 

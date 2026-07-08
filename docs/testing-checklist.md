@@ -82,10 +82,9 @@ A comprehensive manual QA checklist for the agent runtime. It is grouped by area
 
 ## 12. Public files / delivery
 
-- [ ] Ask the agent (on a non-terminal channel, e.g. telegram/web) to generate an image or report — it saves under `public/` in the workspace and its reply includes the full public URL.
-- [ ] The file saved to `public/<name>` is reachable both at `{public_url}/public/<name>` and at the bare `{public_url}/<name>`.
-- [ ] A bare root path that is not a public file redirects to the app (`/app/`); the SPA and its assets still load.
-- [ ] A traversal attempt (`/../secret`) is refused, not served.
+- [ ] Ask the agent (on a non-terminal channel, e.g. telegram/web) to generate an image or report — it saves under `public/` in the workspace and its reply includes the full public URL (base URL + `/public/<name>`).
+- [ ] The file saved to `public/<name>` is reachable at `{base_url}/public/<name>`.
+- [ ] A traversal attempt (`/public/../secret`) is refused, not served.
 
 ## 10. Apps (visual + behavior)
 

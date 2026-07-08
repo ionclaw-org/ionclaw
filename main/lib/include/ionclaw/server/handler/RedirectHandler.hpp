@@ -11,15 +11,15 @@ namespace server
 namespace handler
 {
 
-class PublicFileHandler final : public Poco::Net::HTTPRequestHandler
+class RedirectHandler final : public Poco::Net::HTTPRequestHandler
 {
 public:
-    explicit PublicFileHandler(const std::string &publicDir);
+    explicit RedirectHandler(const std::string &location);
 
     void handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp) override;
 
 private:
-    std::string publicDir;
+    std::string location;
 };
 
 } // namespace handler

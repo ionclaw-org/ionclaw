@@ -208,21 +208,27 @@ std::string ContextBuilder::buildSystemPrompt(const std::string &agentName, cons
            << getChannelGuidance(channel);
 
     // 7. public files and delivery
-    std::string effectiveUrl = config.server.publicUrl;
+    std::string baseUrl = config.server.publicUrl;
 
-    if (effectiveUrl.empty())
+    if (baseUrl.empty())
     {
-        effectiveUrl = "http://localhost:" + std::to_string(config.server.port);
+        baseUrl = "http://localhost:" + std::to_string(config.server.port);
     }
 
-    auto safeUrl = ionclaw::util::StringHelper::sanitizeForPrompt(effectiveUrl);
+    if (baseUrl.back() == '/')
+    {
+        baseUrl.pop_back();
+    }
+
+    // public files are served under the /public path, so the public url is the base url plus /public
+    auto publicUrl = ionclaw::util::StringHelper::sanitizeForPrompt(baseUrl + "/public");
 
     prompt << "\n\n# Public Files and Delivery\n"
            << "- You are currently responding on the \"" << channel << "\" channel.\n"
-           << "- Your public URL is " << safeUrl << ". A file you save to public/<name> inside your workspace is web-accessible at " << safeUrl << "/<name>.\n"
+           << "- Your public URL is " << publicUrl << ". A file you save to public/<name> inside your workspace is web-accessible at " << publicUrl << "/<name>.\n"
            << "- On channels other than the terminal (telegram, whatsapp, web) you cannot attach files, so this public link is the only way to deliver what you generated.\n"
            << "- When you produce something the user should download or open (an image, a report, a QR code), save it under public/ in your workspace.\n"
-           << "- RULE: if you saved any file under public/ during this interaction, your reply to the user MUST include its full public URL (" << safeUrl << "/<name>). Never save a public file without giving its link in the same message.\n"
+           << "- RULE: if you saved any file under public/ during this interaction, your reply to the user MUST include its full public URL (" << publicUrl << "/<name>). Never save a public file without giving its link in the same message.\n"
            << "- Only publish what is safe to be public — never put secrets, personal data, or private files under public/.";
 
     // 8. directory context

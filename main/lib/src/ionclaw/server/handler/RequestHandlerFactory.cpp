@@ -6,6 +6,7 @@
 #include "ionclaw/server/handler/ApiHandler.hpp"
 #include "ionclaw/server/handler/McpHandler.hpp"
 #include "ionclaw/server/handler/PublicFileHandler.hpp"
+#include "ionclaw/server/handler/RedirectHandler.hpp"
 #include "ionclaw/server/handler/WebAppHandler.hpp"
 #include "ionclaw/server/handler/WebSocketHandler.hpp"
 
@@ -55,14 +56,14 @@ Poco::Net::HTTPRequestHandler *RequestHandlerFactory::createRequestHandler(const
         return new WebAppHandler(webDir);
     }
 
-    // public file serving under the canonical /public/ prefix
+    // public file serving
     if (path == "/public" || path.substr(0, 8) == "/public/")
     {
         return new PublicFileHandler(publicDir);
     }
 
-    // any other path is served as a public file if one exists at that name, otherwise it falls back to the app
-    return new PublicFileHandler(publicDir, true);
+    // redirect root to app
+    return new RedirectHandler("/app/");
 }
 
 } // namespace handler
