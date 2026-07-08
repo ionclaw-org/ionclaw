@@ -4,6 +4,7 @@
 #include <regex>
 #include <stdexcept>
 
+#include "ionclaw/provider/ModelCapabilities.hpp"
 #include "ionclaw/provider/ProviderHelper.hpp"
 #include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/StringHelper.hpp"
@@ -223,7 +224,8 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
     }
 
     // apply thinking/reasoning budget (for o1, o3, Claude with extended thinking via OpenAI-compat)
-    if (!thinkingLevel.empty() && thinkingLevel != "off")
+    // gated on the capability table so we never send a reasoning field to a model known not to support it (permissive when unknown)
+    if (!thinkingLevel.empty() && thinkingLevel != "off" && ModelCapabilities::supportsReasoning(request.model))
     {
         // openrouter: inject reasoning.effort instead of thinking block
         bool isOpenRouter = baseUrl.find("openrouter") != std::string::npos;

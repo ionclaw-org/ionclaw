@@ -9,6 +9,7 @@
 #include "spdlog/spdlog.h"
 
 #ifdef IONCLAW_EMBEDDED_RESOURCES
+#include "embedded_models.hpp"
 #include "embedded_skills.hpp"
 #include "embedded_template.hpp"
 #include "embedded_web.hpp"
@@ -32,6 +33,9 @@ std::atomic<bool> EmbeddedResources::webLoaded{false};
 std::unordered_map<std::string, std::string> EmbeddedResources::skillFiles;
 std::once_flag EmbeddedResources::skillsLoadFlag;
 std::atomic<bool> EmbeddedResources::skillsLoaded{false};
+
+std::string EmbeddedResources::modelsJson;
+std::once_flag EmbeddedResources::modelsLoadFlag;
 
 #ifdef IONCLAW_EMBEDDED_RESOURCES
 
@@ -267,6 +271,38 @@ std::string EmbeddedResources::getSkillContent(const std::string &name)
     }
 
     return "";
+}
+
+void EmbeddedResources::loadModelsImpl()
+{
+#ifdef IONCLAW_EMBEDDED_RESOURCES
+    try
+    {
+        // the models zip holds a single file, model_capabilities.json
+        // clang-format off
+        forEachZipFile(ionclaw_embedded_models::getData(), ionclaw_embedded_models::getSize(), [](const std::string &name, std::istream &content) {
+            if (name == "model_capabilities.json")
+            {
+                std::ostringstream out;
+                Poco::StreamCopier::copyStream(content, out);
+                modelsJson = out.str();
+            }
+        });
+        // clang-format on
+
+        spdlog::info("[EmbeddedResources] Loaded model capability table ({} bytes)", modelsJson.size());
+    }
+    catch (const std::exception &e)
+    {
+        spdlog::error("[EmbeddedResources] Failed to load embedded model capabilities: {}", e.what());
+    }
+#endif
+}
+
+std::string EmbeddedResources::getModelCapabilitiesJson()
+{
+    std::call_once(modelsLoadFlag, loadModelsImpl);
+    return modelsJson;
 }
 
 } // namespace util

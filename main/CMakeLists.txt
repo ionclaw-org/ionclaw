@@ -26,6 +26,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/ClaudeCliProvider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/OpenAiProvider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/ProviderFactory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/ModelCapabilities.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/ProviderHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/session/SessionManager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/session/SessionKeyUtils.cpp
@@ -167,10 +168,26 @@ add_custom_command(
     COMMENT "Embedding template resources..."
 )
 
+# model capability table (litellm-equivalent model_prices data)
+file(GLOB_RECURSE IONCLAW_MODELS_FILES "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/*")
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/embedded_models.cpp
+           ${CMAKE_CURRENT_BINARY_DIR}/embedded_models.hpp
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/resources/models
+        -DOUTPUT_CPP=${CMAKE_CURRENT_BINARY_DIR}/embedded_models.cpp
+        -DOUTPUT_HPP=${CMAKE_CURRENT_BINARY_DIR}/embedded_models.hpp
+        -DNAMESPACE=ionclaw_embedded_models
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/../cmake/embed-resources.cmake
+    DEPENDS ${IONCLAW_MODELS_FILES}
+    COMMENT "Embedding model capability table..."
+)
+
 add_custom_target(ionclaw-embedded-resources DEPENDS
     ${CMAKE_CURRENT_BINARY_DIR}/embedded_web.hpp
     ${CMAKE_CURRENT_BINARY_DIR}/embedded_skills.hpp
     ${CMAKE_CURRENT_BINARY_DIR}/embedded_template.hpp
+    ${CMAKE_CURRENT_BINARY_DIR}/embedded_models.hpp
 )
 
 # static library (includes embedded resources)
@@ -179,6 +196,7 @@ add_library(ionclaw-lib STATIC
     ${CMAKE_CURRENT_BINARY_DIR}/embedded_web.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/embedded_skills.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/embedded_template.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/embedded_models.cpp
 )
 
 target_include_directories(ionclaw-lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lib/include)
