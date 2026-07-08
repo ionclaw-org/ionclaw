@@ -222,14 +222,15 @@ std::string ContextBuilder::buildSystemPrompt(const std::string &agentName, cons
 
     // public files are served under the /public path, so the public url is the base url plus /public
     auto publicUrl = ionclaw::util::StringHelper::sanitizeForPrompt(baseUrl + "/public");
+    auto safeChannel = ionclaw::util::StringHelper::sanitizeForPrompt(channel);
 
     prompt << "\n\n# Public Files and Delivery\n"
-           << "- You are currently responding on the \"" << channel << "\" channel.\n"
-           << "- Your public URL is " << publicUrl << ". A file you save to public/<name> inside your workspace is web-accessible at " << publicUrl << "/<name>.\n"
-           << "- On channels other than the terminal (telegram, whatsapp, web) you cannot attach files, so this public link is the only way to deliver what you generated.\n"
-           << "- When you produce something the user should download or open (an image, a report, a QR code), save it under public/ in your workspace.\n"
-           << "- RULE: if you saved any file under public/ during this interaction, your reply to the user MUST include its full public URL (" << publicUrl << "/<name>). Never save a public file without giving its link in the same message.\n"
-           << "- Only publish what is safe to be public — never put secrets, personal data, or private files under public/.";
+           << "- You are responding on the \"" << safeChannel << "\" channel.\n"
+           << "- Files you save under public/ in your workspace are published on the web: a file's url is " << publicUrl << " plus its path below public/. For example, saving public/media/chart.png publishes it at " << publicUrl << "/media/chart.png.\n"
+           << "- On channels other than the terminal (telegram, whatsapp, web) you cannot attach files, so this url is the only way to deliver a file you generated.\n"
+           << "- When you create something the user should open or download (an image, a report, a QR code), save it under public/.\n"
+           << "- Whenever you save a file under public/ during this turn, your reply to the user MUST include its full public url.\n"
+           << "- Never publish secrets, personal data, or private files.";
 
     // 8. directory context
     prompt << "\n\n# Project Structure\n"
