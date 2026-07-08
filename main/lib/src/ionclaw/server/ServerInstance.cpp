@@ -125,11 +125,11 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
 
         config = std::make_shared<ionclaw::config::Config>(cfg);
 
-        // create core components
+        // create core components; orchestrator state lives at the project root, outside the agent's workspace
         dispatcher = std::make_shared<ionclaw::bus::EventDispatcher>();
         bus = std::make_shared<ionclaw::bus::MessageBus>();
-        sessionManager = std::make_shared<ionclaw::session::SessionManager>(defaultWorkspace + "/sessions", cfg.sessionBudget.maxDiskBytes, cfg.sessionBudget.highWaterRatio);
-        taskManager = std::make_shared<ionclaw::task::TaskManager>(defaultWorkspace + "/tasks.jsonl", dispatcher);
+        sessionManager = std::make_shared<ionclaw::session::SessionManager>(resolvedPath + "/sessions", cfg.sessionBudget.maxDiskBytes, cfg.sessionBudget.highWaterRatio);
+        taskManager = std::make_shared<ionclaw::task::TaskManager>(resolvedPath + "/tasks.jsonl", dispatcher);
         toolRegistry = std::make_shared<ionclaw::tool::ToolRegistry>();
         wsManager = std::make_shared<WebSocketManager>();
         auth = std::make_shared<Auth>(cfg);
@@ -222,8 +222,8 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
         heartbeatService = std::make_shared<ionclaw::heartbeat::HeartbeatService>(bus, sessionManager, defaultWorkspace, cfg.heartbeat.interval, cfg.heartbeat.enabled, cfg.heartbeat.agent);
         heartbeatService->start();
 
-        // create and start cron service
-        cronService = std::make_shared<ionclaw::cron::CronService>(bus, taskManager, defaultWorkspace);
+        // create and start cron service; its job store lives at the project root, outside the agent's workspace
+        cronService = std::make_shared<ionclaw::cron::CronService>(bus, taskManager, resolvedPath);
         cronService->start();
 
         // wire cron service into orchestrator for agent tool access

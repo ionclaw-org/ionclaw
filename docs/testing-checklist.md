@@ -78,7 +78,7 @@ A comprehensive manual QA checklist for the agent runtime. It is grouped by area
 
 ## 9. Storage layout
 
-- [ ] After running, confirm on disk: `workspace/sessions/`, `workspace/tasks.jsonl`, `workspace/cron_jobs.json`, `workspace/memory/`, `workspace/subagent-runs.json` all present under the project. No project data under a hidden `.ionclaw` directory. (Chrome profile under `~/.ionclaw/` is machine cache, expected.)
+- [ ] After running, confirm on disk that orchestrator state sits at the **project root**, outside the agent workspace: `sessions/`, `tasks.jsonl`, `cron-jobs.json`, `subagent-runs.json`. The agent's own files stay under `workspace/` (including `workspace/memory/` and `workspace/skills/`). No project data under a hidden `.ionclaw` directory. (Chrome profile under `~/.ionclaw/` is machine cache, expected.)
 
 ## 10. Apps (visual + behavior)
 

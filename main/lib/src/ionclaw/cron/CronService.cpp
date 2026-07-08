@@ -19,10 +19,10 @@ namespace ionclaw
 namespace cron
 {
 
-CronService::CronService(std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::task::TaskManager> taskManager, const std::string &workspacePath)
+CronService::CronService(std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::task::TaskManager> taskManager, const std::string &stateDir)
     : bus(std::move(bus))
     , taskManager(std::move(taskManager))
-    , storePath(workspacePath + "/cron_jobs.json")
+    , storePath(stateDir + "/cron-jobs.json")
 {
     load();
 }

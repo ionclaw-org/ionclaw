@@ -46,7 +46,7 @@ struct SubagentRunRecord
 class SubagentRegistry
 {
 public:
-    explicit SubagentRegistry(const std::string &workspacePath);
+    explicit SubagentRegistry(const std::string &stateDir);
 
     static constexpr int MAX_DEPTH = 5;
     static constexpr int MAX_CHILDREN = 5;

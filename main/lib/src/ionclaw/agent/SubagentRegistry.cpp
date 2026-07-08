@@ -97,11 +97,11 @@ SubagentRunRecord SubagentRunRecord::fromJson(const nlohmann::json &j)
 
 // subagent registry
 
-SubagentRegistry::SubagentRegistry(const std::string &workspacePath)
+SubagentRegistry::SubagentRegistry(const std::string &stateDir)
 {
     std::error_code ec;
-    fs::create_directories(workspacePath, ec);
-    filePath = workspacePath + "/subagent-runs.json";
+    fs::create_directories(stateDir, ec);
+    filePath = stateDir + "/subagent-runs.json";
 }
 
 SubagentRunRecord SubagentRegistry::spawn(const std::string &requesterSessionKey, const std::string &task, const std::string &childSessionKey, const std::string &model, const std::string &thinkingLevel, int parentDepth, int timeoutSeconds)

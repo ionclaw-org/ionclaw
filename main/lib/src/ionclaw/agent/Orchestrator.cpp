@@ -91,8 +91,8 @@ void Orchestrator::start()
     // create hook runner
     hookRunner = std::make_shared<HookRunner>();
 
-    // create subagent registry and announce queue, storing alongside cron_jobs.json under the shared workspace
-    auto newSubagentRegistry = std::make_shared<SubagentRegistry>(config.projectPath + "/workspace");
+    // create subagent registry and announce queue; orchestrator state lives at the project root, outside the agent's workspace
+    auto newSubagentRegistry = std::make_shared<SubagentRegistry>(config.projectPath);
     newSubagentRegistry->load();
     newSubagentRegistry->recoverStaleRuns();
     auto newAnnounceQueue = std::make_shared<AnnounceQueue>();

@@ -21,7 +21,7 @@ namespace cron
 class CronService
 {
 public:
-    CronService(std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::task::TaskManager> taskManager, const std::string &workspacePath);
+    CronService(std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::task::TaskManager> taskManager, const std::string &stateDir);
 
     void start();
     void stop();
