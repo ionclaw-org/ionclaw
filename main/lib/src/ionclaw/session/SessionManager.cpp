@@ -658,6 +658,11 @@ void SessionManager::writeSessionFile(const Session &session)
         meta["abort_cutoff_index"] = session.abortCutoffMessageIndex;
     }
 
+    if (session.stoppedByUser)
+    {
+        meta["stopped_by_user"] = true;
+    }
+
     std::string content = meta.dump() + "\n";
 
     for (const auto &msg : session.messages)
@@ -768,32 +773,45 @@ void SessionManager::markStoppedByUser(const std::string &sessionKey)
     // transient in-memory flag consumed on the next turn, so no file write is needed
     auto mtx = getSessionMutex(sessionKey);
     std::lock_guard<std::mutex> lock(*mtx);
-    std::lock_guard<std::mutex> glock(globalMutex);
 
-    auto it = cache.find(sessionKey);
-
-    if (it == cache.end())
+    // mutate and snapshot under globalMutex, persist outside so the flag survives eviction or restart
+    Session snapshot;
     {
-        return;
+        std::lock_guard<std::mutex> glock(globalMutex);
+        auto it = cache.find(sessionKey);
+
+        if (it == cache.end())
+        {
+            return;
+        }
+
+        it->second.stoppedByUser = true;
+        snapshot = it->second;
     }
 
-    it->second.stoppedByUser = true;
+    writeSessionFile(snapshot);
 }
 
 void SessionManager::clearStoppedByUser(const std::string &sessionKey)
 {
     auto mtx = getSessionMutex(sessionKey);
     std::lock_guard<std::mutex> lock(*mtx);
-    std::lock_guard<std::mutex> glock(globalMutex);
 
-    auto it = cache.find(sessionKey);
-
-    if (it == cache.end())
+    Session snapshot;
     {
-        return;
+        std::lock_guard<std::mutex> glock(globalMutex);
+        auto it = cache.find(sessionKey);
+
+        if (it == cache.end())
+        {
+            return;
+        }
+
+        it->second.stoppedByUser = false;
+        snapshot = it->second;
     }
 
-    it->second.stoppedByUser = false;
+    writeSessionFile(snapshot);
 }
 
 void SessionManager::updateLiveStateField(const std::string &sessionKey, const std::string &field, const nlohmann::json &value)
@@ -1052,6 +1070,7 @@ void SessionManager::loadFromDisk(const std::string &sessionKey)
 
                 session.abortedLastRun = j.value("aborted_last_run", false);
                 session.abortCutoffMessageIndex = j.value("abort_cutoff_index", -1);
+                session.stoppedByUser = j.value("stopped_by_user", false);
 
                 firstLine = false;
                 validLines.push_back(line);

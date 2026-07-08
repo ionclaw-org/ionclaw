@@ -45,6 +45,10 @@ private:
     std::mutex fileMutex;
     std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher;
 
+    // rewrite the append log after this many appends so it does not grow without bound at runtime
+    static constexpr int COMPACTION_APPEND_THRESHOLD = 500;
+    int appendsSinceCompaction = 0;
+
     static std::chrono::system_clock::time_point parseTimestamp(const std::string &str);
 
     void broadcastUpdate(const Task &task);

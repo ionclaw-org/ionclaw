@@ -73,3 +73,6 @@ apps/flutter/plugin/ios/ionclaw.xcframework
 apps/apple/IonClaw.xcodeproj
 apps/apple/*.xcworkspace
 apps/apple/build
+
+# litellm reference clone (not tracked)
+/temp/

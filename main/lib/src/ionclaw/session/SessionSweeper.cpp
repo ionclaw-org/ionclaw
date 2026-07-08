@@ -28,7 +28,10 @@ int64_t SessionSweeper::measureTotalSize() const
 
     for (const auto &entry : fs::directory_iterator(sessionsDir, ec))
     {
-        if (entry.is_regular_file() && entry.path().extension() == ".jsonl")
+        // count session files and their .bak recovery copies so the budget reflects real disk use
+        auto ext = entry.path().extension();
+
+        if (entry.is_regular_file() && (ext == ".jsonl" || ext == ".bak"))
         {
             std::error_code sizeEc;
             auto size = entry.file_size(sizeEc);
@@ -75,7 +78,10 @@ void SessionSweeper::sweepIfNeeded(const std::vector<std::string> &excludeFilena
 
     for (const auto &entry : fs::directory_iterator(sessionsDir, ec))
     {
-        if (entry.is_regular_file() && entry.path().extension() == ".jsonl")
+        // session files and their .bak recovery copies are both reclaimable disk under the budget
+        auto ext = entry.path().extension();
+
+        if (entry.is_regular_file() && (ext == ".jsonl" || ext == ".bak"))
         {
             // skip files for sessions currently active in cache
             if (excluded.contains(entry.path().filename().string()))

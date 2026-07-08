@@ -4,6 +4,7 @@
 
 #include <chrono>
 #include <condition_variable>
+#include <deque>
 #include <map>
 #include <mutex>
 #include <queue>
@@ -48,6 +49,12 @@ private:
     std::map<std::string, std::chrono::steady_clock::time_point> recentInbound;
     bool isDuplicate(const InboundMessage &msg);
     void purgeExpiredDedup();
+
+    // per-session sliding-window rate limit so one session cannot monopolize the shared inbound queue
+    static constexpr int RATE_WINDOW_SECONDS = 10;
+    static constexpr size_t MAX_PER_SESSION_IN_WINDOW = 30;
+    std::map<std::string, std::deque<std::chrono::steady_clock::time_point>> sessionSendTimes;
+    bool exceedsSessionRate(const InboundMessage &msg);
 };
 
 } // namespace bus

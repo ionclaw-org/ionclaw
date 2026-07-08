@@ -49,6 +49,52 @@ void MessageBus::purgeExpiredDedup()
             ++it;
         }
     }
+
+    // drop rate-tracking entries for sessions that have gone quiet so the map stays bounded
+    auto rateCutoff = std::chrono::steady_clock::now() - std::chrono::seconds(RATE_WINDOW_SECONDS);
+
+    for (auto it = sessionSendTimes.begin(); it != sessionSendTimes.end();)
+    {
+        while (!it->second.empty() && it->second.front() < rateCutoff)
+        {
+            it->second.pop_front();
+        }
+
+        if (it->second.empty())
+        {
+            it = sessionSendTimes.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
+bool MessageBus::exceedsSessionRate(const InboundMessage &msg)
+{
+    // system-generated messages (heartbeat, cron, wake) are not user floods
+    if (msg.metadata.contains("synthetic") && msg.metadata["synthetic"].is_boolean() && msg.metadata["synthetic"].get<bool>())
+    {
+        return false;
+    }
+
+    auto now = std::chrono::steady_clock::now();
+    auto cutoff = now - std::chrono::seconds(RATE_WINDOW_SECONDS);
+    auto &times = sessionSendTimes[msg.channel + ":" + msg.chatId];
+
+    while (!times.empty() && times.front() < cutoff)
+    {
+        times.pop_front();
+    }
+
+    if (times.size() >= MAX_PER_SESSION_IN_WINDOW)
+    {
+        return true;
+    }
+
+    times.push_back(now);
+    return false;
 }
 
 PublishResult MessageBus::publishInbound(const InboundMessage &msg)
@@ -59,6 +105,13 @@ PublishResult MessageBus::publishInbound(const InboundMessage &msg)
         if (isDuplicate(msg))
         {
             return PublishResult::Duplicate;
+        }
+
+        // reject a single session that is flooding faster than the window allows, so it cannot monopolize the shared queue
+        if (exceedsSessionRate(msg))
+        {
+            spdlog::warn("[MessageBus] session {}:{} exceeded the per-session rate limit, rejecting message", msg.channel, msg.chatId);
+            return PublishResult::QueueFull;
         }
 
         // reject once the backlog is saturated so a flood cannot grow memory without bound

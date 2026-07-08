@@ -368,6 +368,28 @@ void TaskManager::appendToFile(const Task &task)
 {
     std::lock_guard<std::mutex> flock(fileMutex);
 
+    // callers hold the data mutex, so tasks can be read here; periodically rewrite the whole file to bound its growth
+    if (++appendsSinceCompaction >= COMPACTION_APPEND_THRESHOLD)
+    {
+        appendsSinceCompaction = 0;
+
+        std::string content;
+
+        for (const auto &[id, t] : tasks)
+        {
+            content += t.toJson().dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) + "\n";
+        }
+
+        auto error = ionclaw::util::FileHelper::atomicWrite(tasksFilePath, content);
+
+        if (!error.empty())
+        {
+            spdlog::error("[TaskManager] {}", error);
+        }
+
+        return;
+    }
+
     std::ofstream ofs(tasksFilePath, std::ios::app);
 
     if (!ofs.is_open())
