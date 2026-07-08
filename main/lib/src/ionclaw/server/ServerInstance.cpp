@@ -120,8 +120,8 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
         ionclaw::config::ConfigLoader::resolveWorkspaces(cfg, resolvedPath);
         auto defaultWorkspace = resolvedPath + "/workspace";
 
-        // set public directory path on config
-        cfg.publicDir = resolvedPath + "/public";
+        // the public directory lives inside the agent workspace, since the agent can only write within its workspace
+        cfg.publicDir = defaultWorkspace + "/public";
 
         config = std::make_shared<ionclaw::config::Config>(cfg);
 
@@ -192,8 +192,8 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
             }
         }
 
-        // public directory for static file serving
-        auto publicDir = resolvedPath + "/public";
+        // public directory for static file serving, inside the agent workspace
+        auto publicDir = resolvedPath + "/workspace/public";
         spdlog::info("[ServerInstance] Serving public files from: {}", publicDir);
 
         // create MCP dispatcher

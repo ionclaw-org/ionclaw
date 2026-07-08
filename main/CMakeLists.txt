@@ -96,7 +96,6 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/handler/WebSocketHandler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/handler/WebAppHandler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/handler/PublicFileHandler.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/handler/RedirectHandler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/handler/RequestHandlerFactory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/AuthRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/ChatRoutes.cpp

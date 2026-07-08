@@ -785,7 +785,7 @@ The `ToolRegistry` manages all tools:
 File tools, HTTP client, and shell execution are restricted to:
 
 1. The agent's own workspace directory
-2. The shared `public/` directory at the project root
+2. The shared `public/` directory inside the workspace (`workspace/public`)
 
 Paths outside these boundaries raise an error. In multi-agent setups, agents cannot access each other's workspaces.
 

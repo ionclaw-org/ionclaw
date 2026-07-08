@@ -315,9 +315,10 @@ Deletes a file or directory recursively.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/public/{path}` | Serve files from the `public/` directory |
+| GET | `/public/{path}` | Serve files from the `workspace/public/` directory |
+| GET | `/{path}` | Also serves a matching public file at the bare root; otherwise redirects to the app |
 
-No authentication required. Files under the project's `public/` directory are served directly for use in `<img>`, `<video>`, `<audio>` tags.
+No authentication required. Files under `workspace/public/` are served directly for use in `<img>`, `<video>`, `<audio>` tags. A file saved to `public/<name>` is reachable both at `/public/<name>` and at the bare `/<name>`, so shared links can be clean (`{public_url}/<name>`).
 
 ---
 

@@ -222,7 +222,7 @@ File-related tools are restricted to (restriction is always enforced by the back
 
 1. The agent's own workspace directory.
 2. The project root directory.
-3. The shared `public/` directory at the project root.
+3. The shared `public/` directory inside the workspace (`workspace/public`), served on the web.
 
 For relative paths, the tool resolves against the workspace first, then the project root. This allows agents to read project-level files (e.g., skills in `skills/`) without requiring the workspace to contain them.
 

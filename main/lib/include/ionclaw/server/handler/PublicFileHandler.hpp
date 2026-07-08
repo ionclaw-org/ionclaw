@@ -14,12 +14,14 @@ namespace handler
 class PublicFileHandler final : public Poco::Net::HTTPRequestHandler
 {
 public:
-    explicit PublicFileHandler(const std::string &publicDir);
+    // rootMode serves files whose url path is the file path itself (e.g. /report.pdf) and sends non-files to the app
+    explicit PublicFileHandler(const std::string &publicDir, bool rootMode = false);
 
     void handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp) override;
 
 private:
     std::string publicDir;
+    bool rootMode;
 };
 
 } // namespace handler

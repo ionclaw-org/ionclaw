@@ -104,27 +104,20 @@ std::string ContextBuilder::buildDirectoryContext() const
 {
     std::ostringstream lines;
 
-    lines << "You have access to your workspace and the public directory (at the project root, not inside the workspace). Always use paths relative to the project root (e.g. public/media/image.png, not /public/media/image.png).\n\n";
+    lines << "You work inside your workspace. Use paths relative to it (e.g. public/media/image.png).\n\n";
 
     // agent workspace (sanitize paths for prompt safety)
     auto safePath = ionclaw::util::StringHelper::sanitizeForPrompt(workspacePath);
     lines << "Workspace: " << safePath << "\n";
     lines << "  Internal files: reports, data, drafts.\n";
     lines << "  - " << safePath << "/skills"
-          << " - your skills (each is a directory with a SKILL.md, override project-level skills)\n\n";
-
-    // public directory paths
-    auto publicDir = ionclaw::util::StringHelper::sanitizeForPrompt(config.publicDir);
-
-    if (!publicDir.empty())
-    {
-        lines << "Public: " << publicDir << "\n";
-        lines << "  Web-accessible at /public/ URL. Use for anything the user needs to access.\n";
-        lines << "  Organize files by type and date (YYYY/MM/DD) to avoid cluttering a single folder:\n";
-        lines << "  - " << publicDir << "/media" << " - images, audio, video\n";
-        lines << "  - " << publicDir << "/documents" << " - PDFs, spreadsheets, exports\n";
-        lines << "  - " << publicDir << "/sites" << " - HTML pages, static sites\n";
-    }
+          << " - your skills (each is a directory with a SKILL.md, override project-level skills)\n";
+    lines << "  - " << safePath << "/public"
+          << " - files published on the web (see the public delivery rules in the system prompt)\n";
+    lines << "    Organize by type and date (YYYY/MM/DD) to avoid cluttering a single folder:\n";
+    lines << "    - " << safePath << "/public/media" << " - images, audio, video\n";
+    lines << "    - " << safePath << "/public/documents" << " - PDFs, spreadsheets, exports\n";
+    lines << "    - " << safePath << "/public/sites" << " - HTML pages, static sites\n";
 
     return lines.str();
 }
@@ -214,7 +207,7 @@ std::string ContextBuilder::buildSystemPrompt(const std::string &agentName, cons
     prompt << "\n\n"
            << getChannelGuidance(channel);
 
-    // 7. public url
+    // 7. public files and delivery
     std::string effectiveUrl = config.server.publicUrl;
 
     if (effectiveUrl.empty())
@@ -222,9 +215,15 @@ std::string ContextBuilder::buildSystemPrompt(const std::string &agentName, cons
         effectiveUrl = "http://localhost:" + std::to_string(config.server.port);
     }
 
-    prompt << "\n\nPublic URL: " << ionclaw::util::StringHelper::sanitizeForPrompt(effectiveUrl)
-           << "\nWhen sharing public files with the user, always provide the full URL "
-           << "by prepending the public URL to the file path.";
+    auto safeUrl = ionclaw::util::StringHelper::sanitizeForPrompt(effectiveUrl);
+
+    prompt << "\n\n# Public Files and Delivery\n"
+           << "- You are currently responding on the \"" << channel << "\" channel.\n"
+           << "- Your public URL is " << safeUrl << ". A file you save to public/<name> inside your workspace is web-accessible at " << safeUrl << "/<name>.\n"
+           << "- On channels other than the terminal (telegram, whatsapp, web) you cannot attach files, so this public link is the only way to deliver what you generated.\n"
+           << "- When you produce something the user should download or open (an image, a report, a QR code), save it under public/ in your workspace.\n"
+           << "- RULE: if you saved any file under public/ during this interaction, your reply to the user MUST include its full public URL (" << safeUrl << "/<name>). Never save a public file without giving its link in the same message.\n"
+           << "- Only publish what is safe to be public — never put secrets, personal data, or private files under public/.";
 
     // 8. directory context
     prompt << "\n\n# Project Structure\n"
