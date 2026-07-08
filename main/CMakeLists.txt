@@ -213,6 +213,7 @@ if(IONCLAW_BUILD_SHARED)
         ${CMAKE_CURRENT_BINARY_DIR}/embedded_web.cpp
         ${CMAKE_CURRENT_BINARY_DIR}/embedded_skills.cpp
         ${CMAKE_CURRENT_BINARY_DIR}/embedded_template.cpp
+        ${CMAKE_CURRENT_BINARY_DIR}/embedded_models.cpp
     )
 
     set_target_properties(ionclaw-shared PROPERTIES
