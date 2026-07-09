@@ -1,6 +1,7 @@
 #include "doctest/doctest.h"
 
 #include "ionclaw/config/Config.hpp"
+#include "ionclaw/config/ConfigLoader.hpp"
 
 using namespace ionclaw::config;
 
@@ -79,4 +80,35 @@ TEST_CASE("resolveApiKey prefers key over token and returns empty when unset")
     CHECK(cfg.resolveApiKey("openai") == "sk-openai");
     CHECK(cfg.resolveApiKey("ollama").empty());
     CHECK(cfg.resolveApiKey("nonexistent").empty());
+}
+
+TEST_CASE("whatsapp channel credentials survive a config save/load round-trip")
+{
+    Config cfg;
+
+    ChannelConfig zapi;
+    zapi.enabled = true;
+    zapi.raw = {{"instance_id", "ID"}, {"instance_token", "IT"}, {"client_token", "CT"}};
+    cfg.channels["whatsapp_zapi"] = zapi;
+
+    ChannelConfig meta;
+    meta.enabled = true;
+    meta.raw = {{"access_token", "AT"}, {"phone_number_id", "PID"}, {"verify_token", "VT"}, {"app_secret", "AS"}, {"graph_version", "v23.0"}};
+    cfg.channels["whatsapp_meta"] = meta;
+
+    auto reloaded = ConfigLoader::loadFromString(ConfigLoader::toYaml(cfg));
+
+    auto z = reloaded.channels.find("whatsapp_zapi");
+    REQUIRE(z != reloaded.channels.end());
+    CHECK(z->second.enabled);
+    CHECK(z->second.raw.value("instance_id", "") == "ID");
+    CHECK(z->second.raw.value("instance_token", "") == "IT");
+    CHECK(z->second.raw.value("client_token", "") == "CT");
+
+    auto m = reloaded.channels.find("whatsapp_meta");
+    REQUIRE(m != reloaded.channels.end());
+    CHECK(m->second.raw.value("access_token", "") == "AT");
+    CHECK(m->second.raw.value("phone_number_id", "") == "PID");
+    CHECK(m->second.raw.value("app_secret", "") == "AS");
+    CHECK(m->second.raw.value("graph_version", "") == "v23.0");
 }

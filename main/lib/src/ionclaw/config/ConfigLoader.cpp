@@ -960,6 +960,17 @@ std::string ConfigLoader::toYaml(const Config &config)
                 out << YAML::Key << "require_auth" << YAML::Value << channel.raw["require_auth"].get<bool>();
             }
 
+            // whatsapp string fields (z-api and meta credentials/settings)
+            static const char *whatsAppKeys[] = {"instance_id", "instance_token", "client_token", "access_token", "phone_number_id", "verify_token", "app_secret", "graph_version"};
+
+            for (const auto *key : whatsAppKeys)
+            {
+                if (channel.raw.contains(key) && channel.raw[key].is_string() && !channel.raw[key].get<std::string>().empty())
+                {
+                    out << YAML::Key << key << YAML::Value << channel.raw[key].get<std::string>();
+                }
+            }
+
             out << YAML::EndMap;
         }
 

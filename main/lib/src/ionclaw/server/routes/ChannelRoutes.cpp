@@ -62,6 +62,18 @@ void Routes::handleChannelGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
         {
             out["require_auth"] = ch.raw["require_auth"].get<bool>();
         }
+
+        // whatsapp string fields; secrets are masked so they are never echoed back to the client
+        static const std::vector<std::pair<std::string, bool>> whatsAppFields = {{"instance_id", false}, {"instance_token", true}, {"client_token", true}, {"access_token", true}, {"phone_number_id", false}, {"verify_token", true}, {"app_secret", true}, {"graph_version", false}};
+
+        for (const auto &[key, secret] : whatsAppFields)
+        {
+            if (ch.raw.contains(key) && ch.raw[key].is_string())
+            {
+                auto value = ch.raw[key].get<std::string>();
+                out[key] = (secret && !value.empty()) ? "****" : value;
+            }
+        }
     }
 
     sendJson(resp, out);
@@ -79,8 +91,15 @@ void Routes::handleChannelUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::H
 
         if (it == config->channels.end())
         {
-            sendError(resp, "Channel not found", 404);
-            return;
+            // the whatsapp channels can be created from the api on first configuration; other unknown names are rejected
+            if (name != "whatsapp_zapi" && name != "whatsapp_meta")
+            {
+                sendError(resp, "Channel not found", 404);
+                return;
+            }
+
+            config->channels[name] = ionclaw::config::ChannelConfig{};
+            it = config->channels.find(name);
         }
 
         auto &ch = it->second;
@@ -119,6 +138,24 @@ void Routes::handleChannelUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::H
         if (configData.contains("require_auth") && configData["require_auth"].is_boolean())
         {
             ch.raw["require_auth"] = configData["require_auth"].get<bool>();
+        }
+
+        // whatsapp string fields; a masked or empty secret keeps the stored value so it is not wiped
+        static const std::vector<std::pair<std::string, bool>> whatsAppFields = {{"instance_id", false}, {"instance_token", true}, {"client_token", true}, {"access_token", true}, {"phone_number_id", false}, {"verify_token", true}, {"app_secret", true}, {"graph_version", false}};
+
+        for (const auto &[key, secret] : whatsAppFields)
+        {
+            if (configData.contains(key) && configData[key].is_string())
+            {
+                auto value = configData[key].get<std::string>();
+
+                if (secret && (value.empty() || value == "****"))
+                {
+                    continue;
+                }
+
+                ch.raw[key] = value;
+            }
         }
 
         ionclaw::config::ConfigLoader::save(*config, config->projectPath + "/config.yml");
