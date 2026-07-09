@@ -98,7 +98,8 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
         // before the async agent loop picks it up (page refresh always shows it)
         sessionManager->ensureSession(sessionKey);
 
-        auto task = taskManager->createTask(taskTitle, message, "web", chatId);
+        // the session may belong to another channel (e.g. replying to a telegram thread from the web ui), so operate on its real channel
+        auto task = taskManager->createTask(taskTitle, message, channel, chatId);
 
         ionclaw::session::SessionMessage userMsg;
         userMsg.role = "user";
@@ -115,7 +116,7 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
 
         // build inbound message
         ionclaw::bus::InboundMessage inbound;
-        inbound.channel = "web";
+        inbound.channel = channel;
         inbound.senderId = "web_user";
         inbound.chatId = chatId;
         inbound.content = message;
@@ -155,7 +156,7 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
 
                     {
                         std::lock_guard<std::mutex> lock(configMutex);
-                        settings = ionclaw::bus::SessionQueue::resolveQueueSettings(*config, "web", inbound.queueMode);
+                        settings = ionclaw::bus::SessionQueue::resolveQueueSettings(*config, channel, inbound.queueMode);
                     }
 
                     // tag both copies with a shared id so the followup backup is dropped if the steer copy is consumed
@@ -192,11 +193,11 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
         if (publishResult == ionclaw::bus::PublishResult::Duplicate)
         {
             taskManager->updateState(task.id, ionclaw::task::TaskState::Done, "Duplicate of a recent message, ignored.");
-            sendJson(resp, {{"task_id", task.id}, {"session_id", "web:" + chatId}, {"duplicate", true}});
+            sendJson(resp, {{"task_id", task.id}, {"session_id", sessionKey}, {"duplicate", true}});
             return;
         }
 
-        sendJson(resp, {{"task_id", task.id}, {"session_id", "web:" + chatId}});
+        sendJson(resp, {{"task_id", task.id}, {"session_id", sessionKey}});
     }
     catch (const std::exception &e)
     {
