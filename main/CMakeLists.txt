@@ -115,6 +115,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/cron/WindowsTimeZone.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/channel/ChannelManager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/channel/TelegramRunner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/channel/WhatsAppWebhook.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/ChannelRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/FormRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/SchedulerRoutes.cpp

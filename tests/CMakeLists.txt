@@ -12,6 +12,7 @@ set(IONCLAW_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/cron_parser_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/http_client_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/model_capabilities_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/whatsapp_webhook_test.cpp
 )
 
 add_executable(ionclaw-tests ${IONCLAW_TEST_SOURCES})
