@@ -67,6 +67,21 @@ Every inbound POST is rejected unless its `X-Hub-Signature-256` matches `HMAC-SH
 - Inbound media (image/audio/video/document) is downloaded into `workspace/public/media` and attached to the turn; a media-only message uses its caption as the text.
 - If the channel's `allowed_users` list is set, only those phone numbers may talk to the agent; everyone else is ignored. Leave it empty to accept any sender.
 
+## Outbound media and message splitting
+
+The agent can attach files and split its reply using inline markers, which the WhatsApp runner turns into real attachments (both providers fetch the media by its public URL, so `server.public_url` must be set and reachable):
+
+| Marker | Effect |
+|--------|--------|
+| `[[image:public/media/chart.png]]` | send the file as an image; surrounding text becomes the caption |
+| `[[audio:public/media/reply.ogg]]` / `[[voice:...]]` | send as an audio message (no caption) |
+| `[[video:public/media/clip.mp4]]` | send as a video with caption |
+| `[[document:public/reports/r.pdf]]` / `[[file:...]]` | send as a document with caption and file name |
+| `[[media:PATH]]` | pick the type from the file extension |
+| `[[break]]` | split the reply into separate WhatsApp messages |
+
+A marker path under `public/` resolves to `{public_url}/public/<path>`; an absolute `http(s)` URL is sent as-is. Plain replies with no markers are delivered as one or more text messages, split under the WhatsApp length limit. The agent is told about these markers automatically when it is responding on the `whatsapp` channel.
+
 ```yaml
 channels:
   whatsapp_zapi:

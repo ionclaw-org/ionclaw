@@ -121,6 +121,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/channel/WebhookDedup.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/channel/WhatsAppSender.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/channel/WhatsAppRunner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/channel/DeliveryParser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/ChannelRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/FormRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/SchedulerRoutes.cpp

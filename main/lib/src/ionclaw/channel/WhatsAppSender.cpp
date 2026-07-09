@@ -71,6 +71,36 @@ OutboundRequest WhatsAppSender::metaSendText(const std::string &graphVersion, co
     return req;
 }
 
+OutboundRequest WhatsAppSender::metaSendMedia(const std::string &graphVersion, const std::string &phoneNumberId, const std::string &accessToken, const std::string &to, const std::string &kind, const std::string &link, const std::string &caption, const std::string &fileName)
+{
+    OutboundRequest req;
+    req.url = "https://graph.facebook.com/" + graphVersion + "/" + phoneNumberId + "/messages";
+    req.headers["Content-Type"] = "application/json";
+    req.headers["Authorization"] = "Bearer " + accessToken;
+
+    nlohmann::json object;
+    object["link"] = link;
+
+    // audio carries no caption, documents also take the original file name
+    if (kind == "image" || kind == "video")
+    {
+        object["caption"] = caption;
+    }
+    else if (kind == "document")
+    {
+        object["caption"] = caption;
+        object["filename"] = fileName;
+    }
+
+    req.body = nlohmann::json{
+        {"messaging_product", "whatsapp"},
+        {"to", to},
+        {"type", kind},
+        {kind, object},
+    }.dump();
+    return req;
+}
+
 OutboundRequest WhatsAppSender::metaSendReadAndTyping(const std::string &graphVersion, const std::string &phoneNumberId, const std::string &accessToken, const std::string &inboundMessageId)
 {
     OutboundRequest req;

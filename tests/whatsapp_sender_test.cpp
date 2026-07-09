@@ -47,6 +47,33 @@ TEST_CASE("meta send-text builds the graph url, bearer header and body")
     CHECK(body["text"]["body"] == "hello");
 }
 
+TEST_CASE("meta send-media builds an image message by link with a caption")
+{
+    auto req = WhatsAppSender::metaSendMedia("v23.0", "PID", "TOKEN", "55", "image", "https://host/public/media/a.png", "cap", "a.png");
+    CHECK(req.url == "https://graph.facebook.com/v23.0/PID/messages");
+    CHECK(req.headers.at("Authorization") == "Bearer TOKEN");
+
+    auto body = nlohmann::json::parse(req.body);
+    CHECK(body["type"] == "image");
+    CHECK(body["image"]["link"] == "https://host/public/media/a.png");
+    CHECK(body["image"]["caption"] == "cap");
+}
+
+TEST_CASE("meta send-media carries the filename for documents and omits captions for audio")
+{
+    auto doc = WhatsAppSender::metaSendMedia("v23.0", "PID", "TOKEN", "55", "document", "https://host/public/r.pdf", "here", "r.pdf");
+    auto dbody = nlohmann::json::parse(doc.body);
+    CHECK(dbody["type"] == "document");
+    CHECK(dbody["document"]["filename"] == "r.pdf");
+    CHECK(dbody["document"]["caption"] == "here");
+
+    auto audio = WhatsAppSender::metaSendMedia("v23.0", "PID", "TOKEN", "55", "audio", "https://host/public/v.ogg", "ignored", "v.ogg");
+    auto abody = nlohmann::json::parse(audio.body);
+    CHECK(abody["type"] == "audio");
+    CHECK(abody["audio"]["link"] == "https://host/public/v.ogg");
+    CHECK_FALSE(abody["audio"].contains("caption"));
+}
+
 TEST_CASE("meta read+typing references the inbound message id")
 {
     auto req = WhatsAppSender::metaSendReadAndTyping("v23.0", "PID", "TOKEN", "wamid.XYZ");

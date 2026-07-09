@@ -16,6 +16,7 @@ set(IONCLAW_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/whatsapp_webhook_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/webhook_dedup_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/whatsapp_sender_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/delivery_parser_test.cpp
 )
 
 add_executable(ionclaw-tests ${IONCLAW_TEST_SOURCES})

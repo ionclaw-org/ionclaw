@@ -4,6 +4,7 @@
 
 #include "ionclaw/bus/Events.hpp"
 #include "ionclaw/bus/MessageBus.hpp"
+#include "ionclaw/channel/DeliveryParser.hpp"
 #include "ionclaw/channel/WhatsAppSender.hpp"
 #include "ionclaw/config/Config.hpp"
 #include "ionclaw/util/HttpClient.hpp"
@@ -104,6 +105,54 @@ void WhatsAppRunner::outboundLoop()
     }
 }
 
+std::string WhatsAppRunner::baseName(const std::string &path)
+{
+    auto pos = path.find_last_of("/\\");
+    return pos == std::string::npos ? path : path.substr(pos + 1);
+}
+
+std::string WhatsAppRunner::resolvePublicUrl(const std::string &path) const
+{
+    // an absolute url is already reachable and passes through unchanged
+    if (path.rfind("http://", 0) == 0 || path.rfind("https://", 0) == 0)
+    {
+        return path;
+    }
+
+    // media is served under the /public path, so it needs the configured public base url
+    const auto &base = config->server.publicUrl;
+
+    if (base.empty())
+    {
+        return "";
+    }
+
+    // normalize the marker path to a location under public/
+    std::string rel = path;
+
+    if (rel.rfind("public/", 0) == 0)
+    {
+        rel = rel.substr(std::string("public/").size());
+    }
+
+    while (!rel.empty() && rel.front() == '/')
+    {
+        rel = rel.substr(1);
+    }
+
+    return base + "/public/" + rel;
+}
+
+void WhatsAppRunner::execute(const OutboundRequest &req, const std::string &chatId)
+{
+    auto resp = ionclaw::util::HttpClient::request(req.method, req.url, req.headers, req.body, 30);
+
+    if (resp.statusCode < 200 || resp.statusCode >= 300)
+    {
+        spdlog::error("[WhatsAppRunner] send to {} failed: HTTP {} {}", chatId, resp.statusCode, resp.body);
+    }
+}
+
 void WhatsAppRunner::send(const ionclaw::bus::OutboundMessage &msg)
 {
     if (msg.content.empty() || msg.chatId.empty())
@@ -124,31 +173,56 @@ void WhatsAppRunner::send(const ionclaw::bus::OutboundMessage &msg)
         return;
     }
 
-    // long replies are split so each stays under the whatsapp message limit
-    auto chunks = splitMessage(msg.content, MAX_WHATSAPP_CHARS);
+    // clang-format off
+    auto zApiBaseUrl = [&]() {
+        const auto &raw = zapiIt->second.raw;
+        return "https://api.z-api.io/instances/" + raw.value("instance_id", "") + "/token/" + raw.value("instance_token", "");
+    };
+    // clang-format on
 
-    for (const auto &chunk : chunks)
+    // the reply is split into deliverable parts: plain text messages and media attachments with optional captions
+    for (const auto &part : ionclaw::channel::DeliveryParser::parse(msg.content))
     {
-        OutboundRequest req;
+        if (part.mediaPath.empty())
+        {
+            // long text is split so each message stays under the whatsapp length limit
+            for (const auto &chunk : splitMessage(part.text, MAX_WHATSAPP_CHARS))
+            {
+                if (useMeta)
+                {
+                    const auto &raw = metaIt->second.raw;
+                    execute(WhatsAppSender::metaSendText(raw.value("graph_version", "v23.0"), raw.value("phone_number_id", ""), raw.value("access_token", ""), msg.chatId, chunk), msg.chatId);
+                }
+                else
+                {
+                    const auto &raw = zapiIt->second.raw;
+                    execute(WhatsAppSender::zApiSendText(zApiBaseUrl(), raw.value("client_token", ""), msg.chatId, chunk), msg.chatId);
+                }
+            }
+
+            continue;
+        }
+
+        // both providers fetch media by url, so the public url built from the workspace path is enough
+        auto url = resolvePublicUrl(part.mediaPath);
+
+        if (url.empty())
+        {
+            spdlog::error("[WhatsAppRunner] cannot send media '{}' to {}: server.public_url is not configured", part.mediaPath, msg.chatId);
+            continue;
+        }
+
+        auto fileName = baseName(part.mediaPath);
 
         if (useMeta)
         {
             const auto &raw = metaIt->second.raw;
-            auto version = raw.value("graph_version", "v23.0");
-            req = WhatsAppSender::metaSendText(version, raw.value("phone_number_id", ""), raw.value("access_token", ""), msg.chatId, chunk);
+            execute(WhatsAppSender::metaSendMedia(raw.value("graph_version", "v23.0"), raw.value("phone_number_id", ""), raw.value("access_token", ""), msg.chatId, part.mediaKind, url, part.text, fileName), msg.chatId);
         }
         else
         {
             const auto &raw = zapiIt->second.raw;
-            auto baseUrl = "https://api.z-api.io/instances/" + raw.value("instance_id", "") + "/token/" + raw.value("instance_token", "");
-            req = WhatsAppSender::zApiSendText(baseUrl, raw.value("client_token", ""), msg.chatId, chunk);
-        }
-
-        auto resp = ionclaw::util::HttpClient::request(req.method, req.url, req.headers, req.body, 30);
-
-        if (resp.statusCode < 200 || resp.statusCode >= 300)
-        {
-            spdlog::error("[WhatsAppRunner] send to {} failed: HTTP {} {}", msg.chatId, resp.statusCode, resp.body);
+            execute(WhatsAppSender::zApiSendMedia(zApiBaseUrl(), raw.value("client_token", ""), msg.chatId, part.mediaKind, url, part.text, fileName), msg.chatId);
         }
     }
 }
