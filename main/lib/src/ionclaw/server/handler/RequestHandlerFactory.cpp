@@ -9,6 +9,7 @@
 #include "ionclaw/server/handler/RedirectHandler.hpp"
 #include "ionclaw/server/handler/WebAppHandler.hpp"
 #include "ionclaw/server/handler/WebSocketHandler.hpp"
+#include "ionclaw/server/handler/WebhookHandler.hpp"
 
 namespace ionclaw
 {
@@ -54,6 +55,12 @@ Poco::Net::HTTPRequestHandler *RequestHandlerFactory::createRequestHandler(const
     if (path == "/app" || path.substr(0, 5) == "/app/")
     {
         return new WebAppHandler(webDir);
+    }
+
+    // inbound channel webhooks (whatsapp z-api / meta)
+    if (path.substr(0, 9) == "/webhook/")
+    {
+        return new WebhookHandler(routes);
     }
 
     // public file serving

@@ -121,6 +121,12 @@ bool Auth::isPublicPath(const std::string &path, const std::string &method)
         return true;
     }
 
+    // inbound channel webhooks authenticate via provider signature/token, not the app session
+    if (path.substr(0, 9) == "/webhook/")
+    {
+        return true;
+    }
+
     // read-only access to public files via api (GET only)
     if (method == "GET")
     {
