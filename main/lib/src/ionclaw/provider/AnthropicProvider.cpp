@@ -3,6 +3,7 @@
 #include <regex>
 #include <stdexcept>
 
+#include "ionclaw/provider/ModelCapabilities.hpp"
 #include "ionclaw/provider/ProviderHelper.hpp"
 #include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/StringHelper.hpp"
@@ -438,8 +439,12 @@ nlohmann::json AnthropicProvider::buildRequestBody(const ChatCompletionRequest &
 
     body["messages"] = messages;
 
-    // attach tools if provided
-    if (!request.tools.empty())
+    // attach tools unless the capability table marks the model as non-function-calling, which would make the request fail
+    if (!request.tools.empty() && !ModelCapabilities::supportsFunctionCalling(request.model))
+    {
+        spdlog::warn("[AnthropicProvider] model '{}' does not support function calling, dropping {} tool(s) from the request", request.model, request.tools.size());
+    }
+    else if (!request.tools.empty())
     {
         body["tools"] = convertToolsToAnthropicFormat(request.tools);
     }

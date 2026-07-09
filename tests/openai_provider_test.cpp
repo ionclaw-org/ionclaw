@@ -15,6 +15,11 @@ struct OpenAiProviderTestAccess
     {
         return provider.parseResponse(response);
     }
+
+    static nlohmann::json build(const OpenAiProvider &provider, const ChatCompletionRequest &request)
+    {
+        return provider.buildRequestBody(request);
+    }
 };
 
 } // namespace provider
@@ -63,6 +68,25 @@ TEST_CASE("parseResponse tolerates a null finish_reason")
 
     CHECK(parsed.content == "hi");
     CHECK(parsed.finishReason == "stop");
+}
+
+TEST_CASE("buildRequestBody drops tools for a model that cannot call functions and keeps them otherwise")
+{
+    OpenAiProvider provider("sk-test");
+
+    ChatCompletionRequest request;
+    request.tools = {{{"name", "read"}, {"description", "read a file"}, {"parameters", nlohmann::json::object()}}};
+
+    // a chat model the table marks as non-function-calling must not receive a tools payload
+    request.model = "deepseek-reasoner";
+    auto dropped = OpenAiProviderTestAccess::build(provider, request);
+    CHECK_FALSE(dropped.contains("tools"));
+
+    // a function-calling model keeps its tools
+    request.model = "gpt-4o";
+    auto kept = OpenAiProviderTestAccess::build(provider, request);
+    REQUIRE(kept.contains("tools"));
+    CHECK(kept["tools"].size() == 1);
 }
 
 TEST_CASE("getModelLimit resolves the hyphenated claude 3.5 and 3.7 model ids")

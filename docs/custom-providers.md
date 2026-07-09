@@ -326,4 +326,5 @@ providers:
 - The provider name in `config.yml` is arbitrary — it just needs to match the prefix in your model string.
 - All OpenAI-compatible providers support text and image input, streaming, and tool use.
 - Audio input is supported for providers that implement the OpenAI audio format.
+- Capabilities are gated by the embedded model table: for a model the table marks as lacking a feature, the reasoning/thinking params, the `vision` tool, and the `tools` payload are dropped before the request goes out (with a logged warning) instead of being sent and rejected with a 400. Unknown models are treated permissively (features left enabled).
 - Environment variables (`${VAR_NAME}`) can be used anywhere in the config. Use a `.env` file to keep keys out of version control.

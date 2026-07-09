@@ -443,8 +443,13 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
 
     body["messages"] = messages;
 
+    // a model the capability table marks as non-function-calling rejects a tools payload, so drop it with a clear warning
+    if (!request.tools.empty() && !ModelCapabilities::supportsFunctionCalling(request.model))
+    {
+        spdlog::warn("[OpenAiProvider] model '{}' does not support function calling, dropping {} tool(s) from the request", request.model, request.tools.size());
+    }
     // wrap tools in openai function format
-    if (!request.tools.empty())
+    else if (!request.tools.empty())
     {
         auto toolsJson = nlohmann::json::array();
 
