@@ -405,13 +405,22 @@ void UsageTracker::record(const nlohmann::json &usage)
         return;
     }
 
-    auto pt = std::max(int64_t{0}, usage.value("prompt_tokens", int64_t{0}));
-    auto ct = std::max(int64_t{0}, usage.value("completion_tokens", int64_t{0}));
-    auto tt = std::max(int64_t{0}, usage.value("total_tokens", int64_t{0}));
+    // a proxy may send a token field as null (e.g. cache_creation_input_tokens when caching is unused), and value()
+    // throws type_error.302 on an explicit null, so read each field only when it is actually an integer
+    // clang-format off
+    auto readInt = [&usage](const char *key) {
+        auto it = usage.find(key);
+        return it != usage.end() && it->is_number_integer() ? std::max(int64_t{0}, it->get<int64_t>()) : int64_t{0};
+    };
+    // clang-format on
+
+    auto pt = readInt("prompt_tokens");
+    auto ct = readInt("completion_tokens");
+    auto tt = readInt("total_tokens");
 
     // cache tokens (anthropic: cache_read_input_tokens / cache_creation_input_tokens)
-    auto crt = std::max(int64_t{0}, usage.value("cache_read_input_tokens", int64_t{0}));
-    auto cwt = std::max(int64_t{0}, usage.value("cache_creation_input_tokens", int64_t{0}));
+    auto crt = readInt("cache_read_input_tokens");
+    auto cwt = readInt("cache_creation_input_tokens");
 
     // last call (overwritten each time)
     lastCallPromptTokens = pt;
@@ -463,7 +472,9 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
     auto sessionKey = (message.metadata.contains("agent_session_key") && message.metadata["agent_session_key"].is_string()) ? message.metadata["agent_session_key"].get<std::string>() : message.sessionKey();
     auto baseKey = message.sessionKey();
 
-    // per-turn state lives on the stack, safe for concurrent calls on shared AgentLoop
+    // per-turn state lives on the stack; the active-turn handle and session queue are still shared members, so this is
+    // safe only because the orchestrator serializes turns on one worker thread and never runs two turns on one AgentLoop
+    // at once. enabling real per-agent concurrency would require threading these through TurnState instead of the members.
     TurnState turnState;
     turnState.sessionQueuePtr = defaultSessionQueuePtr.load(std::memory_order_acquire);
     turnState.activeTurnHandle = defaultActiveTurnHandle.load(std::memory_order_acquire);
