@@ -175,6 +175,18 @@ bool OpenAiProvider::isReasoningModel(const std::string &model)
     return m.starts_with("o1") || m.starts_with("o3") || m.starts_with("o4") || m.starts_with("gpt-5");
 }
 
+std::string OpenAiProvider::stringField(const nlohmann::json &obj, const std::string &key, const std::string &fallback)
+{
+    auto it = obj.find(key);
+
+    if (it == obj.end() || !it->is_string())
+    {
+        return fallback;
+    }
+
+    return it->get<std::string>();
+}
+
 nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &request) const
 {
     // set base request fields
@@ -477,16 +489,14 @@ ChatCompletionResponse OpenAiProvider::parseResponse(const nlohmann::json &respo
 
     const auto &message = choice["message"];
 
-    result.content = message.value("content", "");
+    // content is explicitly null on a tool-call response, so read it defensively instead of via value()
+    result.content = stringField(message, "content");
 
     // parse reasoning_content (o1, o3 models)
-    if (message.contains("reasoning_content") && !message["reasoning_content"].is_null())
-    {
-        result.reasoningContent = message.value("reasoning_content", "");
-    }
+    result.reasoningContent = stringField(message, "reasoning_content");
 
     // finish_reason with fallback to "stop"
-    auto fr = choice.value("finish_reason", "");
+    auto fr = stringField(choice, "finish_reason");
     result.finishReason = fr.empty() ? "stop" : fr;
 
     // parse tool calls from response
@@ -495,12 +505,12 @@ ChatCompletionResponse OpenAiProvider::parseResponse(const nlohmann::json &respo
         for (const auto &tc : message["tool_calls"])
         {
             ToolCall toolCall;
-            toolCall.id = ProviderHelper::sanitizeToolCallId(tc.value("id", ""));
+            toolCall.id = ProviderHelper::sanitizeToolCallId(stringField(tc, "id"));
 
             if (tc.contains("function"))
             {
-                toolCall.name = tc["function"].value("name", "");
-                auto argsStr = tc["function"].value("arguments", "");
+                toolCall.name = stringField(tc["function"], "name");
+                auto argsStr = stringField(tc["function"], "arguments");
                 toolCall.arguments = ProviderHelper::repairJsonArgs(argsStr);
             }
 
@@ -627,7 +637,7 @@ void OpenAiProvider::chatStream(const ChatCompletionRequest &request, StreamCall
                 if (json.contains("error"))
                 {
                     const auto &err = json["error"];
-                    auto errMsg = err.is_object() ? err.value("message", err.dump()) : err.dump();
+                    auto errMsg = err.is_object() && err.contains("message") && err["message"].is_string() ? err["message"].get<std::string>() : err.dump();
                     throw std::runtime_error("Provider stream error: " + errMsg);
                 }
 
@@ -681,7 +691,8 @@ void OpenAiProvider::chatStream(const ChatCompletionRequest &request, StreamCall
 
                 for (const auto &tc : delta["tool_calls"])
                 {
-                    auto index = tc.value("index", 0);
+                    auto indexIt = tc.find("index");
+                    int index = indexIt != tc.end() && indexIt->is_number_integer() ? indexIt->get<int>() : 0;
 
                     if (index < 0 || index >= MAX_TOOL_CALL_INDEX)
                     {
@@ -699,15 +710,12 @@ void OpenAiProvider::chatStream(const ChatCompletionRequest &request, StreamCall
                     if (tc.contains("function"))
                     {
                         // name arrives complete in the first delta, set once
-                        if (tc["function"].contains("name") && pendingToolCalls[index].name.empty())
+                        if (pendingToolCalls[index].name.empty())
                         {
-                            pendingToolCalls[index].name = tc["function"].value("name", "");
+                            pendingToolCalls[index].name = stringField(tc["function"], "name");
                         }
 
-                        if (tc["function"].contains("arguments"))
-                        {
-                            pendingToolCalls[index].arguments += tc["function"].value("arguments", "");
-                        }
+                        pendingToolCalls[index].arguments += stringField(tc["function"], "arguments");
                     }
                 }
             }

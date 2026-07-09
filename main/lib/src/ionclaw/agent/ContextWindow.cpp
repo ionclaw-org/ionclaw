@@ -4,6 +4,7 @@
 #include <climits>
 #include <cstdint>
 
+#include "ionclaw/provider/ModelCapabilities.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 
 namespace ionclaw
@@ -33,7 +34,8 @@ const std::map<std::string, int> ContextWindow::MODEL_CONTEXT_LIMITS = {
     {"claude-opus-4", 200000},
     {"claude-sonnet-4", 200000},
     {"claude-haiku-4", 200000},
-    {"claude-3.5", 200000},
+    {"claude-3-5", 200000},
+    {"claude-3-7", 200000},
     {"claude-3-opus", 200000},
     {"claude-3-sonnet", 200000},
     {"claude-3-haiku", 200000},
@@ -76,6 +78,17 @@ int ContextWindow::getModelLimit(const std::string &model, const nlohmann::json 
             {
                 bestLen = key.size();
                 limit = modelLimit;
+            }
+        }
+
+        // no curated key matched, so fall back to the embedded model table before the generic default
+        if (bestLen == 0)
+        {
+            auto tableLimit = ionclaw::provider::ModelCapabilities::contextWindow(model);
+
+            if (tableLimit > 0)
+            {
+                limit = static_cast<int>(std::min<int64_t>(tableLimit, INT32_MAX));
             }
         }
     }

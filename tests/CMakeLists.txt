@@ -5,6 +5,7 @@ set(IONCLAW_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/test_main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/provider_factory_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/anthropic_thinking_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/openai_provider_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/config_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/provider_helper_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/string_helper_test.cpp

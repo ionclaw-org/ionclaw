@@ -34,8 +34,15 @@ private:
     static void sanitizeMessages(nlohmann::json &messages);
     static nlohmann::json validateTranscript(const nlohmann::json &messages);
 
+    // reads a string field, returning the fallback when the key is absent, null, or not a string
+    // json::value() only substitutes the fallback for an absent key and throws type_error.302 on an explicit null
+    static std::string stringField(const nlohmann::json &obj, const std::string &key, const std::string &fallback = "");
+
     // openai reasoning models (o1/o3/o4/gpt-5 class) reject max_tokens and non-default temperature
     static bool isReasoningModel(const std::string &model);
+
+    // grants the test suite access to the stateless request/response transforms
+    friend struct OpenAiProviderTestAccess;
 };
 
 } // namespace provider
