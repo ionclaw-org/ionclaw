@@ -30,14 +30,16 @@ public:
     void publishOutbound(const OutboundMessage &msg);
 
     bool consumeInbound(InboundMessage &msg, int timeoutMs = 1000);
-    bool consumeOutbound(OutboundMessage &msg, int timeoutMs = 1000);
+
+    // outbound is routed per channel so each channel runner only receives its own messages and never drops another's
+    bool consumeOutbound(const std::string &channel, OutboundMessage &msg, int timeoutMs = 1000);
 
     size_t inboundSize() const;
     size_t outboundSize() const;
 
 private:
     std::queue<InboundMessage> inboundQueue;
-    std::queue<OutboundMessage> outboundQueue;
+    std::map<std::string, std::queue<OutboundMessage>> outboundQueues;
     mutable std::mutex inboundMutex;
     mutable std::mutex outboundMutex;
     std::condition_variable inboundCv;

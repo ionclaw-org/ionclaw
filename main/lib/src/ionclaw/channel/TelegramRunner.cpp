@@ -948,14 +948,8 @@ void TelegramRunner::outboundLoop()
         try
         {
             ionclaw::bus::OutboundMessage outbound;
-            if (!bus->consumeOutbound(outbound, OUTBOUND_POLL_MS))
+            if (!bus->consumeOutbound("telegram", outbound, OUTBOUND_POLL_MS))
             {
-                continue;
-            }
-            if (outbound.channel != "telegram")
-            {
-                // drop messages not targeted at this channel to avoid infinite re-publish loop
-                spdlog::debug("[TelegramRunner] Dropping non-telegram outbound (channel={})", outbound.channel);
                 continue;
             }
 

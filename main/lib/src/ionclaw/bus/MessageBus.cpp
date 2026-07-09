@@ -132,10 +132,11 @@ void MessageBus::publishOutbound(const OutboundMessage &msg)
 {
     {
         std::lock_guard<std::mutex> lock(outboundMutex);
-        outboundQueue.push(msg);
+        outboundQueues[msg.channel].push(msg);
     }
 
-    outboundCv.notify_one();
+    // wake every waiter so the consumer for this channel re-checks its own queue
+    outboundCv.notify_all();
 }
 
 bool MessageBus::consumeInbound(InboundMessage &msg, int timeoutMs)
@@ -155,19 +156,23 @@ bool MessageBus::consumeInbound(InboundMessage &msg, int timeoutMs)
     return true;
 }
 
-bool MessageBus::consumeOutbound(OutboundMessage &msg, int timeoutMs)
+bool MessageBus::consumeOutbound(const std::string &channel, OutboundMessage &msg, int timeoutMs)
 {
     std::unique_lock<std::mutex> lock(outboundMutex);
 
     // clang-format off
-    if (!outboundCv.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this]() { return !outboundQueue.empty(); }))
+    if (!outboundCv.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this, &channel]() {
+        auto it = outboundQueues.find(channel);
+        return it != outboundQueues.end() && !it->second.empty();
+    }))
     // clang-format on
     {
         return false;
     }
 
-    msg = std::move(outboundQueue.front());
-    outboundQueue.pop();
+    auto &queue = outboundQueues[channel];
+    msg = std::move(queue.front());
+    queue.pop();
 
     return true;
 }
@@ -181,7 +186,15 @@ size_t MessageBus::inboundSize() const
 size_t MessageBus::outboundSize() const
 {
     std::lock_guard<std::mutex> lock(outboundMutex);
-    return outboundQueue.size();
+
+    size_t total = 0;
+
+    for (const auto &[channel, queue] : outboundQueues)
+    {
+        total += queue.size();
+    }
+
+    return total;
 }
 
 } // namespace bus
