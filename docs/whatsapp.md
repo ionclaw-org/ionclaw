@@ -82,6 +82,8 @@ The agent can attach files and split its reply using inline markers, which the W
 
 A marker path under `public/` resolves to `{public_url}/public/<path>`; an absolute `http(s)` URL is sent as-is. Plain replies with no markers are delivered as one or more text messages, split under the WhatsApp length limit. The agent is told about these markers automatically when it is responding on the `whatsapp` channel.
 
+The Telegram channel understands the exact same markers (delivered through `sendPhoto`/`sendAudio`/`sendVideo`/`sendDocument`), so the guidance here applies there too.
+
 ```yaml
 channels:
   whatsapp_zapi:

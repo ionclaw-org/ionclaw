@@ -166,6 +166,8 @@ channels:
     enabled: false              # bool -- Enable Telegram bot.
     credential: ""              # str  -- Credential name (type: simple) for Bot API token.
     allowed_users: []           # list -- Telegram usernames or user IDs; empty = allow all.
+    # reply_to_message: false   # bool -- Reply threaded to the user's message.
+    # proxy: ""                 # str  -- Optional proxy URL for the Telegram API.
 
 # ---------------------------------------------------------------------------
 # Storage
