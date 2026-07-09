@@ -103,11 +103,26 @@ std::string ProviderFactory::defaultBaseUrl(const std::string &providerName)
         {"openrouter", "https://openrouter.ai/api/v1"},
         {"deepseek", "https://api.deepseek.com/v1"},
         {"grok", "https://api.x.ai/v1"},
+        {"xai", "https://api.x.ai/v1"},
         {"google", "https://generativelanguage.googleapis.com/v1beta/openai"},
         {"gemini", "https://generativelanguage.googleapis.com/v1beta/openai"},
         {"kimi", "https://api.moonshot.cn/v1"},
         {"moonshot", "https://api.moonshot.cn/v1"},
         {"ollama", "http://localhost:11434/v1"},
+        // additional openai-compatible providers (litellm-equivalent thin configs)
+        {"groq", "https://api.groq.com/openai/v1"},
+        {"mistral", "https://api.mistral.ai/v1"},
+        {"together", "https://api.together.xyz/v1"},
+        {"togetherai", "https://api.together.xyz/v1"},
+        {"fireworks", "https://api.fireworks.ai/inference/v1"},
+        {"fireworks_ai", "https://api.fireworks.ai/inference/v1"},
+        {"deepinfra", "https://api.deepinfra.com/v1/openai"},
+        {"perplexity", "https://api.perplexity.ai"},
+        {"cerebras", "https://api.cerebras.ai/v1"},
+        {"sambanova", "https://api.sambanova.ai/v1"},
+        {"nvidia", "https://integrate.api.nvidia.com/v1"},
+        {"nvidia_nim", "https://integrate.api.nvidia.com/v1"},
+        {"lm_studio", "http://localhost:1234/v1"},
     };
 
     auto it = defaults.find(providerName);

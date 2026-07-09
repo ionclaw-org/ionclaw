@@ -18,6 +18,45 @@ To add a custom provider, you need three things in your `config.yml`:
 
 ---
 
+## Built-in Providers
+
+These provider names ship with a default base URL, so you can omit `base_url` and just supply a credential (the local ones need none). Any other name is still accepted as a custom provider as long as you give it a `base_url`.
+
+| Provider prefix | Default base URL |
+|-----------------|------------------|
+| `anthropic` | `https://api.anthropic.com` (native, not OpenAI-compatible) |
+| `openai` | `https://api.openai.com/v1` |
+| `openrouter` | `https://openrouter.ai/api/v1` |
+| `deepseek` | `https://api.deepseek.com/v1` |
+| `grok` / `xai` | `https://api.x.ai/v1` |
+| `google` / `gemini` | `https://generativelanguage.googleapis.com/v1beta/openai` |
+| `kimi` / `moonshot` | `https://api.moonshot.cn/v1` |
+| `groq` | `https://api.groq.com/openai/v1` |
+| `mistral` | `https://api.mistral.ai/v1` |
+| `together` / `togetherai` | `https://api.together.xyz/v1` |
+| `fireworks` / `fireworks_ai` | `https://api.fireworks.ai/inference/v1` |
+| `deepinfra` | `https://api.deepinfra.com/v1/openai` |
+| `perplexity` | `https://api.perplexity.ai` |
+| `cerebras` | `https://api.cerebras.ai/v1` |
+| `sambanova` | `https://api.sambanova.ai/v1` |
+| `nvidia` / `nvidia_nim` | `https://integrate.api.nvidia.com/v1` |
+| `ollama` | `http://localhost:11434/v1` (local, no credential) |
+| `lm_studio` | `http://localhost:1234/v1` (local, no credential) |
+
+```yaml
+credentials:
+  groq: { type: simple, key: "gsk-..." }
+
+providers:
+  groq: { credential: groq }   # base_url resolved automatically
+
+agents:
+  main:
+    model: "groq/llama-3.3-70b-versatile"
+```
+
+---
+
 ## Examples
 
 ### Ollama (Local)

@@ -47,6 +47,15 @@ TEST_CASE("create routes openai-compatible providers to the openai provider")
     }
 }
 
+TEST_CASE("create resolves the built-in base url for thin-config openai-compatible providers")
+{
+    for (const auto &name : {"xai", "groq", "mistral", "together", "togetherai", "fireworks", "fireworks_ai", "deepinfra", "perplexity", "cerebras", "sambanova", "nvidia", "nvidia_nim", "lm_studio"})
+    {
+        auto provider = ProviderFactory::create(name, "key");
+        CHECK(provider->name() == "openai");
+    }
+}
+
 TEST_CASE("create falls back to openai-compatible for an unknown provider with a base url")
 {
     auto provider = ProviderFactory::create("custom", "key", "https://example.com/v1");
