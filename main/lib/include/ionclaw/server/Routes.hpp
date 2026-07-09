@@ -131,6 +131,9 @@ private:
     // builds and publishes an inbound whatsapp message onto the bus
     void publishWhatsAppInbound(const ionclaw::channel::ParsedWebhookMessage &msg);
 
+    // downloads inbound webhook media into public/media and sets its workspace-relative localPath
+    void downloadWhatsAppMedia(ionclaw::channel::WebhookMedia &media, const std::string &accessToken, const std::string &graphVersion);
+
     static const std::set<std::string> PROTECTED_FILES;
     static const std::set<std::string> SYSTEM_FILES;
     static const std::set<std::string> SKIP_DIR_NAMES;

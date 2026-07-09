@@ -300,7 +300,8 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
             continue;
         }
 
-        auto fullPath = projectRoot + "/" + path;
+        // public files live under the workspace, so a public/ path resolves there rather than at the project root
+        auto fullPath = path.rfind("public/", 0) == 0 ? projectRoot + "/workspace/" + path : projectRoot + "/" + path;
 
         // confine media to the project root so a crafted path cannot exfiltrate arbitrary files
         if (!ionclaw::tool::builtin::ToolHelper::isPathWithinWorkspace(projectRoot, fullPath))

@@ -19,7 +19,8 @@ struct WebhookMedia
     std::string mediaId;  // media id to fetch in two steps (meta); empty for z-api
     std::string mimeType;
     std::string caption;
-    std::string fileName; // documents only
+    std::string fileName;  // documents only
+    std::string localPath; // workspace-relative path after the media is downloaded
 };
 
 // a normalized inbound message parsed from a whatsapp webhook, independent of provider

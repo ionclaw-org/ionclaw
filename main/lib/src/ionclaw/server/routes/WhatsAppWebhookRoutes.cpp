@@ -5,13 +5,89 @@
 
 #include "ionclaw/channel/WhatsAppWebhook.hpp"
 #include "ionclaw/session/SessionManager.hpp"
+#include "ionclaw/util/FileHelper.hpp"
+#include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
+#include "ionclaw/util/UniqueId.hpp"
 
 namespace ionclaw
 {
 namespace server
 {
+
+void Routes::downloadWhatsAppMedia(ionclaw::channel::WebhookMedia &media, const std::string &accessToken, const std::string &graphVersion)
+{
+    std::string url = media.url;
+    std::map<std::string, std::string> headers;
+
+    // meta media: resolve the id to a temporary url; both this and the download use the bearer token
+    if (url.empty() && !media.mediaId.empty() && !accessToken.empty())
+    {
+        headers["Authorization"] = "Bearer " + accessToken;
+        auto info = ionclaw::util::HttpClient::request("GET", "https://graph.facebook.com/" + graphVersion + "/" + media.mediaId, headers, "", 30);
+
+        if (info.statusCode < 200 || info.statusCode >= 300)
+        {
+            spdlog::error("[Routes] whatsapp meta media info failed: HTTP {}", info.statusCode);
+            return;
+        }
+
+        try
+        {
+            auto j = nlohmann::json::parse(info.body);
+            url = j.value("url", "");
+
+            if (media.mimeType.empty())
+            {
+                media.mimeType = j.value("mime_type", "");
+            }
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::error("[Routes] whatsapp meta media info parse failed: {}", e.what());
+            return;
+        }
+    }
+
+    if (url.empty())
+    {
+        return;
+    }
+
+    auto resp = ionclaw::util::HttpClient::request("GET", url, headers, "", 60);
+
+    if (resp.statusCode < 200 || resp.statusCode >= 300 || resp.body.empty())
+    {
+        spdlog::error("[Routes] whatsapp media download failed: HTTP {}", resp.statusCode);
+        return;
+    }
+
+    // extension from the original file name, else the mime type
+    std::string ext;
+    auto dot = media.fileName.find_last_of('.');
+
+    if (dot != std::string::npos)
+    {
+        ext = media.fileName.substr(dot);
+    }
+    else
+    {
+        const auto &m = media.mimeType;
+        ext = m == "image/jpeg" ? ".jpg" : m == "image/png" ? ".png" : m == "image/webp" ? ".webp" : m == "audio/ogg" ? ".oga" : m == "audio/mpeg" ? ".mp3" : (m == "audio/mp4" || m == "audio/aac") ? ".m4a" : m == "video/mp4" ? ".mp4" : m == "application/pdf" ? ".pdf" : ".bin";
+    }
+
+    auto name = ionclaw::util::UniqueId::shortId() + ext;
+    auto error = ionclaw::util::FileHelper::atomicWrite(publicDir + "/media/" + name, resp.body);
+
+    if (!error.empty())
+    {
+        spdlog::error("[Routes] whatsapp media save failed: {}", error);
+        return;
+    }
+
+    media.localPath = "public/media/" + name;
+}
 
 // builds and publishes an inbound whatsapp message, mirroring the chat-send path
 void Routes::publishWhatsAppInbound(const ionclaw::channel::ParsedWebhookMessage &msg)
@@ -19,12 +95,35 @@ void Routes::publishWhatsAppInbound(const ionclaw::channel::ParsedWebhookMessage
     auto sessionKey = std::string("whatsapp:") + msg.senderPhone;
     sessionManager->ensureSession(sessionKey);
 
-    auto title = msg.text.empty() ? "[media]" : ionclaw::util::StringHelper::utf8SafeTruncate(msg.text, 100);
-    auto task = taskManager->createTask(title, msg.text, "whatsapp", msg.senderPhone);
+    // the caption of a media-only message stands in for the text
+    std::string content = msg.text;
+    std::vector<std::string> mediaPaths;
+
+    for (const auto &m : msg.media)
+    {
+        if (!m.localPath.empty())
+        {
+            mediaPaths.push_back(m.localPath);
+        }
+
+        if (content.empty() && !m.caption.empty())
+        {
+            content = m.caption;
+        }
+    }
+
+    auto title = content.empty() ? "[media]" : ionclaw::util::StringHelper::utf8SafeTruncate(content, 100);
+    auto task = taskManager->createTask(title, content, "whatsapp", msg.senderPhone);
 
     ionclaw::session::SessionMessage userMsg;
     userMsg.role = "user";
-    userMsg.content = msg.text;
+    userMsg.content = content;
+
+    for (const auto &p : mediaPaths)
+    {
+        userMsg.media.push_back(p);
+    }
+
     userMsg.timestamp = ionclaw::util::TimeHelper::now();
     sessionManager->addMessage(sessionKey, userMsg);
 
@@ -32,7 +131,8 @@ void Routes::publishWhatsAppInbound(const ionclaw::channel::ParsedWebhookMessage
     inbound.channel = "whatsapp";
     inbound.senderId = msg.senderPhone;
     inbound.chatId = msg.senderPhone;
-    inbound.content = msg.text;
+    inbound.content = content;
+    inbound.media = mediaPaths;
     inbound.metadata = {{"task_id", task.id}, {"message_saved", true}, {"sender_name", msg.senderName}, {"provider_message_id", msg.msgId}};
 
     bus->publishInbound(inbound);
@@ -79,6 +179,12 @@ void Routes::handleWhatsAppZApiWebhook(Poco::Net::HTTPServerRequest &req, Poco::
             return;
         }
 
+        // z-api media is a public url, downloaded with no auth
+        for (auto &media : msg.media)
+        {
+            downloadWhatsAppMedia(media, "", "");
+        }
+
         publishWhatsAppInbound(msg);
         sendJson(resp, {{"status", "ok"}});
     }
@@ -93,6 +199,8 @@ void Routes::handleWhatsAppMetaWebhook(Poco::Net::HTTPServerRequest &req, Poco::
 {
     std::string verifyToken;
     std::string appSecret;
+    std::string accessToken;
+    std::string graphVersion = "v23.0";
     bool enabled = false;
     {
         std::lock_guard<std::mutex> lock(configMutex);
@@ -103,6 +211,8 @@ void Routes::handleWhatsAppMetaWebhook(Poco::Net::HTTPServerRequest &req, Poco::
             enabled = true;
             verifyToken = it->second.raw.value("verify_token", "");
             appSecret = it->second.raw.value("app_secret", "");
+            accessToken = it->second.raw.value("access_token", "");
+            graphVersion = it->second.raw.value("graph_version", "v23.0");
         }
     }
 
@@ -168,11 +278,17 @@ void Routes::handleWhatsAppMetaWebhook(Poco::Net::HTTPServerRequest &req, Poco::
 
         auto body = nlohmann::json::parse(rawBody);
 
-        for (const auto &msg : ionclaw::channel::WhatsAppWebhook::parseMeta(body))
+        for (auto msg : ionclaw::channel::WhatsAppWebhook::parseMeta(body))
         {
             if (!webhookDedup.markSeen(msg.msgId))
             {
                 continue;
+            }
+
+            // meta media is fetched in two authenticated steps by id
+            for (auto &media : msg.media)
+            {
+                downloadWhatsAppMedia(media, accessToken, graphVersion);
             }
 
             publishWhatsAppInbound(msg);
