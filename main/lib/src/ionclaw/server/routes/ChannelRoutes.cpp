@@ -12,7 +12,7 @@ void Routes::handleChannelsList(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPS
     nlohmann::json result = nlohmann::json::object();
 
     {
-        std::lock_guard<std::mutex> lock(configMutex);
+        auto config = configStore->snapshot();
 
         for (const auto &[name, ch] : config->channels)
         {
@@ -32,7 +32,7 @@ void Routes::handleChannelGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
     nlohmann::json out;
 
     {
-        std::lock_guard<std::mutex> lock(configMutex);
+        auto config = configStore->snapshot();
         auto it = config->channels.find(name);
 
         if (it == config->channels.end())
@@ -41,7 +41,7 @@ void Routes::handleChannelGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
             return;
         }
 
-        auto &ch = it->second;
+        const auto &ch = it->second;
 
         out = {
             {"name", name},
@@ -83,82 +83,81 @@ void Routes::handleChannelUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::H
 {
     try
     {
-        std::lock_guard<std::mutex> lock(configMutex);
         auto body = nlohmann::json::parse(readBody(req));
         auto configData = body.value("config", nlohmann::json::object());
 
-        auto it = config->channels.find(name);
-
-        if (it == config->channels.end())
         {
             // the whatsapp channels can be created from the api on first configuration; other unknown names are rejected
-            if (name != "whatsapp_zapi" && name != "whatsapp_meta")
+            auto config = configStore->snapshot();
+            if (name != "whatsapp_zapi" && name != "whatsapp_meta" && config->channels.find(name) == config->channels.end())
             {
                 sendError(resp, "Channel not found", 404);
                 return;
             }
-
-            config->channels[name] = ionclaw::config::ChannelConfig{};
-            it = config->channels.find(name);
         }
 
-        auto &ch = it->second;
+        // clang-format off
+        configStore->update([&](ionclaw::config::Config &config) {
+            // operator[] upserts, so a whatsapp channel that passed the pre-check is created on first configuration
+            auto &ch = config.channels[name];
 
-        if (configData.contains("enabled"))
-        {
-            ch.enabled = configData["enabled"].get<bool>();
-        }
-
-        if (configData.contains("credential") && configData["credential"].is_string())
-        {
-            ch.credential = configData["credential"].get<std::string>();
-        }
-
-        if (configData.contains("allowed_users") && configData["allowed_users"].is_array())
-        {
-            ch.allowedUsers.clear();
-
-            for (const auto &u : configData["allowed_users"])
+            if (configData.contains("enabled"))
             {
-                if (u.is_string())
+                ch.enabled = configData["enabled"].get<bool>();
+            }
+
+            if (configData.contains("credential") && configData["credential"].is_string())
+            {
+                ch.credential = configData["credential"].get<std::string>();
+            }
+
+            if (configData.contains("allowed_users") && configData["allowed_users"].is_array())
+            {
+                ch.allowedUsers.clear();
+
+                for (const auto &u : configData["allowed_users"])
                 {
-                    ch.allowedUsers.push_back(u.get<std::string>());
+                    if (u.is_string())
+                    {
+                        ch.allowedUsers.push_back(u.get<std::string>());
+                    }
                 }
             }
-        }
 
-        if (configData.contains("proxy"))
-        {
-            ch.raw["proxy"] = configData["proxy"].is_string() ? configData["proxy"].get<std::string>() : "";
-        }
-        if (configData.contains("reply_to_message") && configData["reply_to_message"].is_boolean())
-        {
-            ch.raw["reply_to_message"] = configData["reply_to_message"].get<bool>();
-        }
-        if (configData.contains("require_auth") && configData["require_auth"].is_boolean())
-        {
-            ch.raw["require_auth"] = configData["require_auth"].get<bool>();
-        }
-
-        // whatsapp string fields; a masked or empty secret keeps the stored value so it is not wiped
-        static const std::vector<std::pair<std::string, bool>> whatsAppFields = {{"instance_id", false}, {"instance_token", true}, {"client_token", true}, {"access_token", true}, {"phone_number_id", false}, {"verify_token", true}, {"app_secret", true}, {"graph_version", false}};
-
-        for (const auto &[key, secret] : whatsAppFields)
-        {
-            if (configData.contains(key) && configData[key].is_string())
+            if (configData.contains("proxy"))
             {
-                auto value = configData[key].get<std::string>();
-
-                if (secret && (value.empty() || value == "****"))
-                {
-                    continue;
-                }
-
-                ch.raw[key] = value;
+                ch.raw["proxy"] = configData["proxy"].is_string() ? configData["proxy"].get<std::string>() : "";
             }
-        }
+            if (configData.contains("reply_to_message") && configData["reply_to_message"].is_boolean())
+            {
+                ch.raw["reply_to_message"] = configData["reply_to_message"].get<bool>();
+            }
+            if (configData.contains("require_auth") && configData["require_auth"].is_boolean())
+            {
+                ch.raw["require_auth"] = configData["require_auth"].get<bool>();
+            }
 
-        ionclaw::config::ConfigLoader::save(*config, config->projectPath + "/config.yml");
+            // whatsapp string fields; a masked or empty secret keeps the stored value so it is not wiped
+            static const std::vector<std::pair<std::string, bool>> whatsAppFields = {{"instance_id", false}, {"instance_token", true}, {"client_token", true}, {"access_token", true}, {"phone_number_id", false}, {"verify_token", true}, {"app_secret", true}, {"graph_version", false}};
+
+            for (const auto &[key, secret] : whatsAppFields)
+            {
+                if (configData.contains(key) && configData[key].is_string())
+                {
+                    auto value = configData[key].get<std::string>();
+
+                    if (secret && (value.empty() || value == "****"))
+                    {
+                        continue;
+                    }
+
+                    ch.raw[key] = value;
+                }
+            }
+
+            ionclaw::config::ConfigLoader::save(config, config.projectPath + "/config.yml");
+        });
+        // clang-format on
 
         sendJson(resp, {{"status", "ok"}});
     }
@@ -172,25 +171,35 @@ void Routes::handleChannelStart(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPS
 {
     try
     {
-        std::lock_guard<std::mutex> lock(configMutex);
-        auto it = config->channels.find(name);
-
-        if (it == config->channels.end())
         {
-            sendError(resp, "Channel not found", 404);
-            return;
-        }
+            auto config = configStore->snapshot();
+            auto it = config->channels.find(name);
 
-        auto &ch = it->second;
+            if (it == config->channels.end())
+            {
+                sendError(resp, "Channel not found", 404);
+                return;
+            }
 
-        if (ch.running)
-        {
-            sendError(resp, "Channel already running", 409);
-            return;
+            if (it->second.running)
+            {
+                sendError(resp, "Channel already running", 409);
+                return;
+            }
         }
 
         channelManager->startChannel(name);
-        ch.running = true;
+
+        // clang-format off
+        configStore->update([&](ionclaw::config::Config &config) {
+            auto it = config.channels.find(name);
+            if (it != config.channels.end())
+            {
+                it->second.running = true;
+            }
+        });
+        // clang-format on
+
         dispatcher->broadcast("channel:status", {{"name", name}, {"running", true}});
         sendJson(resp, {{"status", "started"}});
     }
@@ -204,25 +213,35 @@ void Routes::handleChannelStop(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSe
 {
     try
     {
-        std::lock_guard<std::mutex> lock(configMutex);
-        auto it = config->channels.find(name);
-
-        if (it == config->channels.end())
         {
-            sendError(resp, "Channel not found", 404);
-            return;
-        }
+            auto config = configStore->snapshot();
+            auto it = config->channels.find(name);
 
-        auto &ch = it->second;
+            if (it == config->channels.end())
+            {
+                sendError(resp, "Channel not found", 404);
+                return;
+            }
 
-        if (!ch.running)
-        {
-            sendError(resp, "Channel not running", 409);
-            return;
+            if (!it->second.running)
+            {
+                sendError(resp, "Channel not running", 409);
+                return;
+            }
         }
 
         channelManager->stopChannel(name);
-        ch.running = false;
+
+        // clang-format off
+        configStore->update([&](ionclaw::config::Config &config) {
+            auto it = config.channels.find(name);
+            if (it != config.channels.end())
+            {
+                it->second.running = false;
+            }
+        });
+        // clang-format on
+
         dispatcher->broadcast("channel:status", {{"name", name}, {"running", false}});
         sendJson(resp, {{"status", "stopped"}});
     }

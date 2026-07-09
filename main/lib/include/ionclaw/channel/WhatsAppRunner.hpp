@@ -31,7 +31,7 @@ struct OutboundRequest;
 class WhatsAppRunner
 {
 public:
-    WhatsAppRunner(std::shared_ptr<ionclaw::config::Config> config, std::shared_ptr<ionclaw::bus::MessageBus> bus);
+    WhatsAppRunner(std::shared_ptr<const ionclaw::config::Config> config, std::shared_ptr<ionclaw::bus::MessageBus> bus);
     ~WhatsAppRunner();
 
     void start();
@@ -53,7 +53,7 @@ private:
     // returns the last path segment, used as the outbound document file name
     static std::string baseName(const std::string &path);
 
-    std::shared_ptr<ionclaw::config::Config> config;
+    std::shared_ptr<const ionclaw::config::Config> config;
     std::shared_ptr<ionclaw::bus::MessageBus> bus;
     std::atomic<bool> running{false};
     std::thread outboundThread;

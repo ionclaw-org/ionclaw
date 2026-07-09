@@ -18,6 +18,7 @@
 #include "ionclaw/channel/WhatsAppWebhook.hpp"
 #include "ionclaw/channel/ChannelManager.hpp"
 #include "ionclaw/config/Config.hpp"
+#include "ionclaw/config/ConfigStore.hpp"
 #include "ionclaw/cron/CronService.hpp"
 #include "ionclaw/heartbeat/HeartbeatService.hpp"
 #include "ionclaw/server/Auth.hpp"
@@ -33,7 +34,7 @@ namespace server
 class Routes
 {
 public:
-    Routes(std::shared_ptr<ionclaw::config::Config> config, std::shared_ptr<Auth> auth, std::shared_ptr<ionclaw::agent::Orchestrator> orchestrator, std::shared_ptr<ionclaw::channel::ChannelManager> channelManager, std::shared_ptr<ionclaw::heartbeat::HeartbeatService> heartbeatService, std::shared_ptr<ionclaw::cron::CronService> cronService, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, std::shared_ptr<WebSocketManager> wsManager, const std::string &webDir, const std::string &projectRoot, const std::string &publicDir, const std::string &workspaceDir);
+    Routes(std::shared_ptr<ionclaw::config::ConfigStore> configStore, std::shared_ptr<Auth> auth, std::shared_ptr<ionclaw::agent::Orchestrator> orchestrator, std::shared_ptr<ionclaw::channel::ChannelManager> channelManager, std::shared_ptr<ionclaw::heartbeat::HeartbeatService> heartbeatService, std::shared_ptr<ionclaw::cron::CronService> cronService, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, std::shared_ptr<WebSocketManager> wsManager, const std::string &webDir, const std::string &projectRoot, const std::string &publicDir, const std::string &workspaceDir);
 
     void handleAuthLogin(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
 
@@ -107,7 +108,7 @@ public:
     void handleSchedulerDelete(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &id);
 
 private:
-    std::shared_ptr<ionclaw::config::Config> config;
+    std::shared_ptr<ionclaw::config::ConfigStore> configStore;
     std::shared_ptr<Auth> auth;
     std::shared_ptr<ionclaw::agent::Orchestrator> orchestrator;
     std::shared_ptr<ionclaw::channel::ChannelManager> channelManager;
@@ -123,6 +124,7 @@ private:
     std::string publicDir;
     std::string workspaceDir;
 
+    // guards the remaining config reads that are not yet on ConfigStore snapshots
     std::mutex configMutex;
 
     // deduplicates redelivered inbound webhook messages across both whatsapp providers

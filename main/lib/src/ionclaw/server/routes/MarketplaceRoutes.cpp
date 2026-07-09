@@ -23,6 +23,7 @@ const char *Routes::MARKETPLACE_BASE = "https://ionclaw.com";
 
 void Routes::handleMarketplaceTargets(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp)
 {
+    auto config = configStore->snapshot();
     nlohmann::json arr = nlohmann::json::array();
     arr.push_back({{"label", "Project"}, {"value", ""}});
 
@@ -79,6 +80,7 @@ void Routes::handleMarketplaceCheck(Poco::Net::HTTPServerRequest &req, Poco::Net
     }
 
     // resolve skill path based on agent
+    auto config = configStore->snapshot();
     std::string skillPath;
 
     {
@@ -136,6 +138,7 @@ void Routes::handleMarketplaceInstall(Poco::Net::HTTPServerRequest &req, Poco::N
         }
 
         // resolve base directory for skill installation
+        auto config = configStore->snapshot();
         std::string baseDir;
 
         {

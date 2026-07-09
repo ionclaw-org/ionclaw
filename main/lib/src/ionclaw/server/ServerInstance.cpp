@@ -1,6 +1,9 @@
 #include "ionclaw/server/ServerInstance.hpp"
 
 #include <filesystem>
+#include <random>
+#include <sstream>
+#include <vector>
 
 #include "ionclaw/config/ConfigLoader.hpp"
 #include "ionclaw/util/EmbeddedResources.hpp"
@@ -14,7 +17,7 @@ namespace ionclaw
 namespace server
 {
 
-std::shared_ptr<ionclaw::config::Config> ServerInstance::config;
+std::shared_ptr<ionclaw::config::ConfigStore> ServerInstance::configStore;
 std::shared_ptr<ionclaw::bus::EventDispatcher> ServerInstance::dispatcher;
 std::shared_ptr<ionclaw::bus::MessageBus> ServerInstance::bus;
 std::shared_ptr<ionclaw::session::SessionManager> ServerInstance::sessionManager;
@@ -123,7 +126,7 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
         // the public directory lives inside the agent workspace, since the agent can only write within its workspace
         cfg.publicDir = defaultWorkspace + "/public";
 
-        config = std::make_shared<ionclaw::config::Config>(cfg);
+        configStore = std::make_shared<ionclaw::config::ConfigStore>(cfg);
 
         // create core components; orchestrator state lives at the project root, outside the agent's workspace
         dispatcher = std::make_shared<ionclaw::bus::EventDispatcher>();
@@ -197,25 +200,44 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
         spdlog::info("[ServerInstance] Serving public files from: {}", publicDir);
 
         // create MCP dispatcher
-        mcpDispatcher = std::make_shared<ionclaw::mcp::McpDispatcher>(orchestrator, sessionManager, taskManager, bus, dispatcher, config);
+        mcpDispatcher = std::make_shared<ionclaw::mcp::McpDispatcher>(orchestrator, sessionManager, taskManager, bus, dispatcher, configStore);
 
         // create channel manager and start channels
-        channelManager = std::make_shared<ionclaw::channel::ChannelManager>(config, bus, sessionManager, taskManager, dispatcher, mcpDispatcher);
+        channelManager = std::make_shared<ionclaw::channel::ChannelManager>(configStore, bus, sessionManager, taskManager, dispatcher, mcpDispatcher);
 
-        for (auto &[name, ch] : config->channels)
+        auto startupConfig = configStore->snapshot();
+        std::vector<std::string> startedChannels;
+        for (const auto &[name, ch] : startupConfig->channels)
         {
             if (ch.enabled)
             {
                 try
                 {
                     channelManager->startChannel(name);
-                    ch.running = true;
+                    startedChannels.push_back(name);
                 }
                 catch (const std::exception &e)
                 {
                     spdlog::warn("[ServerInstance] Failed to start channel '{}': {}", name, e.what());
                 }
             }
+        }
+
+        // publish the running state of the channels that started successfully
+        if (!startedChannels.empty())
+        {
+            // clang-format off
+            configStore->update([&](ionclaw::config::Config &config) {
+                for (const auto &name : startedChannels)
+                {
+                    auto it = config.channels.find(name);
+                    if (it != config.channels.end())
+                    {
+                        it->second.running = true;
+                    }
+                }
+            });
+            // clang-format on
         }
 
         // create and start heartbeat service
@@ -230,7 +252,7 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
         orchestrator->setCronService(cronService);
 
         // create routes and http server
-        routes = std::make_shared<Routes>(config, auth, orchestrator, channelManager, heartbeatService, cronService, sessionManager, taskManager, bus, dispatcher, wsManager, webDir, resolvedPath, publicDir, defaultWorkspace);
+        routes = std::make_shared<Routes>(configStore, auth, orchestrator, channelManager, heartbeatService, cronService, sessionManager, taskManager, bus, dispatcher, wsManager, webDir, resolvedPath, publicDir, defaultWorkspace);
 
         httpServer = std::make_shared<HttpServer>(routes, auth, wsManager, mcpDispatcher, cfg.server, webDir, publicDir);
 
@@ -368,7 +390,7 @@ void ServerInstance::resetComponents()
     sessionManager.reset();
     bus.reset();
     dispatcher.reset();
-    config.reset();
+    configStore.reset();
 }
 
 void ServerInstance::warnInsecureConfig(const ionclaw::config::Config &cfg)

@@ -142,6 +142,7 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
 
         // steer bypass: if session has an active turn and mode is steer_compatible,
         // inject directly into SessionQueue (bypasses MessageBus which blocks during turns)
+        auto config = configStore->snapshot();
         if (inbound.queueMode.has_value() && orchestrator && config && orchestrator->isSessionActive(sessionKey))
         {
             auto mode = inbound.queueMode.value();

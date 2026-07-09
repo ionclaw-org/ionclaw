@@ -3,6 +3,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/config/Config.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/config/ConfigLoader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/config/ConfigStore.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/TimeHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/UniqueId.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/RandomHelper.cpp

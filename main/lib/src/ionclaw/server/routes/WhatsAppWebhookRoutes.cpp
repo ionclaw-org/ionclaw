@@ -153,7 +153,7 @@ void Routes::handleWhatsAppZApiWebhook(Poco::Net::HTTPServerRequest &req, Poco::
     bool enabled = false;
     std::vector<std::string> allowedUsers;
     {
-        std::lock_guard<std::mutex> lock(configMutex);
+        auto config = configStore->snapshot();
         auto it = config->channels.find("whatsapp_zapi");
 
         if (it != config->channels.end() && it->second.enabled)
@@ -220,7 +220,7 @@ void Routes::handleWhatsAppMetaWebhook(Poco::Net::HTTPServerRequest &req, Poco::
     std::vector<std::string> allowedUsers;
     bool enabled = false;
     {
-        std::lock_guard<std::mutex> lock(configMutex);
+        auto config = configStore->snapshot();
         auto it = config->channels.find("whatsapp_meta");
 
         if (it != config->channels.end() && it->second.enabled && it->second.raw.is_object())

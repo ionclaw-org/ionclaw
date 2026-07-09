@@ -17,7 +17,7 @@ namespace channel
 static constexpr int OUTBOUND_POLL_MS = 500;
 static constexpr size_t MAX_WHATSAPP_CHARS = 4000;
 
-WhatsAppRunner::WhatsAppRunner(std::shared_ptr<ionclaw::config::Config> config, std::shared_ptr<ionclaw::bus::MessageBus> bus)
+WhatsAppRunner::WhatsAppRunner(std::shared_ptr<const ionclaw::config::Config> config, std::shared_ptr<ionclaw::bus::MessageBus> bus)
     : config(std::move(config))
     , bus(std::move(bus))
 {

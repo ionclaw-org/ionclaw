@@ -12,7 +12,7 @@ namespace server
 
 void Routes::handleEnvironmentVariablesList(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp)
 {
-    std::lock_guard<std::mutex> lock(configMutex);
+    auto config = configStore->snapshot();
 
     auto values = ionclaw::util::EnvironmentHelper::readDotEnv(config->projectPath);
 
@@ -34,7 +34,7 @@ void Routes::handleEnvironmentVariablesUpdate(Poco::Net::HTTPServerRequest &req,
         auto body = nlohmann::json::parse(readBody(req));
         auto incoming = body.value("variables", nlohmann::json::array());
 
-        std::lock_guard<std::mutex> lock(configMutex);
+        auto config = configStore->snapshot();
 
         auto current = ionclaw::util::EnvironmentHelper::readDotEnv(config->projectPath);
         std::map<std::string, std::string> result;

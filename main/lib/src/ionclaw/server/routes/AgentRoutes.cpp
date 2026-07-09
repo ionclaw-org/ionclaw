@@ -10,7 +10,7 @@ void Routes::handleAgentsList(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
     nlohmann::json result = nlohmann::json::array();
 
     {
-        std::lock_guard<std::mutex> lock(configMutex);
+        auto config = configStore->snapshot();
 
         for (const auto &[name, agentCfg] : config->agents)
         {
@@ -36,7 +36,7 @@ void Routes::handleProvidersList(Poco::Net::HTTPServerRequest &, Poco::Net::HTTP
     nlohmann::json result = nlohmann::json::array();
 
     {
-        std::lock_guard<std::mutex> lock(configMutex);
+        auto config = configStore->snapshot();
 
         for (const auto &[name, provCfg] : config->providers)
         {

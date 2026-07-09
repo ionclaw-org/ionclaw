@@ -33,6 +33,7 @@ agent::SkillsLoader Routes::createSkillsLoader(const config::Config &cfg, const 
 // the caller must hold configMutex, as this reads config->agents and the config passed to the loader
 std::string Routes::resolveWorkspaceForSkill(const std::string &skillName) const
 {
+    auto config = configStore->snapshot();
     // try project-level first (no workspace)
     auto rootLoader = createSkillsLoader(*config, "");
     auto rootSkills = rootLoader.discoverSkills();
@@ -66,7 +67,7 @@ std::string Routes::resolveWorkspaceForSkill(const std::string &skillName) const
 
 void Routes::handleSkillsList(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp)
 {
-    std::lock_guard<std::mutex> lock(configMutex);
+    auto config = configStore->snapshot();
     auto [hasAgent, agentName] = extractAgentParam(req);
 
     nlohmann::json result = nlohmann::json::array();
@@ -187,7 +188,7 @@ void Routes::handleSkillsList(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
 
 void Routes::handleSkillGet(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &name)
 {
-    std::lock_guard<std::mutex> lock(configMutex);
+    auto config = configStore->snapshot();
     auto [hasAgent, agentName] = extractAgentParam(req);
     std::string workspace;
 
@@ -224,7 +225,7 @@ void Routes::handleSkillUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTT
 {
     try
     {
-        std::lock_guard<std::mutex> lock(configMutex);
+        auto config = configStore->snapshot();
         auto [hasAgent, agentName] = extractAgentParam(req);
         std::string workspace;
 
@@ -267,7 +268,7 @@ void Routes::handleSkillUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTT
 
 void Routes::handleSkillDelete(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &name)
 {
-    std::lock_guard<std::mutex> lock(configMutex);
+    auto config = configStore->snapshot();
     auto [hasAgent, agentName] = extractAgentParam(req);
     std::string workspace;
 
