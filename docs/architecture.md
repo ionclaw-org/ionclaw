@@ -222,7 +222,7 @@ Subagents run on the same Orchestrator worker thread as the parent (sequential, 
 ### Providers
 
 - **LlmProvider** (`provider/LlmProvider.hpp`) — Abstract base class for LLM API integration.
-- **AnthropicProvider** (`provider/AnthropicProvider.hpp`) — Anthropic Claude API implementation. Supports text, image, and audio (document type) content blocks. Extended thinking via `thinking` model param.
+- **AnthropicProvider** (`provider/AnthropicProvider.hpp`) — Anthropic Claude API implementation. Supports text and image content blocks (base64 and url); audio has no native Anthropic input and is transcribed to text upstream by the agent loop. Extended thinking via `thinking` model param, replaying the thinking blocks and their signature before tool_use during a tool loop.
 - **OpenAiProvider** (`provider/OpenAiProvider.hpp`) — OpenAI-compatible API implementation. Supports text, image, and audio (`input_audio`) content blocks.
 - **ProviderFactory** (`provider/ProviderFactory.hpp`) — Creates provider instances from config. Maps `anthropic` → AnthropicProvider, all others → OpenAiProvider.
 - **FailoverProvider** (`provider/FailoverProvider.hpp`) — Wraps multiple auth profiles and retries with exponential backoff (1s–8s, 2s base for rate limits) and jitter on transient/rate-limit errors. Tracks per-profile cooldowns (60s). Each profile can define its own `model_params` that override agent-level defaults. Aborts stream retry if content was already delivered to prevent duplicate partial responses.

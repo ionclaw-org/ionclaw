@@ -411,38 +411,6 @@ nlohmann::json AnthropicProvider::buildRequestBody(const ChatCompletionRequest &
                         anthropicBlocks.push_back(imageBlock);
                     }
                 }
-                else if (blockType == "audio")
-                {
-                    // anthropic audio input: base64-encoded audio data
-                    auto data = block.value("data", "");
-                    auto format = block.value("format", "wav");
-
-                    if (!data.empty())
-                    {
-                        // map format to MIME type
-                        std::string mediaType = "audio/wav";
-
-                        if (format == "mp3")
-                        {
-                            mediaType = "audio/mpeg";
-                        }
-                        else if (format == "ogg")
-                        {
-                            mediaType = "audio/ogg";
-                        }
-                        else if (format == "webm")
-                        {
-                            mediaType = "audio/webm";
-                        }
-
-                        nlohmann::json audioBlock;
-                        audioBlock["type"] = "document";
-                        audioBlock["source"]["type"] = "base64";
-                        audioBlock["source"]["media_type"] = mediaType;
-                        audioBlock["source"]["data"] = data;
-                        anthropicBlocks.push_back(audioBlock);
-                    }
-                }
             }
 
             m["content"] = anthropicBlocks;
