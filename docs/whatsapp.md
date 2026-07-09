@@ -9,6 +9,8 @@ Both share the logical channel `whatsapp`. When both are enabled, **Meta takes p
 
 The server must be reachable on a public HTTPS URL for the provider to call its webhook. That base URL is the `server.public_url` in your config.
 
+Both channels are configurable from the **web UI** (Settings → Channels → WhatsApp Z-API / Cloud API), which shows the exact webhook URL to paste into the provider console and masks the stored secrets. The `config.yml` form below is equivalent.
+
 ## Webhook URLs
 
 Configure these in the provider console (they are unauthenticated at the app level — each is verified by the provider's signature/token):
