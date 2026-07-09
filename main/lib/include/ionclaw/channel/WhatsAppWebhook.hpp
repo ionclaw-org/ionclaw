@@ -52,6 +52,10 @@ public:
 private:
     static std::vector<unsigned char> sha256Bytes(const unsigned char *data, size_t len);
     static std::string hmacSha256Hex(const std::string &key, const std::string &data);
+
+    // defensive readers: a provider may send an optional field as null or a wrong type, which json::value() cannot survive
+    static std::string strField(const nlohmann::json &obj, const char *key, const std::string &fallback = "");
+    static bool boolField(const nlohmann::json &obj, const char *key, bool fallback = false);
 };
 
 } // namespace channel

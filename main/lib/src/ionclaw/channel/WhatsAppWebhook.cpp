@@ -53,6 +53,18 @@ std::string WhatsAppWebhook::hmacSha256Hex(const std::string &key, const std::st
     return Poco::DigestEngine::digestToHex(finalHash);
 }
 
+std::string WhatsAppWebhook::strField(const nlohmann::json &obj, const char *key, const std::string &fallback)
+{
+    auto it = obj.find(key);
+    return it != obj.end() && it->is_string() ? it->get<std::string>() : fallback;
+}
+
+bool WhatsAppWebhook::boolField(const nlohmann::json &obj, const char *key, bool fallback)
+{
+    auto it = obj.find(key);
+    return it != obj.end() && it->is_boolean() ? it->get<bool>() : fallback;
+}
+
 ParsedWebhookMessage WhatsAppWebhook::parseZApi(const nlohmann::json &body)
 {
     ParsedWebhookMessage msg;
@@ -62,15 +74,15 @@ ParsedWebhookMessage WhatsAppWebhook::parseZApi(const nlohmann::json &body)
         return msg;
     }
 
-    msg.fromMe = body.value("fromMe", false);
-    msg.isGroup = body.value("isGroup", false);
-    msg.senderPhone = body.value("phone", "");
-    msg.senderName = body.value("senderName", "");
-    msg.msgId = body.value("messageId", "");
+    msg.fromMe = boolField(body, "fromMe");
+    msg.isGroup = boolField(body, "isGroup");
+    msg.senderPhone = strField(body, "phone");
+    msg.senderName = strField(body, "senderName");
+    msg.msgId = strField(body, "messageId");
 
     if (body.contains("text") && body["text"].is_object())
     {
-        msg.text = body["text"].value("message", "");
+        msg.text = strField(body["text"], "message");
     }
 
     // each media type is its own object and carries its own caption
@@ -84,13 +96,13 @@ ParsedWebhookMessage WhatsAppWebhook::parseZApi(const nlohmann::json &body)
         const auto &m = body[key];
         WebhookMedia media;
         media.kind = kind;
-        media.url = m.value(urlField, "");
-        media.mimeType = m.value("mimeType", "");
-        media.caption = m.value("caption", "");
+        media.url = strField(m, urlField);
+        media.mimeType = strField(m, "mimeType");
+        media.caption = strField(m, "caption");
 
         if (fileNameField != nullptr)
         {
-            media.fileName = m.value(fileNameField, "");
+            media.fileName = strField(m, fileNameField);
         }
 
         if (!media.url.empty())
@@ -144,7 +156,7 @@ std::vector<ParsedWebhookMessage> WhatsAppWebhook::parseMeta(const nlohmann::jso
 
                 if (contact.contains("profile") && contact["profile"].is_object())
                 {
-                    senderName = contact["profile"].value("name", "");
+                    senderName = strField(contact["profile"], "name");
                 }
             }
 
@@ -156,26 +168,26 @@ std::vector<ParsedWebhookMessage> WhatsAppWebhook::parseMeta(const nlohmann::jso
             for (const auto &m : value["messages"])
             {
                 ParsedWebhookMessage msg;
-                msg.senderPhone = m.value("from", "");
-                msg.msgId = m.value("id", "");
+                msg.senderPhone = strField(m, "from");
+                msg.msgId = strField(m, "id");
                 msg.senderName = senderName;
 
-                auto type = m.value("type", "");
+                auto type = strField(m, "type");
 
                 if (type == "text" && m.contains("text") && m["text"].is_object())
                 {
-                    msg.text = m["text"].value("body", "");
+                    msg.text = strField(m["text"], "body");
                 }
-                else if (m.contains(type) && m[type].is_object())
+                else if (!type.empty() && m.contains(type) && m[type].is_object())
                 {
                     // image/audio/video/document/sticker: the media object is keyed by the type, fetched later by id
                     const auto &media = m[type];
                     WebhookMedia wm;
                     wm.kind = type;
-                    wm.mediaId = media.value("id", "");
-                    wm.mimeType = media.value("mime_type", "");
-                    wm.caption = media.value("caption", "");
-                    wm.fileName = media.value("filename", "");
+                    wm.mediaId = strField(media, "id");
+                    wm.mimeType = strField(media, "mime_type");
+                    wm.caption = strField(media, "caption");
+                    wm.fileName = strField(media, "filename");
 
                     if (!wm.mediaId.empty())
                     {

@@ -45,6 +45,40 @@ TEST_CASE("z-api fromMe is flagged and empty payload is invalid")
     CHECK_FALSE(m.valid);
 }
 
+TEST_CASE("z-api tolerates null optional fields instead of dropping the message")
+{
+    // a contact with no display name and media with no caption arrives with null fields; value() would throw on these
+    auto body = nlohmann::json::parse(R"({
+        "phone":"5511999999999","messageId":"IMG2","senderName":null,"fromMe":null,"isGroup":null,
+        "image":{"imageUrl":"https://cdn/y.jpg","mimeType":"image/jpeg","caption":null}
+    })");
+
+    ParsedWebhookMessage m;
+    REQUIRE_NOTHROW(m = WhatsAppWebhook::parseZApi(body));
+    REQUIRE(m.valid);
+    CHECK(m.senderName.empty());
+    CHECK_FALSE(m.fromMe);
+    REQUIRE(m.media.size() == 1);
+    CHECK(m.media[0].url == "https://cdn/y.jpg");
+    CHECK(m.media[0].caption.empty());
+}
+
+TEST_CASE("meta tolerates a null optional field")
+{
+    auto body = nlohmann::json::parse(R"({
+        "entry":[{"changes":[{"value":{
+            "contacts":[{"profile":{"name":null}}],
+            "messages":[{"from":"55","id":"wamid.1","type":"text","text":{"body":"hi"}}]
+        }}]}]
+    })");
+
+    std::vector<ParsedWebhookMessage> msgs;
+    REQUIRE_NOTHROW(msgs = WhatsAppWebhook::parseMeta(body));
+    REQUIRE(msgs.size() == 1);
+    CHECK(msgs[0].senderName.empty());
+    CHECK(msgs[0].text == "hi");
+}
+
 TEST_CASE("meta text message parses from the nested envelope")
 {
     auto body = nlohmann::json::parse(R"({
