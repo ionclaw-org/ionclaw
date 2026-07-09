@@ -10,6 +10,11 @@ namespace ionclaw
 namespace bus
 {
 
+std::string MessageBus::dedupKey(const InboundMessage &msg)
+{
+    return msg.channel + ":" + msg.chatId + ":" + msg.senderId + ":" + std::to_string(std::hash<std::string>{}(msg.content));
+}
+
 bool MessageBus::isDuplicate(const InboundMessage &msg)
 {
     // synthetic messages (e.g. wake-on-settle) are never deduplicated
@@ -18,19 +23,17 @@ bool MessageBus::isDuplicate(const InboundMessage &msg)
         return false;
     }
 
-    auto key = msg.channel + ":" + msg.chatId + ":" + msg.senderId + ":" + std::to_string(std::hash<std::string>{}(msg.content));
-
     purgeExpiredDedup();
 
-    auto it = recentInbound.find(key);
+    // test only; the key is recorded once the message is actually accepted so a rejected retry is not swallowed
+    auto it = recentInbound.find(dedupKey(msg));
 
     if (it != recentInbound.end())
     {
-        spdlog::debug("[MessageBus] Dropping duplicate inbound message: {}", key);
+        spdlog::debug("[MessageBus] Dropping duplicate inbound message: {}", dedupKey(msg));
         return true;
     }
 
-    recentInbound[key] = std::chrono::steady_clock::now();
     return false;
 }
 
@@ -88,13 +91,20 @@ bool MessageBus::exceedsSessionRate(const InboundMessage &msg)
         times.pop_front();
     }
 
-    if (times.size() >= MAX_PER_SESSION_IN_WINDOW)
-    {
-        return true;
-    }
+    // test only; the timestamp is recorded on accept so a message dropped by a later check does not burn a rate slot
+    return times.size() >= MAX_PER_SESSION_IN_WINDOW;
+}
 
-    times.push_back(now);
-    return false;
+void MessageBus::recordAccepted(const InboundMessage &msg)
+{
+    auto now = std::chrono::steady_clock::now();
+
+    // synthetic messages skip dedup, matching isDuplicate, but still count against nothing here since they were never tested
+    if (!(msg.metadata.contains("synthetic") && msg.metadata["synthetic"].is_boolean() && msg.metadata["synthetic"].get<bool>()))
+    {
+        recentInbound[dedupKey(msg)] = now;
+        sessionSendTimes[msg.channel + ":" + msg.chatId].push_back(now);
+    }
 }
 
 PublishResult MessageBus::publishInbound(const InboundMessage &msg)
@@ -121,6 +131,8 @@ PublishResult MessageBus::publishInbound(const InboundMessage &msg)
             return PublishResult::QueueFull;
         }
 
+        // the message passed every check, so record its dedup and rate state and enqueue it
+        recordAccepted(msg);
         inboundQueue.push(msg);
     }
 

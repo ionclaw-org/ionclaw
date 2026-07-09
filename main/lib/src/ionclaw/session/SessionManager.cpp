@@ -144,7 +144,10 @@ Session &SessionManager::getOrCreateLocked(const std::string &sessionKey)
     {
         loadFromDisk(sessionKey);
     }
-    else
+
+    // covers both a missing file and an existing file that failed to load; a bare cache[key] here would default-construct
+    // a session with an empty key and empty timestamps that masks the real file, so build a properly keyed session instead
+    if (cache.find(sessionKey) == cache.end())
     {
         Session session;
         session.key = sessionKey;

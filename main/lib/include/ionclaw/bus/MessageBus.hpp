@@ -49,6 +49,7 @@ private:
     static constexpr size_t MAX_INBOUND_QUEUE = 1000;
     static constexpr int DEDUP_TTL_SECONDS = 5;
     std::map<std::string, std::chrono::steady_clock::time_point> recentInbound;
+    static std::string dedupKey(const InboundMessage &msg);
     bool isDuplicate(const InboundMessage &msg);
     void purgeExpiredDedup();
 
@@ -57,6 +58,9 @@ private:
     static constexpr size_t MAX_PER_SESSION_IN_WINDOW = 30;
     std::map<std::string, std::deque<std::chrono::steady_clock::time_point>> sessionSendTimes;
     bool exceedsSessionRate(const InboundMessage &msg);
+
+    // records dedup and rate-limit state for a message only once it is accepted into the queue
+    void recordAccepted(const InboundMessage &msg);
 };
 
 } // namespace bus
