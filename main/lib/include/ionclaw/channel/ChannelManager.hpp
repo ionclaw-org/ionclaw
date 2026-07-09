@@ -29,6 +29,7 @@ class TaskManager;
 namespace channel
 {
 class TelegramRunner;
+class WhatsAppRunner;
 }
 
 namespace channel
@@ -47,6 +48,8 @@ public:
 private:
     void startTelegram();
     void stopTelegram();
+    void startWhatsApp();
+    void stopWhatsApp();
     void startMcp();
     void stopMcp();
 
@@ -59,6 +62,7 @@ private:
 
     std::mutex mutex;
     std::unique_ptr<TelegramRunner> telegramRunner;
+    std::unique_ptr<WhatsAppRunner> whatsAppRunner;
 };
 
 } // namespace channel

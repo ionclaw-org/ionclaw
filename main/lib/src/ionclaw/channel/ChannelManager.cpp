@@ -1,6 +1,8 @@
 #include "ionclaw/channel/ChannelManager.hpp"
 
 #include "ionclaw/channel/TelegramRunner.hpp"
+#include "ionclaw/channel/WhatsAppRunner.hpp"
+#include "ionclaw/config/Config.hpp"
 #include "ionclaw/mcp/McpDispatcher.hpp"
 #include "spdlog/spdlog.h"
 
@@ -26,6 +28,8 @@ void ChannelManager::startChannel(const std::string &name)
     std::lock_guard<std::mutex> lock(mutex);
     if (name == "telegram")
         startTelegram();
+    else if (name == "whatsapp_zapi" || name == "whatsapp_meta")
+        startWhatsApp();
     else if (name == "mcp")
         startMcp();
 }
@@ -35,6 +39,18 @@ void ChannelManager::stopChannel(const std::string &name)
     std::lock_guard<std::mutex> lock(mutex);
     if (name == "telegram")
         stopTelegram();
+    else if (name == "whatsapp_zapi" || name == "whatsapp_meta")
+    {
+        // the two providers share one runner, so keep it alive while the other is still enabled
+        auto z = config->channels.find("whatsapp_zapi");
+        auto m = config->channels.find("whatsapp_meta");
+        bool anyEnabled = (z != config->channels.end() && z->second.enabled) || (m != config->channels.end() && m->second.enabled);
+
+        if (!anyEnabled)
+        {
+            stopWhatsApp();
+        }
+    }
     else if (name == "mcp")
         stopMcp();
 }
@@ -43,7 +59,33 @@ void ChannelManager::stopAll()
 {
     std::lock_guard<std::mutex> lock(mutex);
     stopTelegram();
+    stopWhatsApp();
     stopMcp();
+}
+
+void ChannelManager::startWhatsApp()
+{
+    // one runner serves both providers via the shared whatsapp outbound queue
+    if (whatsAppRunner)
+    {
+        return;
+    }
+
+    whatsAppRunner = std::make_unique<WhatsAppRunner>(config, bus);
+    whatsAppRunner->start();
+    spdlog::info("[ChannelManager] WhatsApp runner started");
+}
+
+void ChannelManager::stopWhatsApp()
+{
+    if (!whatsAppRunner)
+    {
+        return;
+    }
+
+    whatsAppRunner->stop();
+    whatsAppRunner.reset();
+    spdlog::info("[ChannelManager] WhatsApp runner stopped");
 }
 
 void ChannelManager::startTelegram()
