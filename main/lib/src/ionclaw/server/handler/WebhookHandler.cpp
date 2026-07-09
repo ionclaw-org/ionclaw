@@ -22,7 +22,7 @@ void WebhookHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Net:
 
     auto path = Poco::URI(req.getURI()).getPath();
 
-    if (path == "/webhook/whatsapp")
+    if (path == "/webhook/whatsapp-zapi")
     {
         routes->handleWhatsAppZApiWebhook(req, resp);
         return;
