@@ -138,6 +138,16 @@ void McpHandler::handlePost(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
         return;
     }
 
+    // a valid but non-object body (a bare number/string/bool/null) would make the value() below throw type_error.306
+    if (!body.is_object())
+    {
+        resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
+        resp.setContentType("application/json");
+        auto &ostr = resp.send();
+        ostr << R"({"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Invalid Request"}})";
+        return;
+    }
+
     bool isInitialize = body.value("method", "") == "initialize";
 
     // get or create MCP session

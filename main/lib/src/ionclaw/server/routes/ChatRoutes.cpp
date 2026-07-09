@@ -52,8 +52,10 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
     try
     {
         auto body = nlohmann::json::parse(readBody(req));
-        auto message = body.value("message", "");
-        auto sessionId = body.value("session_id", std::string("direct"));
+
+        // read defensively: value() throws type_error.302 when a field is present but null, which would 500 instead of the intended validation error
+        auto message = body.contains("message") && body["message"].is_string() ? body["message"].get<std::string>() : "";
+        auto sessionId = body.contains("session_id") && body["session_id"].is_string() ? body["session_id"].get<std::string>() : "direct";
 
         // extract media paths from request
         std::vector<std::string> media;
