@@ -62,3 +62,13 @@ Every inbound POST is rejected unless its `X-Hub-Signature-256` matches `HMAC-SH
 - Inbound text (and the caption of a media message) is delivered to the agent as a normal user turn on the `whatsapp` channel, keyed by the sender's phone number.
 - The agent's reply is delivered back through the active provider, split into chunks under the WhatsApp message length limit.
 - Group messages and the bot's own echoes (Z-API `fromMe`) are ignored.
+- Inbound media (image/audio/video/document) is downloaded into `workspace/public/media` and attached to the turn; a media-only message uses its caption as the text.
+- If the channel's `allowed_users` list is set, only those phone numbers may talk to the agent; everyone else is ignored. Leave it empty to accept any sender.
+
+```yaml
+channels:
+  whatsapp_zapi:
+    enabled: true
+    allowed_users: ["5511999999999"]   # optional owner allowlist
+    raw: { instance_id: "...", instance_token: "...", client_token: "..." }
+```

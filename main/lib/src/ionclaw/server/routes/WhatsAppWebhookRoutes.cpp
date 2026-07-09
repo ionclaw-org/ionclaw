@@ -1,5 +1,8 @@
 #include "ionclaw/server/Routes.hpp"
 
+#include <algorithm>
+#include <vector>
+
 #include "Poco/URI.h"
 #include "spdlog/spdlog.h"
 
@@ -148,10 +151,16 @@ void Routes::handleWhatsAppZApiWebhook(Poco::Net::HTTPServerRequest &req, Poco::
     }
 
     bool enabled = false;
+    std::vector<std::string> allowedUsers;
     {
         std::lock_guard<std::mutex> lock(configMutex);
         auto it = config->channels.find("whatsapp_zapi");
-        enabled = it != config->channels.end() && it->second.enabled;
+
+        if (it != config->channels.end() && it->second.enabled)
+        {
+            enabled = true;
+            allowedUsers = it->second.allowedUsers;
+        }
     }
 
     if (!enabled)
@@ -168,6 +177,13 @@ void Routes::handleWhatsAppZApiWebhook(Poco::Net::HTTPServerRequest &req, Poco::
 
         // ignore our own echoes, groups, and anything without a real payload
         if (!msg.valid || msg.fromMe || msg.isGroup)
+        {
+            sendJson(resp, {{"status", "ignored"}});
+            return;
+        }
+
+        // when an allowlist is configured, only its numbers may talk to the agent
+        if (!allowedUsers.empty() && std::find(allowedUsers.begin(), allowedUsers.end(), msg.senderPhone) == allowedUsers.end())
         {
             sendJson(resp, {{"status", "ignored"}});
             return;
@@ -201,6 +217,7 @@ void Routes::handleWhatsAppMetaWebhook(Poco::Net::HTTPServerRequest &req, Poco::
     std::string appSecret;
     std::string accessToken;
     std::string graphVersion = "v23.0";
+    std::vector<std::string> allowedUsers;
     bool enabled = false;
     {
         std::lock_guard<std::mutex> lock(configMutex);
@@ -213,6 +230,7 @@ void Routes::handleWhatsAppMetaWebhook(Poco::Net::HTTPServerRequest &req, Poco::
             appSecret = it->second.raw.value("app_secret", "");
             accessToken = it->second.raw.value("access_token", "");
             graphVersion = it->second.raw.value("graph_version", "v23.0");
+            allowedUsers = it->second.allowedUsers;
         }
     }
 
@@ -281,6 +299,12 @@ void Routes::handleWhatsAppMetaWebhook(Poco::Net::HTTPServerRequest &req, Poco::
         for (auto msg : ionclaw::channel::WhatsAppWebhook::parseMeta(body))
         {
             if (!webhookDedup.markSeen(msg.msgId))
+            {
+                continue;
+            }
+
+            // when an allowlist is configured, only its numbers may talk to the agent
+            if (!allowedUsers.empty() && std::find(allowedUsers.begin(), allowedUsers.end(), msg.senderPhone) == allowedUsers.end())
             {
                 continue;
             }
