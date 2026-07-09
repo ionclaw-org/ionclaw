@@ -229,11 +229,11 @@ std::string ContextBuilder::buildSystemPrompt(const std::string &agentName, cons
            << "- Files you save under public/ in your workspace are published on the web: a file's url is " << publicUrl << " plus its path below public/. For example, saving public/media/chart.png publishes it at " << publicUrl << "/media/chart.png.\n"
            << "- When you create something the user should open or download (an image, a report, a QR code), save it under public/.\n";
 
-    // whatsapp delivers real attachments via inline markers, other non-terminal channels only carry the public url
-    if (channel == "whatsapp")
+    // whatsapp and telegram deliver real attachments via inline markers, other non-terminal channels only carry the public url
+    if (channel == "whatsapp" || channel == "telegram")
     {
-        prompt << "- To attach a file to your WhatsApp reply, put a marker on its own where you want it sent: [[image:public/media/chart.png]], [[audio:public/media/reply.ogg]], [[video:public/media/clip.mp4]] or [[document:public/reports/report.pdf]]. Use [[media:PATH]] to let the file extension pick the type. The text around the marker becomes the caption.\n"
-               << "- Use [[break]] to split your reply into separate WhatsApp messages.\n"
+        prompt << "- To attach a file to your reply, put a marker where you want it sent: [[image:public/media/chart.png]], [[audio:public/media/reply.ogg]], [[video:public/media/clip.mp4]] or [[document:public/reports/report.pdf]]. Use [[media:PATH]] to let the file extension pick the type. The text around the marker becomes the caption.\n"
+               << "- Use [[break]] to split your reply into separate messages.\n"
                << "- Prefer sending a generated file as an attachment with a marker over pasting its raw url.\n";
     }
     else

@@ -138,7 +138,8 @@ void ChannelManager::startTelegram()
     }
 
     std::string pubDir = config->publicDir;
-    telegramRunner = std::make_unique<TelegramRunner>(bus, sessionManager, taskManager, dispatcher, std::move(token), ch.allowedUsers, std::move(proxy), replyToMessage, std::move(pubDir));
+    std::string pubUrl = config->server.publicUrl;
+    telegramRunner = std::make_unique<TelegramRunner>(bus, sessionManager, taskManager, dispatcher, std::move(token), ch.allowedUsers, std::move(proxy), replyToMessage, std::move(pubDir), std::move(pubUrl));
     telegramRunner->start();
 }
 
