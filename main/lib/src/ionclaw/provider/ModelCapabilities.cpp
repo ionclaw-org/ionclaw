@@ -113,6 +113,12 @@ bool ModelCapabilities::supportsFunctionCalling(const std::string &model, bool d
     return info ? info->supportsFunctionCalling : defaultIfUnknown;
 }
 
+bool ModelCapabilities::supportsPromptCaching(const std::string &model, bool defaultIfUnknown)
+{
+    auto info = lookup(model);
+    return info ? info->supportsPromptCaching : defaultIfUnknown;
+}
+
 int64_t ModelCapabilities::contextWindow(const std::string &model)
 {
     auto info = lookup(model);

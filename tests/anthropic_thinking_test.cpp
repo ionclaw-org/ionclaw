@@ -107,6 +107,34 @@ TEST_CASE("buildRequestBody replays thinking blocks before the tool_use blocks")
     CHECK(content[2].value("type", "") == "tool_use");
 }
 
+TEST_CASE("buildRequestBody adds a system cache_control breakpoint only for caching-capable models")
+{
+    AnthropicProvider provider("sk-test");
+
+    ChatCompletionRequest request;
+    Message system;
+    system.role = "system";
+    system.content = "you are helpful";
+    request.messages.push_back(system);
+    Message user;
+    user.role = "user";
+    user.content = "hi";
+    request.messages.push_back(user);
+
+    // a model the table marks as prompt-caching-capable gets the ephemeral breakpoint
+    request.model = "claude-sonnet-4-20250514";
+    auto cached = AnthropicProviderTestAccess::build(provider, request);
+    REQUIRE(cached.contains("system"));
+    REQUIRE(cached["system"].is_array());
+    CHECK(cached["system"][0].contains("cache_control"));
+
+    // an unknown model is treated conservatively and receives no cache_control
+    request.model = "some-unlisted-model";
+    auto uncached = AnthropicProviderTestAccess::build(provider, request);
+    REQUIRE(uncached.contains("system"));
+    CHECK_FALSE(uncached["system"][0].contains("cache_control"));
+}
+
 TEST_CASE("buildRequestBody omits reasoning blocks when the assistant turn has none")
 {
     AnthropicProvider provider("sk-test");

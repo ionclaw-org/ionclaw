@@ -431,10 +431,17 @@ nlohmann::json AnthropicProvider::buildRequestBody(const ChatCompletionRequest &
     ProviderHelper::sanitizeToolCallInputs(messages);
     messages = validateTranscript(messages);
 
-    // set system prompt if present, with cache_control for prompt caching
+    // set system prompt if present, adding a cache_control breakpoint only when the model supports prompt caching
     if (!systemPrompt.empty())
     {
-        body["system"] = nlohmann::json::array({{{"type", "text"}, {"text", systemPrompt}, {"cache_control", {{"type", "ephemeral"}}}}});
+        nlohmann::json systemBlock = {{"type", "text"}, {"text", systemPrompt}};
+
+        if (ModelCapabilities::supportsPromptCaching(request.model, false))
+        {
+            systemBlock["cache_control"] = {{"type", "ephemeral"}};
+        }
+
+        body["system"] = nlohmann::json::array({systemBlock});
     }
 
     body["messages"] = messages;

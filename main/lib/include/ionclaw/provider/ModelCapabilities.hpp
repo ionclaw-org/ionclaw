@@ -42,6 +42,9 @@ public:
     static bool supportsReasoning(const std::string &model, bool defaultIfUnknown = true);
     static bool supportsFunctionCalling(const std::string &model, bool defaultIfUnknown = true);
 
+    // prompt caching defaults to false for an unknown model, since a wrongly-sent cache_control can be rejected
+    static bool supportsPromptCaching(const std::string &model, bool defaultIfUnknown = false);
+
     // context window (max input tokens) for a model, or 0 if unknown
     static int64_t contextWindow(const std::string &model);
 
