@@ -16,6 +16,7 @@
 #include "ionclaw/agent/HookRunner.hpp"
 #include "ionclaw/agent/Orchestrator.hpp"
 #include "ionclaw/agent/ToolLoopDetector.hpp"
+#include "ionclaw/provider/ModelCapabilities.hpp"
 #include "ionclaw/provider/ProviderHelper.hpp"
 #include "ionclaw/session/SessionKeyUtils.hpp"
 #include "ionclaw/tool/builtin/MemorySaveTool.hpp"
@@ -1496,6 +1497,13 @@ StreamResult AgentLoop::consumeStream(const std::vector<ionclaw::provider::Messa
     request.model = agentConfig.model;
     auto baseTools = agentConfig.tools.empty() ? toolRegistry->getToolNames() : agentConfig.tools;
     auto effectiveTools = ionclaw::tool::ToolRegistry::applyToolPolicy(baseTools, agentConfig.toolPolicy);
+
+    // do not advertise the vision tool to a model the capability table knows cannot see images (permissive when unknown)
+    if (!ionclaw::provider::ModelCapabilities::supportsVision(agentConfig.model))
+    {
+        effectiveTools.erase(std::remove(effectiveTools.begin(), effectiveTools.end(), "vision"), effectiveTools.end());
+    }
+
     request.tools = toolRegistry->getOpenAiDefinitions(effectiveTools);
     request.modelParams = modelParams;
 
