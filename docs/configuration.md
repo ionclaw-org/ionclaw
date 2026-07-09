@@ -336,7 +336,7 @@ See [Custom Providers — Model Parameters Merge Order](custom-providers.md#mode
 Special model parameters:
 
 - **`thinking`** — Extended thinking/reasoning level. Values: `off`, `low`, `medium`, `high`, `adaptive`. Mapping by provider:
-  - **Anthropic** — scales the `budget_tokens` of the thinking block; `off` disables it.
+  - **Anthropic** — scales the `budget_tokens` of the thinking block; `off` disables it. During a tool-use loop the model's thinking blocks (and their signature) are replayed verbatim before the `tool_use` blocks on each follow-up request, as the API requires; encrypted `redacted_thinking` blocks are preserved the same way.
   - **OpenRouter** — sets `reasoning.effort`.
   - **OpenAI-compatible** — sets the flat `reasoning_effort` field (only `low`, `medium`, `high` are sent) and pins `temperature` to the default that reasoning models require.
 

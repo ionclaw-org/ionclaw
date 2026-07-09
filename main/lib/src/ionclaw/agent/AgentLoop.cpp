@@ -150,6 +150,12 @@ size_t AgentLoop::estimatePromptBytes(const std::vector<ionclaw::provider::Messa
         total += msg.content.size();
         total += msg.reasoningContent.size();
 
+        // reasoning blocks are replayed verbatim to the provider, so they count toward the prompt
+        if (msg.reasoningBlocks.is_array())
+        {
+            total += msg.reasoningBlocks.dump().size();
+        }
+
         for (const auto &tc : msg.toolCalls)
         {
             total += tc.arguments.dump().size();
@@ -1215,7 +1221,7 @@ std::string AgentLoop::runAgentLoop(std::vector<ionclaw::provider::Message> &mes
             // the user stopped during the stream, so record the turn and skip executing this iteration's tools
             if (turnState.activeTurnHandle && turnState.activeTurnHandle->aborted.load())
             {
-                ContextBuilder::addAssistantMessage(messages, response.content, response.toolCalls, response.reasoningContent);
+                ContextBuilder::addAssistantMessage(messages, response.content, response.toolCalls, response.reasoningContent, response.reasoningBlocks);
                 flushAbandonedToolCalls(messages, response.toolCalls, "[Request interrupted by the user]");
                 spdlog::info("[AgentLoop] Turn aborted by interrupt before tool execution");
                 break;
@@ -1261,7 +1267,7 @@ std::string AgentLoop::runAgentLoop(std::vector<ionclaw::provider::Message> &mes
             }
 
             // add assistant message with tool calls
-            ContextBuilder::addAssistantMessage(messages, response.content, response.toolCalls, response.reasoningContent);
+            ContextBuilder::addAssistantMessage(messages, response.content, response.toolCalls, response.reasoningContent, response.reasoningBlocks);
 
             // execute tools
             for (const auto &tc : response.toolCalls)
@@ -1491,6 +1497,8 @@ StreamResult AgentLoop::consumeStream(const std::vector<ionclaw::provider::Messa
 
     std::vector<std::string> contentParts;
     std::vector<std::string> reasoningParts;
+    std::string thinkingSignature;
+    auto redactedThinking = nlohmann::json::array();
 
     // build request
     ionclaw::provider::ChatCompletionRequest request;
@@ -1535,6 +1543,14 @@ StreamResult AgentLoop::consumeStream(const std::vector<ionclaw::provider::Messa
         else if (chunk.type == "thinking" && !chunk.content.empty())
         {
             reasoningParts.push_back(chunk.content);
+        }
+        else if (chunk.type == "thinking_signature")
+        {
+            thinkingSignature = chunk.content;
+        }
+        else if (chunk.type == "redacted_thinking")
+        {
+            redactedThinking.push_back({{"type", "redacted_thinking"}, {"data", chunk.content}});
         }
         else if (chunk.type == "tool_call")
         {
@@ -1587,6 +1603,25 @@ StreamResult AgentLoop::consumeStream(const std::vector<ionclaw::provider::Messa
     }
 
     result.reasoningContent = reasoningStream.str();
+
+    // rebuild the provider-native reasoning blocks so the next tool-loop turn can replay them with their signature
+    // a streamed assistant turn carries a single thinking block, so the accumulated text pairs with the single signature
+    auto reasoningBlocks = nlohmann::json::array();
+
+    if (!result.reasoningContent.empty() && !thinkingSignature.empty())
+    {
+        reasoningBlocks.push_back({{"type", "thinking"}, {"thinking", result.reasoningContent}, {"signature", thinkingSignature}});
+    }
+
+    for (const auto &redacted : redactedThinking)
+    {
+        reasoningBlocks.push_back(redacted);
+    }
+
+    if (!reasoningBlocks.empty())
+    {
+        result.reasoningBlocks = reasoningBlocks;
+    }
 
     // emit thinking event via callback for forwarding support
     if (!result.reasoningContent.empty())

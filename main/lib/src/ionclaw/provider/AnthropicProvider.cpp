@@ -330,6 +330,15 @@ nlohmann::json AnthropicProvider::buildRequestBody(const ChatCompletionRequest &
 
             auto contentBlocks = nlohmann::json::array();
 
+            // extended thinking requires the original thinking blocks (with their signature) to precede the tool_use blocks
+            if (msg.reasoningBlocks.is_array())
+            {
+                for (const auto &reasoningBlock : msg.reasoningBlocks)
+                {
+                    contentBlocks.push_back(reasoningBlock);
+                }
+            }
+
             if (!msg.content.empty())
             {
                 nlohmann::json textBlock;
@@ -499,6 +508,24 @@ ChatCompletionResponse AnthropicProvider::parseResponse(const nlohmann::json &re
                 }
 
                 result.reasoningContent += block.value("thinking", "");
+
+                // keep the block verbatim (thinking text plus signature) so it can be replayed before the tool_use blocks
+                if (!result.reasoningBlocks.is_array())
+                {
+                    result.reasoningBlocks = nlohmann::json::array();
+                }
+
+                result.reasoningBlocks.push_back(block);
+            }
+            else if (blockType == "redacted_thinking")
+            {
+                // encrypted thinking block that must be replayed verbatim
+                if (!result.reasoningBlocks.is_array())
+                {
+                    result.reasoningBlocks = nlohmann::json::array();
+                }
+
+                result.reasoningBlocks.push_back(block);
             }
             else if (blockType == "tool_use")
             {
@@ -539,6 +566,14 @@ void AnthropicProvider::parseStreamEvent(const std::string &eventType, const nlo
                 currentToolCallName = data["content_block"].value("name", "");
                 currentToolCallArgs.clear();
             }
+            else if (blockType == "redacted_thinking")
+            {
+                // encrypted thinking arrives whole in the start event and must be replayed verbatim
+                StreamChunk chunk;
+                chunk.type = "redacted_thinking";
+                chunk.content = data["content_block"].value("data", "");
+                callback(chunk);
+            }
         }
     }
     // handle content delta (text, thinking, or tool args)
@@ -560,6 +595,14 @@ void AnthropicProvider::parseStreamEvent(const std::string &eventType, const nlo
                 StreamChunk chunk;
                 chunk.type = "thinking";
                 chunk.content = data["delta"].value("thinking", "");
+                callback(chunk);
+            }
+            else if (deltaType == "signature_delta")
+            {
+                // signature closes the thinking block and is required when replaying it alongside tool_use
+                StreamChunk chunk;
+                chunk.type = "thinking_signature";
+                chunk.content = data["delta"].value("signature", "");
                 callback(chunk);
             }
             else if (deltaType == "input_json_delta")

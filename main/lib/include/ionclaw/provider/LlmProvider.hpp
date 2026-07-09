@@ -27,6 +27,8 @@ struct Message
     std::string name;
     nlohmann::json contentBlocks;
     std::string reasoningContent;
+    // provider-native reasoning blocks replayed verbatim, e.g. anthropic thinking blocks with their signature
+    nlohmann::json reasoningBlocks;
 };
 
 struct ChatCompletionRequest
@@ -52,6 +54,8 @@ struct ChatCompletionResponse
 {
     std::string content;
     std::string reasoningContent;
+    // provider-native reasoning blocks to replay on the next tool-loop turn, e.g. anthropic thinking blocks with their signature
+    nlohmann::json reasoningBlocks;
     std::vector<ToolCall> toolCalls;
     std::string finishReason;
     nlohmann::json usage;

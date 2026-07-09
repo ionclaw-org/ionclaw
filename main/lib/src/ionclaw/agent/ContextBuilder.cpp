@@ -660,13 +660,14 @@ void ContextBuilder::addToolResult(std::vector<ionclaw::provider::Message> &mess
     messages.push_back(msg);
 }
 
-void ContextBuilder::addAssistantMessage(std::vector<ionclaw::provider::Message> &messages, const std::string &content, const std::vector<ionclaw::provider::ToolCall> &toolCalls, const std::string &reasoningContent)
+void ContextBuilder::addAssistantMessage(std::vector<ionclaw::provider::Message> &messages, const std::string &content, const std::vector<ionclaw::provider::ToolCall> &toolCalls, const std::string &reasoningContent, const nlohmann::json &reasoningBlocks)
 {
     ionclaw::provider::Message msg;
     msg.role = "assistant";
     msg.content = content;
     msg.toolCalls = toolCalls;
     msg.reasoningContent = reasoningContent;
+    msg.reasoningBlocks = reasoningBlocks;
     messages.push_back(msg);
 }
 

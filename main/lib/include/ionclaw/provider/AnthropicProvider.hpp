@@ -36,6 +36,9 @@ private:
     static void sanitizeMessages(nlohmann::json &messages);
     static nlohmann::json validateTranscript(const nlohmann::json &messages);
     static std::string normalizeStopReason(const std::string &stopReason);
+
+    // grants the test suite access to the stateless request/response transforms
+    friend struct AnthropicProviderTestAccess;
 };
 
 } // namespace provider

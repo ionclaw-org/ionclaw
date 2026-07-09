@@ -59,6 +59,8 @@ struct StreamResult
 {
     std::string content;
     std::string reasoningContent;
+    // provider-native reasoning blocks (anthropic thinking with signature) to replay before tool_use
+    nlohmann::json reasoningBlocks;
     std::vector<ionclaw::provider::ToolCall> toolCalls;
     std::string finishReason;
     nlohmann::json usage;
