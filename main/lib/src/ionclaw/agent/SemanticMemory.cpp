@@ -116,6 +116,9 @@ void SemanticMemory::sync()
         files = nlohmann::json::object();
     }
 
+    // the index and sidecar are only rewritten when a file was actually added, changed or removed
+    bool changed = false;
+
     std::set<std::string> present;
     std::error_code ec;
 
@@ -149,7 +152,12 @@ void SemanticMemory::sync()
 
         if (chunks.empty())
         {
-            files.erase(path);
+            if (files.contains(path))
+            {
+                files.erase(path);
+                changed = true;
+            }
+
             continue;
         }
 
@@ -169,6 +177,7 @@ void SemanticMemory::sync()
         }
 
         files[path] = {{"hash", hash}, {"chunks", chunks.size()}};
+        changed = true;
     }
 
     // forget files that were removed from the memory directory
@@ -192,6 +201,12 @@ void SemanticMemory::sync()
         }
 
         files.erase(path);
+        changed = true;
+    }
+
+    if (!changed)
+    {
+        return;
     }
 
     store.save();
