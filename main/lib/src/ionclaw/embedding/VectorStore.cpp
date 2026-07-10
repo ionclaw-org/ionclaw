@@ -137,16 +137,20 @@ void VectorStore::open(const std::string &embeddingModel)
     impl->index = std::make_unique<hnswlib::HierarchicalNSW<float>>(impl->space.get(), impl->indexPath(), false, capacity);
     impl->nextLabel = meta.value("next_label", size_t{0});
 
-    for (const auto &item : meta.value("entries", nlohmann::json::object()).items())
+    // iterate the named meta member rather than a value() temporary, whose json would dangle during the loop
+    if (meta.contains("entries") && meta["entries"].is_object())
     {
-        auto label = static_cast<hnswlib::labeltype>(std::stoull(item.key()));
-        Impl::Entry entry;
-        entry.id = item.value().value("id", "");
-        entry.text = item.value().value("text", "");
-        entry.metadata = item.value().value("metadata", nlohmann::json::object());
+        for (const auto &item : meta["entries"].items())
+        {
+            auto label = static_cast<hnswlib::labeltype>(std::stoull(item.key()));
+            Impl::Entry entry;
+            entry.id = item.value().value("id", "");
+            entry.text = item.value().value("text", "");
+            entry.metadata = item.value().value("metadata", nlohmann::json::object());
 
-        impl->entries[label] = entry;
-        impl->idToLabel[entry.id] = label;
+            impl->entries[label] = entry;
+            impl->idToLabel[entry.id] = label;
+        }
     }
 
     spdlog::info("[VectorStore] opened '{}' with {} entries (model={}, dim={})", impl->name, impl->entries.size(), embeddingModel, impl->dim);
