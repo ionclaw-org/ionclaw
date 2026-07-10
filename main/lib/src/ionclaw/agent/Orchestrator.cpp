@@ -328,11 +328,11 @@ void Orchestrator::run()
                             endData["task_id"] = taskIdStr;
                         dispatcher->broadcast("chat:stream_end", endData);
 
-                        // publish to outbound bus so the originating channel receives the error
-                        if (bus)
+                        // the web ui receives errors over its websocket, so only a messaging channel gets an outbound delivery
+                        if (bus && !message.channel.empty() && message.channel != "web")
                         {
                             ionclaw::bus::OutboundMessage outbound;
-                            outbound.channel = message.channel.empty() ? "web" : message.channel;
+                            outbound.channel = message.channel;
                             outbound.chatId = message.chatId;
                             outbound.content = errorText;
                             outbound.metadata = {};
@@ -787,8 +787,8 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
                                                          {"task_id", turnHandle->taskId},
                                                      });
 
-            // publish to outbound bus so the originating channel receives the error
-            if (bus)
+            // the web ui receives errors over its websocket, so only a messaging channel gets an outbound delivery
+            if (bus && channel != "web")
             {
                 ionclaw::bus::OutboundMessage outbound;
                 outbound.channel = channel;
@@ -853,8 +853,8 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
                                                          {"task_id", turnHandle->taskId},
                                                      });
 
-            // publish to outbound bus so the originating channel receives the error
-            if (bus)
+            // the web ui receives errors over its websocket, so only a messaging channel gets an outbound delivery
+            if (bus && channel != "web")
             {
                 ionclaw::bus::OutboundMessage outbound;
                 outbound.channel = channel;

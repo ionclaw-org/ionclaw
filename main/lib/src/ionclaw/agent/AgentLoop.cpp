@@ -81,8 +81,8 @@ void AgentLoop::sendCommandResponse(const ionclaw::bus::InboundMessage &message,
         }
     }
 
-    // publish to outbound bus so channels (telegram, etc.) receive the response
-    if (busPtr)
+    // the web ui receives replies over its websocket, so only the messaging channels get an outbound delivery
+    if (busPtr && message.channel != "web")
     {
         ionclaw::bus::OutboundMessage outbound;
         outbound.channel = message.channel;
@@ -797,8 +797,8 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
 
         dispatcher->broadcast("sessions:updated", nlohmann::json::object());
 
-        // publish outbound for non-WebSocket channels
-        if (busPtr)
+        // the web ui receives replies over its websocket, so only the messaging channels get an outbound delivery
+        if (busPtr && message.channel != "web")
         {
             ionclaw::bus::OutboundMessage outbound;
             outbound.channel = message.channel;
