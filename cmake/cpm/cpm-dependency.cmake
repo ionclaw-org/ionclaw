@@ -124,6 +124,19 @@ if(jwt-cpp_ADDED)
     target_compile_definitions(jwt-cpp INTERFACE JWT_DISABLE_PICOJSON)
 endif()
 
+# hnswlib for approximate nearest neighbor search over embeddings (header-only)
+CPMAddPackage(
+    NAME "hnswlib"
+    VERSION "0.8.0"
+    GITHUB_REPOSITORY "nmslib/hnswlib"
+    DOWNLOAD_ONLY YES
+)
+
+if(hnswlib_ADDED)
+    add_library(hnswlib INTERFACE)
+    target_include_directories(hnswlib INTERFACE ${hnswlib_SOURCE_DIR})
+endif()
+
 # ssl link targets
 if(WIN32)
     set(IONCLAW_SSL_LIBS Poco::NetSSLWin)
@@ -140,6 +153,14 @@ if(stb_ADDED)
     if(IONCLAW_BUILD_SHARED)
         target_include_directories(ionclaw-shared PRIVATE ${stb_SOURCE_DIR})
         target_compile_definitions(ionclaw-shared PUBLIC IONCLAW_HAS_STB_IMAGE_WRITE)
+    endif()
+endif()
+
+if(hnswlib_ADDED)
+    target_link_libraries(ionclaw-lib PRIVATE hnswlib)
+
+    if(IONCLAW_BUILD_SHARED)
+        target_link_libraries(ionclaw-shared PRIVATE hnswlib)
     endif()
 endif()
 
@@ -174,7 +195,10 @@ if(IONCLAW_LLAMA_CPP)
     endif()
 
     # build the provider in its own target so llama-common's bundled includes (its vendored nlohmann) never leak into the rest of the codebase
-    add_library(ionclaw-llama STATIC ${CMAKE_SOURCE_DIR}/main/lib/src/ionclaw/provider/LlamaProvider.cpp)
+    add_library(ionclaw-llama STATIC
+        ${CMAKE_SOURCE_DIR}/main/lib/src/ionclaw/provider/LlamaProvider.cpp
+        ${CMAKE_SOURCE_DIR}/main/lib/src/ionclaw/embedding/LlamaEmbeddingProvider.cpp
+    )
     set_target_properties(ionclaw-llama PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_include_directories(ionclaw-llama PRIVATE ${CMAKE_SOURCE_DIR}/main/lib/include)
     target_compile_definitions(ionclaw-llama PRIVATE IONCLAW_HAS_LLAMA_CPP)

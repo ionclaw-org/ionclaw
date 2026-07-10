@@ -48,6 +48,10 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/transcription/TranscriptionProviderRegistry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/transcription/OpenAITranscriptionProvider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/transcription/LocalTranscriptionProvider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/embedding/EmbeddingProviderRegistry.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/embedding/OpenAiEmbeddingProvider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/embedding/TextChunker.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/embedding/VectorStore.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/ToolHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/ReadFileTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/WriteFileTool.cpp
@@ -78,6 +82,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/Orchestrator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/Classifier.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/MemoryStore.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/SemanticMemory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/SkillsLoader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/ContextWindow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/Compaction.cpp

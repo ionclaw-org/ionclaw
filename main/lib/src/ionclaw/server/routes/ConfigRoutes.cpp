@@ -138,6 +138,7 @@ void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
     result["web_client"] = {{"credential", config->webClient.credential}};
     result["image"] = {{"model", config->image.model}, {"aspect_ratio", config->image.aspectRatio}, {"size", config->image.size}};
     result["transcription"] = {{"model", config->transcription.model}};
+    result["embeddings"] = {{"model", config->embeddings.model}};
     result["classifier"] = {{"model", config->classifier.model}};
     result["heartbeat"] = {{"enabled", config->heartbeat.enabled}, {"interval", config->heartbeat.interval}, {"agent", config->heartbeat.agent}};
 
@@ -341,6 +342,13 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
             if (data.contains("model"))
             {
                 config.transcription.model = data["model"].get<std::string>();
+            }
+        }
+        else if (section == "embeddings")
+        {
+            if (data.contains("model"))
+            {
+                config.embeddings.model = data["model"].get<std::string>();
             }
         }
         else if (section == "tools")

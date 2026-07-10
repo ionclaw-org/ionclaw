@@ -108,6 +108,11 @@ struct TranscriptionConfig
     std::string model;
 };
 
+struct EmbeddingsConfig
+{
+    std::string model;
+};
+
 struct ToolsConfig
 {
     bool restrictToWorkspace = true;
@@ -175,6 +180,7 @@ struct Config
     ClassifierConfig classifier;
     ImageConfig image;
     TranscriptionConfig transcription;
+    EmbeddingsConfig embeddings;
     ToolsConfig tools;
     StorageConfig storage;
     std::map<std::string, AgentConfig> agents;

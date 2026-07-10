@@ -295,6 +295,12 @@ Config ConfigLoader::loadFromNode(const YAML::Node &root)
         config.transcription.model = expandStr(transcription["model"]);
     }
 
+    // embeddings
+    if (auto embeddings = root["embeddings"])
+    {
+        config.embeddings.model = expandStr(embeddings["model"]);
+    }
+
     // tools
     if (auto tools = root["tools"])
     {
@@ -599,6 +605,14 @@ std::string ConfigLoader::toYaml(const Config &config)
     {
         out << YAML::Key << "transcription" << YAML::Value << YAML::BeginMap;
         out << YAML::Key << "model" << YAML::Value << config.transcription.model;
+        out << YAML::EndMap;
+    }
+
+    // embeddings
+    if (!config.embeddings.model.empty())
+    {
+        out << YAML::Key << "embeddings" << YAML::Value << YAML::BeginMap;
+        out << YAML::Key << "model" << YAML::Value << config.embeddings.model;
         out << YAML::EndMap;
     }
 

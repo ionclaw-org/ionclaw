@@ -52,6 +52,7 @@ const tools = ref({
 const storage = ref({ type: 'local' })
 const imageConfig = ref({ model: '', aspect_ratio: '', size: '' })
 const transcriptionConfig = ref({ model: '' })
+const embeddingsConfig = ref({ model: '' })
 const agentsConfig = ref({})
 const telegram = ref({ enabled: false, credential: '', allowed_users: '', proxy: '', reply_to_message: false })
 const mcp = ref({ enabled: false, require_auth: false, credential: '' })
@@ -266,6 +267,11 @@ function mapConfigToLocal() {
   const tr = configStore.config.transcription || {}
   transcriptionConfig.value = {
     model: tr.model || '',
+  }
+
+  const emb = configStore.config.embeddings || {}
+  embeddingsConfig.value = {
+    model: emb.model || '',
   }
 
   const cfgAgents = configStore.config.agents || {}
@@ -678,6 +684,7 @@ async function toggleMcp(running) {
           <Tab value="tools">Tools</Tab>
           <Tab value="image">Image</Tab>
           <Tab value="transcription">Transcription</Tab>
+          <Tab value="embeddings">Embeddings</Tab>
           <Tab value="advanced">Advanced</Tab>
         </TabList>
         <TabPanels :pt="{ root: { style: { flex: '1' } } }">
@@ -1172,6 +1179,24 @@ async function toggleMcp(running) {
                 icon="pi pi-save"
                 size="small"
                 @click="saveSection('transcription', transcriptionConfig)"
+              />
+            </div>
+          </TabPanel>
+
+          <!-- Embeddings -->
+          <TabPanel value="embeddings" :pt="{ root: { style: { minHeight: '100%' } } }">
+            <div class="tab-content">
+              <DynamicForm
+                v-if="formSchemas.embeddings"
+                v-model="embeddingsConfig"
+                :schema="formSchemas.embeddings"
+                :references="references"
+              />
+              <Button
+                label="Save"
+                icon="pi pi-save"
+                size="small"
+                @click="saveSection('embeddings', embeddingsConfig)"
               />
             </div>
           </TabPanel>

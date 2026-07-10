@@ -92,6 +92,10 @@ nlohmann::json Routes::buildFormSchemas()
         {{"name", "model"}, {"type", "text"}, {"label", "Model"}, {"placeholder", "openai/whisper-1"}},
     });
 
+    schemas["embeddings"] = json::array({
+        {{"name", "model"}, {"type", "text"}, {"label", "Model"}, {"placeholder", "openai/text-embedding-3-small"}},
+    });
+
     schemas["agent"] = json::array({
         {{"name", "workspace"}, {"type", "text"}, {"label", "Workspace"}},
         {{"name", "model"}, {"type", "text"}, {"label", "Model"}, {"required", true}},
