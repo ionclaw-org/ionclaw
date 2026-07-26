@@ -2,6 +2,7 @@
 
 #include "ionclaw/provider/LlamaProvider.hpp"
 
+#include "ionclaw/provider/LlamaBackend.hpp"
 #include "ionclaw/provider/ProviderHelper.hpp"
 
 #include <algorithm>
@@ -23,9 +24,6 @@ namespace ionclaw
 {
 namespace provider
 {
-
-std::mutex LlamaProvider::backendMutex;
-int LlamaProvider::backendRefCount = 0;
 
 namespace
 {
@@ -339,39 +337,12 @@ bool LlamaProvider::stripAdditionalStop(std::string &generated, const std::vecto
     return false;
 }
 
-void LlamaProvider::acquireBackend()
-{
-    std::lock_guard<std::mutex> lock(backendMutex);
-
-    if (backendRefCount == 0)
-    {
-        llama_backend_init();
-    }
-
-    ++backendRefCount;
-}
-
-void LlamaProvider::releaseBackend()
-{
-    std::lock_guard<std::mutex> lock(backendMutex);
-
-    if (backendRefCount <= 0)
-    {
-        return;
-    }
-
-    if (--backendRefCount == 0)
-    {
-        llama_backend_free();
-    }
-}
-
 LlamaProvider::LlamaProvider(const std::string &modelPath, const nlohmann::json &params)
     : modelPath(modelPath)
     , contextSize(params.is_object() ? std::max(1, params.value("context_size", 4096)) : 4096)
     , gpuLayers(params.is_object() ? params.value("gpu_layers", -1) : -1)
 {
-    acquireBackend();
+    LlamaBackend::acquire();
 
     spdlog::info("[LlamaProvider] Initialized (model={}, context_size={}, gpu_layers={})", modelPath, contextSize, gpuLayers);
 }
@@ -385,7 +356,7 @@ LlamaProvider::~LlamaProvider()
     releaseTemplates();
     releaseContext();
     releaseModel();
-    releaseBackend();
+    LlamaBackend::release();
 }
 
 std::string LlamaProvider::name() const

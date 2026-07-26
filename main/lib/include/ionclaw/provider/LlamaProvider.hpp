@@ -73,9 +73,6 @@ private:
     std::mutex inferenceMutex;
     std::atomic<bool> aborted{false};
 
-    static std::mutex backendMutex;
-    static int backendRefCount;
-
     void ensureModel();
     void ensureContext();
     void ensureTemplates();
@@ -84,9 +81,6 @@ private:
     void releaseModel();
 
     GenerationResult generate(const ChatCompletionRequest &request, const StreamCallback *callback, const CancelPredicate &isCancelled);
-
-    static void acquireBackend();
-    static void releaseBackend();
 
     static size_t incompleteUtf8Tail(const std::string &text);
     static bool shouldStop(const std::atomic<bool> &aborted, const CancelPredicate &isCancelled);

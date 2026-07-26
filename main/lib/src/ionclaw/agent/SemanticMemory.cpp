@@ -3,6 +3,8 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <map>
+#include <memory>
 #include <set>
 #include <sstream>
 
@@ -54,6 +56,22 @@ SemanticMemory::SemanticMemory(const std::string &workspacePath, const ionclaw::
     , config(config)
     , store(indexDir, "memory")
 {
+}
+
+std::mutex &SemanticMemory::directoryMutex(const std::string &directory)
+{
+    static std::mutex mapMutex;
+    static std::map<std::string, std::unique_ptr<std::mutex>> mutexes;
+
+    std::lock_guard<std::mutex> lock(mapMutex);
+    auto &entry = mutexes[directory];
+
+    if (!entry)
+    {
+        entry = std::make_unique<std::mutex>();
+    }
+
+    return *entry;
 }
 
 std::string SemanticMemory::providerName() const
@@ -212,11 +230,16 @@ void SemanticMemory::sync()
     store.save();
 
     fs::create_directories(indexDir, ec);
-    std::ofstream out(sidecarPath, std::ios::trunc);
+
+    // write the sidecar to a temporary then rename so it stays consistent with the index on a crash
+    auto sidecarTmp = sidecarPath + ".tmp";
+    std::ofstream out(sidecarTmp, std::ios::trunc);
 
     if (out.is_open())
     {
         out << sidecar.dump();
+        out.close();
+        fs::rename(sidecarTmp, sidecarPath, ec);
     }
 }
 
@@ -226,6 +249,9 @@ std::vector<SemanticMemoryResult> SemanticMemory::search(const std::string &quer
     {
         return {};
     }
+
+    // serialize instances that share this on-disk index so concurrent searches never interleave their index writes
+    std::lock_guard<std::mutex> dirLock(directoryMutex(indexDir));
 
     sync();
 

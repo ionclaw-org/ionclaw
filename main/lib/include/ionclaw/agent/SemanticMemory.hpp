@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -39,6 +40,8 @@ private:
 
     std::string providerName() const;
     void sync();
+
+    static std::mutex &directoryMutex(const std::string &directory);
 };
 
 } // namespace agent

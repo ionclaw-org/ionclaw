@@ -126,6 +126,12 @@ std::vector<std::vector<float>> OpenAiEmbeddingProvider::embed(const std::vector
 
         for (const auto &value : entry["embedding"])
         {
+            if (!value.is_number())
+            {
+                spdlog::error("[OpenAiEmbeddingProvider] embeddings response contains a non-numeric element");
+                return {};
+            }
+
             vec.push_back(value.get<float>());
         }
 

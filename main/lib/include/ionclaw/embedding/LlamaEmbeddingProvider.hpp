@@ -38,12 +38,6 @@ private:
     mutable llama_context *ctx = nullptr;
     mutable int32_t nEmbd = 0;
 
-    static std::mutex backendMutex;
-    static int backendRefCount;
-
-    static void acquireBackend();
-    static void releaseBackend();
-
     void ensureModel(const std::string &modelPath) const;
     void release() const;
     std::vector<float> embedOne(const std::string &text) const;

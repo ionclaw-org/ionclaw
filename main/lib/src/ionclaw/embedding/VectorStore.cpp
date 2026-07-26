@@ -132,25 +132,40 @@ void VectorStore::open(const std::string &embeddingModel)
         return;
     }
 
-    impl->space = std::make_unique<hnswlib::InnerProductSpace>(impl->dim);
-    auto capacity = std::max<size_t>(INITIAL_CAPACITY, meta.value("next_label", size_t{0}));
-    impl->index = std::make_unique<hnswlib::HierarchicalNSW<float>>(impl->space.get(), impl->indexPath(), false, capacity);
-    impl->nextLabel = meta.value("next_label", size_t{0});
-
-    // iterate the named meta member rather than a value() temporary, whose json would dangle during the loop
-    if (meta.contains("entries") && meta["entries"].is_object())
+    // a corrupt or partially-written index must not break search forever, so on any load failure the store resets to empty and the next add rebuilds it
+    try
     {
-        for (const auto &item : meta["entries"].items())
-        {
-            auto label = static_cast<hnswlib::labeltype>(std::stoull(item.key()));
-            Impl::Entry entry;
-            entry.id = item.value().value("id", "");
-            entry.text = item.value().value("text", "");
-            entry.metadata = item.value().value("metadata", nlohmann::json::object());
+        impl->space = std::make_unique<hnswlib::InnerProductSpace>(impl->dim);
+        auto capacity = std::max<size_t>(INITIAL_CAPACITY, meta.value("next_label", size_t{0}));
+        impl->index = std::make_unique<hnswlib::HierarchicalNSW<float>>(impl->space.get(), impl->indexPath(), false, capacity);
+        impl->nextLabel = meta.value("next_label", size_t{0});
 
-            impl->entries[label] = entry;
-            impl->idToLabel[entry.id] = label;
+        // iterate the named meta member rather than a value() temporary, whose json would dangle during the loop
+        if (meta.contains("entries") && meta["entries"].is_object())
+        {
+            for (const auto &item : meta["entries"].items())
+            {
+                auto label = static_cast<hnswlib::labeltype>(std::stoull(item.key()));
+                Impl::Entry entry;
+                entry.id = item.value().value("id", "");
+                entry.text = item.value().value("text", "");
+                entry.metadata = item.value().value("metadata", nlohmann::json::object());
+
+                impl->entries[label] = entry;
+                impl->idToLabel[entry.id] = label;
+            }
         }
+    }
+    catch (const std::exception &e)
+    {
+        spdlog::error("[VectorStore] failed to load index '{}', rebuilding: {}", impl->name, e.what());
+        impl->space.reset();
+        impl->index.reset();
+        impl->idToLabel.clear();
+        impl->entries.clear();
+        impl->nextLabel = 0;
+        impl->dim = 0;
+        return;
     }
 
     spdlog::info("[VectorStore] opened '{}' with {} entries (model={}, dim={})", impl->name, impl->entries.size(), embeddingModel, impl->dim);
@@ -315,8 +330,6 @@ void VectorStore::save() const
         return;
     }
 
-    impl->index->saveIndex(impl->indexPath());
-
     nlohmann::json entries = nlohmann::json::object();
 
     for (const auto &[label, entry] : impl->entries)
@@ -330,15 +343,30 @@ void VectorStore::save() const
     meta["next_label"] = impl->nextLabel;
     meta["entries"] = std::move(entries);
 
-    std::ofstream out(impl->metaPath(), std::ios::trunc);
+    // write both files to temporaries then rename so a crash never leaves a truncated index or metadata as the live file
+    auto indexTmp = impl->indexPath() + ".tmp";
+    auto metaTmp = impl->metaPath() + ".tmp";
+
+    impl->index->saveIndex(indexTmp);
+
+    std::ofstream out(metaTmp, std::ios::trunc);
 
     if (!out.is_open())
     {
-        spdlog::error("[VectorStore] failed to write metadata '{}'", impl->metaPath());
+        spdlog::error("[VectorStore] failed to write metadata '{}'", metaTmp);
         return;
     }
 
     out << meta.dump();
+    out.close();
+
+    fs::rename(indexTmp, impl->indexPath(), ec);
+    fs::rename(metaTmp, impl->metaPath(), ec);
+
+    if (ec)
+    {
+        spdlog::error("[VectorStore] failed to commit index files: {}", ec.message());
+    }
 }
 
 } // namespace embedding

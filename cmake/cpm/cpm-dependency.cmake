@@ -196,6 +196,7 @@ if(IONCLAW_LLAMA_CPP)
 
     # build the provider in its own target so llama-common's bundled includes (its vendored nlohmann) never leak into the rest of the codebase
     add_library(ionclaw-llama STATIC
+        ${CMAKE_SOURCE_DIR}/main/lib/src/ionclaw/provider/LlamaBackend.cpp
         ${CMAKE_SOURCE_DIR}/main/lib/src/ionclaw/provider/LlamaProvider.cpp
         ${CMAKE_SOURCE_DIR}/main/lib/src/ionclaw/embedding/LlamaEmbeddingProvider.cpp
     )

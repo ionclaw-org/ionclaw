@@ -13,6 +13,7 @@
 #include "spdlog/spdlog.h"
 
 #include "ionclaw/config/Config.hpp"
+#include "ionclaw/provider/LlamaBackend.hpp"
 
 namespace ionclaw
 {
@@ -24,47 +25,17 @@ namespace
 constexpr uint32_t EMBEDDING_CONTEXT = 8192;
 }
 
-std::mutex LlamaEmbeddingProvider::backendMutex;
-int LlamaEmbeddingProvider::backendRefCount = 0;
-
-void LlamaEmbeddingProvider::acquireBackend()
-{
-    std::lock_guard<std::mutex> lock(backendMutex);
-
-    if (backendRefCount == 0)
-    {
-        llama_backend_init();
-    }
-
-    ++backendRefCount;
-}
-
-void LlamaEmbeddingProvider::releaseBackend()
-{
-    std::lock_guard<std::mutex> lock(backendMutex);
-
-    if (backendRefCount <= 0)
-    {
-        return;
-    }
-
-    if (--backendRefCount == 0)
-    {
-        llama_backend_free();
-    }
-}
-
 LlamaEmbeddingProvider::LlamaEmbeddingProvider(const std::string &providerName)
     : name(providerName)
 {
-    acquireBackend();
+    ionclaw::provider::LlamaBackend::acquire();
 }
 
 LlamaEmbeddingProvider::~LlamaEmbeddingProvider()
 {
     std::lock_guard<std::mutex> lock(mutex);
     release();
-    releaseBackend();
+    ionclaw::provider::LlamaBackend::release();
 }
 
 std::string LlamaEmbeddingProvider::providerName() const
