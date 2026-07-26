@@ -138,13 +138,13 @@ std::string Classifier::classify(const std::string &message, const std::string &
         // check tool calls for route result
         for (const auto &tc : response.toolCalls)
         {
-            if (tc.name == "route" && tc.arguments.contains("agent_name"))
+            if (tc.name == "route" && tc.arguments.contains("agent_name") && tc.arguments["agent_name"].is_string())
             {
                 auto agentName = tc.arguments["agent_name"].get<std::string>();
 
                 if (agents.find(agentName) != agents.end())
                 {
-                    auto confidence = tc.arguments.value("confidence", 0.0);
+                    auto confidence = tc.arguments.contains("confidence") && tc.arguments["confidence"].is_number() ? tc.arguments["confidence"].get<double>() : 0.0;
                     spdlog::info("[Classifier] Classified to agent '{}' (confidence: {:.2f})", agentName, confidence);
                     return agentName;
                 }

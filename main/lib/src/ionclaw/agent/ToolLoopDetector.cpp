@@ -63,12 +63,12 @@ void ToolLoopDetector::recordCall(const std::string &toolName, const std::string
 
 void ToolLoopDetector::recordResult(const std::string &toolName, const std::string &resultHash)
 {
-    // update the most recent entry matching this tool
-    for (auto it = history.rbegin(); it != history.rend(); ++it)
+    // results arrive in call order, so fill the oldest unfilled entry to pair each result with its own call
+    for (auto &entry : history)
     {
-        if (it->toolName == toolName && it->resultHash.empty())
+        if (entry.toolName == toolName && entry.resultHash.empty())
         {
-            it->resultHash = resultHash;
+            entry.resultHash = resultHash;
             break;
         }
     }

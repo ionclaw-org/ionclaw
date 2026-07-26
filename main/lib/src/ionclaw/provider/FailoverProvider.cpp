@@ -1,6 +1,7 @@
 #include "ionclaw/provider/FailoverProvider.hpp"
 
 #include <algorithm>
+#include <exception>
 #include <random>
 #include <stdexcept>
 #include <thread>
@@ -56,6 +57,12 @@ bool FailoverProvider::isFailoverableError(const std::string &errorCategory)
 {
     // context_overflow and billing are not failoverable because the context fits no provider and billing is an account issue
     return errorCategory == "auth" || errorCategory == "rate_limit" || errorCategory == "model_not_found" || errorCategory == "timeout" || errorCategory == "transient" || errorCategory == "host_not_found";
+}
+
+bool FailoverProvider::isPermanentError(const std::string &errorCategory)
+{
+    // a bad key or a missing model does not heal on retry, so each provider is worth trying only once for these
+    return errorCategory == "auth" || errorCategory == "model_not_found";
 }
 
 void FailoverProvider::markGood(size_t idx)
@@ -148,6 +155,8 @@ ChatCompletionResponse FailoverProvider::chat(const ChatCompletionRequest &reque
 {
     int attempts = 0;
     int consecutiveFailures = 0;
+    std::vector<bool> permanentlyFailed(providers.size(), false);
+    std::exception_ptr lastError;
 
     // use local index tracking so concurrent requests don't interfere
     auto idx = findAvailableProvider();
@@ -166,6 +175,18 @@ ChatCompletionResponse FailoverProvider::chat(const ChatCompletionRequest &reque
         {
             auto category = ProviderHelper::classifyError(e.what());
             spdlog::warn("[FailoverProvider] Provider '{}' failed ({}): {}", providerNames[idx], category, e.what());
+            lastError = std::current_exception();
+
+            // once every provider has hit a permanent config error, more retries only stall the worker thread
+            if (isPermanentError(category))
+            {
+                permanentlyFailed[idx] = true;
+
+                if (std::all_of(permanentlyFailed.begin(), permanentlyFailed.end(), [](bool failed) { return failed; }))
+                {
+                    throw;
+                }
+            }
 
             if (isFailoverableError(category) && providers.size() > 1)
             {
@@ -192,7 +213,8 @@ ChatCompletionResponse FailoverProvider::chat(const ChatCompletionRequest &reque
         }
     }
 
-    throw std::runtime_error("[FailoverProvider] All provider profiles exhausted after " + std::to_string(attempts) + " attempts");
+    // surface the real categorized error so the agent loop can explain an auth or model failure precisely
+    std::rethrow_exception(lastError);
 }
 
 void FailoverProvider::chatStream(const ChatCompletionRequest &request, StreamCallback callback, const CancelPredicate &isCancelled)
@@ -200,6 +222,8 @@ void FailoverProvider::chatStream(const ChatCompletionRequest &request, StreamCa
     int attempts = 0;
     int consecutiveFailures = 0;
     bool contentDelivered = false;
+    std::vector<bool> permanentlyFailed(providers.size(), false);
+    std::exception_ptr lastError;
 
     // wrap the callback to flag contentDelivered only on real content chunks, not on usage/done metadata
     auto wrappedCallback = [&callback, &contentDelivered](const StreamChunk &chunk)
@@ -229,12 +253,24 @@ void FailoverProvider::chatStream(const ChatCompletionRequest &request, StreamCa
         {
             auto category = ProviderHelper::classifyError(e.what());
             spdlog::warn("[FailoverProvider] Provider '{}' stream failed ({}): {}", providerNames[idx], category, e.what());
+            lastError = std::current_exception();
 
             // if content was already delivered, retrying would duplicate partial content, so propagate the error instead
             if (contentDelivered)
             {
                 spdlog::warn("[FailoverProvider] Cannot retry: content already delivered to consumer");
                 throw;
+            }
+
+            // once every provider has hit a permanent config error, more retries only stall the worker thread
+            if (isPermanentError(category))
+            {
+                permanentlyFailed[idx] = true;
+
+                if (std::all_of(permanentlyFailed.begin(), permanentlyFailed.end(), [](bool failed) { return failed; }))
+                {
+                    throw;
+                }
             }
 
             if (isFailoverableError(category) && providers.size() > 1)
@@ -262,7 +298,8 @@ void FailoverProvider::chatStream(const ChatCompletionRequest &request, StreamCa
         }
     }
 
-    throw std::runtime_error("[FailoverProvider] All provider profiles exhausted after " + std::to_string(attempts) + " stream attempts");
+    // surface the real categorized error so the agent loop can explain an auth or model failure precisely
+    std::rethrow_exception(lastError);
 }
 
 } // namespace provider

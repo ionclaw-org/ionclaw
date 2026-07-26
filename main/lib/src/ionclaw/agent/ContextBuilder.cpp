@@ -546,12 +546,13 @@ std::vector<ionclaw::provider::Message> ContextBuilder::buildMessages(const std:
             for (const auto &tc : msg.raw["tool_calls"])
             {
                 ionclaw::provider::ToolCall toolCall;
-                toolCall.id = tc.value("id", "");
+                toolCall.id = tc.contains("id") && tc["id"].is_string() ? tc["id"].get<std::string>() : "";
 
-                if (tc.contains("function"))
+                if (tc.contains("function") && tc["function"].is_object())
                 {
-                    toolCall.name = tc["function"].value("name", "");
-                    auto argsStr = tc["function"].value("arguments", "");
+                    const auto &fn = tc["function"];
+                    toolCall.name = fn.contains("name") && fn["name"].is_string() ? fn["name"].get<std::string>() : "";
+                    auto argsStr = fn.contains("arguments") && fn["arguments"].is_string() ? fn["arguments"].get<std::string>() : "";
 
                     if (!argsStr.empty())
                     {
