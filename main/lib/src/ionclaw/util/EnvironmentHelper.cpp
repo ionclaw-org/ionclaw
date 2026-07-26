@@ -20,24 +20,26 @@ std::string EnvironmentHelper::expandEnvVars(const std::string &value)
     // pattern for ${VAR_NAME} environment variable references
     static thread_local const std::regex envPattern(R"(\$\{([^}]+)\})");
 
-    std::string result = value;
-    std::smatch match;
-    int iterations = 0;
-    static constexpr int MAX_EXPANSION_ITERATIONS = 20;
+    // a single left-to-right pass over the original expands every reference and never re-scans a substituted value
+    std::string result;
+    result.reserve(value.size());
 
-    while (std::regex_search(result, match, envPattern) && iterations < MAX_EXPANSION_ITERATIONS)
+    size_t lastPos = 0;
+
+    for (auto it = std::sregex_iterator(value.begin(), value.end(), envPattern); it != std::sregex_iterator(); ++it)
     {
+        const auto &match = *it;
+        auto position = static_cast<size_t>(match.position());
+
+        result.append(value, lastPos, position - lastPos);
+
         const char *envValue = std::getenv(match[1].str().c_str());
-        std::string replacement = envValue ? envValue : "";
-        result = match.prefix().str() + replacement + match.suffix().str();
-        ++iterations;
+        result += envValue ? envValue : "";
+
+        lastPos = position + static_cast<size_t>(match.length());
     }
 
-    if (iterations >= MAX_EXPANSION_ITERATIONS)
-    {
-        spdlog::warn("[EnvironmentHelper] Environment variable expansion hit iteration limit for '{}'", value);
-    }
-
+    result.append(value, lastPos, value.size() - lastPos);
     return result;
 }
 

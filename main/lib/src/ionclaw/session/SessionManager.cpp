@@ -1060,20 +1060,21 @@ void SessionManager::loadFromDisk(const std::string &sessionKey)
         {
             auto j = nlohmann::json::parse(line);
 
-            if (firstLine && j.value("_type", "") == "metadata")
+            if (firstLine && j.is_object() && j.value("_type", "") == "metadata")
             {
-                session.createdAt = j.value("created_at", "");
-                session.updatedAt = j.value("updated_at", "");
-                session.displayName = j.value("display_name", "");
+                // read each field defensively so a single wrong-typed value never discards the whole metadata line
+                session.createdAt = j.contains("created_at") && j["created_at"].is_string() ? j["created_at"].get<std::string>() : "";
+                session.updatedAt = j.contains("updated_at") && j["updated_at"].is_string() ? j["updated_at"].get<std::string>() : "";
+                session.displayName = j.contains("display_name") && j["display_name"].is_string() ? j["display_name"].get<std::string>() : "";
 
                 if (j.contains("live_state"))
                 {
                     session.liveState = j["live_state"];
                 }
 
-                session.abortedLastRun = j.value("aborted_last_run", false);
-                session.abortCutoffMessageIndex = j.value("abort_cutoff_index", -1);
-                session.stoppedByUser = j.value("stopped_by_user", false);
+                session.abortedLastRun = j.contains("aborted_last_run") && j["aborted_last_run"].is_boolean() ? j["aborted_last_run"].get<bool>() : false;
+                session.abortCutoffMessageIndex = j.contains("abort_cutoff_index") && j["abort_cutoff_index"].is_number_integer() ? j["abort_cutoff_index"].get<int>() : -1;
+                session.stoppedByUser = j.contains("stopped_by_user") && j["stopped_by_user"].is_boolean() ? j["stopped_by_user"].get<bool>() : false;
 
                 firstLine = false;
                 validLines.push_back(line);
@@ -1142,22 +1143,27 @@ std::string SessionManager::sessionFilePath(const std::string &sessionKey) const
 
 std::string SessionManager::sanitizeFilename(const std::string &key) const
 {
+    static const char *hex = "0123456789ABCDEF";
+
     std::string result;
     result.reserve(key.size());
 
-    for (char c : key)
+    for (unsigned char c : key)
     {
         if (c == ':')
         {
             result += '_';
         }
-        else if (c == '/' || c == '\\' || c == '\0' || c == '<' || c == '>' || c == '"' || c == '|' || c == '?' || c == '*')
+        else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '-')
         {
-            // skip dangerous characters
+            result += static_cast<char>(c);
         }
         else
         {
-            result += c;
+            // percent-escape every other byte, including _ / and %, so two distinct session keys never map to the same file
+            result += '%';
+            result += hex[c >> 4];
+            result += hex[c & 0x0F];
         }
     }
 
