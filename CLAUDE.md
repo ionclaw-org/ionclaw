@@ -13,14 +13,48 @@ Dependencies come through CPM: Poco (HTTP/TLS/XML/Zip), nlohmann/json, yaml-cpp,
 
 CI builds all six platforms on every push: macOS arm64, macOS x86_64, Linux x86_64, Windows x86_64, iOS xcframework, Android aar. A change is only done when all six are green.
 
-## Conventions (strict)
+## Code standard (strict)
 
-- No fallbacks, no backward-compatibility shims, no legacy code, no gambiarras, no dead code. Write the final version and refactor whatever needs it. Never add a branch that exists only because the code used to work differently.
-- All functions are class methods. Never a free function in a namespace — put generic or shared logic on a helper class as a `static` method (`StringHelper::foo`, `ToolHelper::bar`).
-- Comments are rare and only where naming cannot carry the meaning. A `//` or `#` one-liner is lowercase, one objective sentence, no semicolon splitting one sentence across clauses. No header comments describing methods, members, or sections.
-- Wrap lambdas in `// clang-format off` / `// clang-format on`.
-- Prefer early returns, `const`, references, and smart pointers. No member `_` suffix. Timestamps are UTC.
-- Every error path surfaces a clear message. A failure the AI or the operator must see is logged and returned, never swallowed.
+Code and comments are in English. The code must read as if an experienced product C++ engineer wrote it, never like generated output. Do a change only when it makes sense and is genuinely needed, never to show work.
+
+### Philosophy
+
+- No fallbacks, no backward-compatibility shims, no legacy code, no gambiarras, no dirty code, no dead code.
+- Never keep a branch that exists only because the code used to work differently. Write the new, final version and refactor, remove, or rewrite whatever that requires, without worrying about compatibility.
+- No generic fallback and no implicit unexpected behavior. Do not add an `else` for an unknown case that would produce surprising behavior. Handle the known cases explicitly and surface anything else as a clear error.
+- Every error or failure is reported clearly. A failure the AI or the operator must see is logged and returned, never swallowed.
+
+### Naming and structure
+
+- All functions are class methods. Never a free function in a namespace, and never a function in an anonymous namespace. Generic or shared logic goes on a helper class as a `private static` or public `static` method (`StringHelper::foo`, `ToolHelper::bar`).
+- No member `_` suffix. Names carry the meaning, so correct naming replaces most comments.
+- Keep headers, implementation, namespaces, types, names, and responsibilities consistent with each other.
+- When a method takes on too much responsibility, extract small objective methods. Do not extract just to shrink a function, and avoid artificial abstractions that obscure the main flow.
+
+### Comments
+
+- Comments are rare and used only where naming cannot carry the meaning. If it is obvious, decorative, or restates the code, delete it.
+- A comment explains intent or context, not the literal code.
+- Never add artificial section separators like `helpers`, `validators`, or `public methods`. Never write header comments that describe a method, a member, or a section.
+- A `//` or `#` one-line comment is lowercase and one objective sentence, with no semicolon splitting one sentence into clauses.
+- If a comment needs more than one line, finish each sentence with punctuation before the next line. Never continue one sentence onto the next line, and keep comments objective and natural rather than verbose or narrative.
+- In a complex method, a short one-line comment can mark the intent of each meaningful block.
+
+### Formatting and flow
+
+- Preserve the project's existing visual, structural, and architectural pattern. Keep it compact, professional, and consistent.
+- Use only the vertical spacing needed to separate reading contexts, and always separate blocks of different responsibility with one blank line.
+- Never clump multiple `if`s, validations, loops, state mutations, and returns together. A method should have a visually identifiable beginning, middle, and end and be understandable at a glance.
+- Prefer early returns and never write an `else` after a `return`. Avoid unnecessary nesting.
+- Keep includes clean, direct, and organized.
+- Lambdas do not format well under clang-format, so wrap each lambda in `// clang-format off` / `// clang-format on` with the code already correctly formatted between the tags.
+
+### Safety
+
+- Prefer `const`, references, and smart pointers where they add clarity, safety, or correct ownership.
+- Avoid macros, unsafe casts, and raw pointers when a safer alternative consistent with the project exists.
+- Read untrusted JSON defensively. `nlohmann::json::value(key, default)` throws on a present-but-null or wrong-typed field, so guard with `is_string()` / `is_number_integer()` before `get<T>()`.
+- Timestamps are UTC. Engine state lives at the project root, `workspace/` holds only agent-generated files, and YAML config keys and json state files use dashes, not underscores.
 
 ## Architecture
 
