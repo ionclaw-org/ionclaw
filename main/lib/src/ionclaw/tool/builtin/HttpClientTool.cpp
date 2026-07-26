@@ -4,7 +4,6 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
-#include <random>
 #include <sstream>
 
 #include "Poco/HMACEngine.h"
@@ -29,6 +28,7 @@
 #include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/MimeType.hpp"
 #include "ionclaw/util/FileHelper.hpp"
+#include "ionclaw/util/RandomHelper.hpp"
 #include "ionclaw/util/SsrfGuard.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 
@@ -65,20 +65,7 @@ std::string HttpClientTool::percentEncode(const std::string &value)
 
 std::string HttpClientTool::generateNonce()
 {
-    static const char chars[] = "abcdefghijklmnopqrstuvwxyz0123456789";
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dist(0, sizeof(chars) - 2);
-
-    std::string nonce;
-    nonce.reserve(32);
-
-    for (int i = 0; i < 32; ++i)
-    {
-        nonce += chars[dist(gen)];
-    }
-
-    return nonce;
+    return ionclaw::util::RandomHelper::secureHex(16);
 }
 
 std::string HttpClientTool::buildOAuth1Header(const std::string &method, const std::string &url, const std::string &consumerKey, const std::string &consumerSecret, const std::string &accessToken, const std::string &tokenSecret, const std::vector<std::pair<std::string, std::string>> &bodyParams)
