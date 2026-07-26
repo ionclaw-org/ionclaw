@@ -155,8 +155,13 @@ void Routes::handleFileRead(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServe
 
     auto fileType = detectFileType(ext);
 
+    // large text files are served through the streaming download path instead of being buffered whole into a json response
+    static constexpr int64_t MAX_INLINE_TEXT_BYTES = 5 * 1024 * 1024;
+    std::error_code sizeEc;
+    auto fileBytes = static_cast<int64_t>(fs::file_size(fullPath, sizeEc));
+
     // return text content inline
-    if (fileType == "text")
+    if (fileType == "text" && !sizeEc && fileBytes <= MAX_INLINE_TEXT_BYTES)
     {
         std::ifstream ifs(fullPath);
 
@@ -172,8 +177,8 @@ void Routes::handleFileRead(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServe
     }
     else
     {
-        // return metadata with download url for binary files
-        auto size = static_cast<int64_t>(fs::file_size(fullPath));
+        // return metadata with a download url for binary and oversized-text files
+        auto size = fileBytes;
         std::string mime = "application/octet-stream";
 
         if (fileType == "image")

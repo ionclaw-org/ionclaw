@@ -13,6 +13,8 @@ namespace server
 namespace handler
 {
 
+std::atomic<int> McpHandler::activeSseConnections{0};
+
 McpHandler::McpHandler(std::shared_ptr<Auth> auth, std::shared_ptr<ionclaw::mcp::McpDispatcher> mcpDispatcher)
     : auth(std::move(auth))
     , mcpDispatcher(std::move(mcpDispatcher))
@@ -138,8 +140,8 @@ void McpHandler::handlePost(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
         return;
     }
 
-    // a valid but non-object body (a bare number/string/bool/null) would make the value() below throw type_error.306
-    if (!body.is_object())
+    // a non-object body or a non-string method would make the reads below throw, so reject them as an invalid request
+    if (!body.is_object() || (body.contains("method") && !body["method"].is_string()))
     {
         resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
         resp.setContentType("application/json");
@@ -293,6 +295,24 @@ void McpHandler::handleGet(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSer
         ostr << R"({"error":"Session not found"})";
         return;
     }
+
+    // each stream parks a worker thread for its whole lifetime, so cap the count well below the pool to keep the api responsive
+    static constexpr int MAX_SSE_CONNECTIONS = 64;
+
+    if (activeSseConnections.fetch_add(1) >= MAX_SSE_CONNECTIONS)
+    {
+        activeSseConnections.fetch_sub(1);
+        resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_SERVICE_UNAVAILABLE);
+        resp.setContentType("application/json");
+        auto &ostr = resp.send();
+        ostr << R"({"error":"Too many concurrent event streams"})";
+        return;
+    }
+
+    struct ConnectionGuard
+    {
+        ~ConnectionGuard() { activeSseConnections.fetch_sub(1); }
+    } connectionGuard;
 
     resp.set("MCP-Session-Id", sessionId);
     resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_OK);

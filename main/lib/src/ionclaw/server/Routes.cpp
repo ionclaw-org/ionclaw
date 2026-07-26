@@ -155,6 +155,12 @@ nlohmann::json Routes::buildFileTreeImpl(const std::string &dirPath, const std::
     {
         auto name = entry.path().filename().string();
 
+        // symlinks are skipped so a link back to an ancestor cannot drive the recursion into a stack overflow
+        if (entry.is_symlink())
+        {
+            continue;
+        }
+
         if (isSystemFile(name) || isProtectedFile(name))
         {
             continue;

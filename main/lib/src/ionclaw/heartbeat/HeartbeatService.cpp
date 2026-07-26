@@ -29,7 +29,12 @@ HeartbeatService::HeartbeatService(std::shared_ptr<ionclaw::bus::MessageBus> bus
 {
 }
 
-void HeartbeatService::start()
+HeartbeatService::~HeartbeatService()
+{
+    stop();
+}
+
+void HeartbeatService::startLocked()
 {
     if (!enabled)
     {
@@ -46,7 +51,7 @@ void HeartbeatService::start()
     spdlog::info("[HeartbeatService] started (every {}s)", interval.load());
 }
 
-void HeartbeatService::stop()
+void HeartbeatService::stopLocked()
 {
     if (!running.exchange(false))
     {
@@ -61,16 +66,32 @@ void HeartbeatService::stop()
     spdlog::info("[HeartbeatService] stopped");
 }
 
+void HeartbeatService::start()
+{
+    std::lock_guard<std::mutex> lock(lifecycleMutex);
+    startLocked();
+}
+
+void HeartbeatService::stop()
+{
+    std::lock_guard<std::mutex> lock(lifecycleMutex);
+    stopLocked();
+}
+
 void HeartbeatService::restart(int newInterval, bool newEnabled, const std::string &newAgent)
 {
-    stop();
+    std::lock_guard<std::mutex> lock(lifecycleMutex);
+
+    stopLocked();
     interval = newInterval;
     enabled = newEnabled;
+
     {
-        std::lock_guard<std::mutex> lock(agentMutex);
+        std::lock_guard<std::mutex> agentLock(agentMutex);
         agent = newAgent;
     }
-    start();
+
+    startLocked();
 }
 
 void HeartbeatService::runLoop()

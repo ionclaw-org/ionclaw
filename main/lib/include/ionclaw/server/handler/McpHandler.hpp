@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <memory>
 
 #include "Poco/Net/HTTPRequestHandler.h"
@@ -29,6 +30,8 @@ private:
     void handleDelete(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
 
     bool checkAuth(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
+
+    static std::atomic<int> activeSseConnections;
 
     std::shared_ptr<Auth> auth;
     std::shared_ptr<ionclaw::mcp::McpDispatcher> mcpDispatcher;
