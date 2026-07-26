@@ -29,7 +29,7 @@ std::string RssReaderTool::getElementText(Poco::XML::Element *parent, const std:
         return "";
     }
 
-    auto nodes = parent->getElementsByTagName(tagName);
+    Poco::AutoPtr<Poco::XML::NodeList> nodes(parent->getElementsByTagName(tagName));
 
     if (nodes->length() == 0)
     {
@@ -123,12 +123,12 @@ ToolResult RssReaderTool::execute(const nlohmann::json &params, const ToolContex
 
         std::istringstream xmlStream(response.body);
         Poco::XML::InputSource source(xmlStream);
-        auto doc = parser.parse(&source);
+        Poco::AutoPtr<Poco::XML::Document> doc(parser.parse(&source));
 
         nlohmann::json entries = nlohmann::json::array();
 
         // try rss 2.0 format first (channel/item)
-        auto items = doc->getElementsByTagName("item");
+        Poco::AutoPtr<Poco::XML::NodeList> items(doc->getElementsByTagName("item"));
 
         if (items->length() > 0)
         {
@@ -158,7 +158,7 @@ ToolResult RssReaderTool::execute(const nlohmann::json &params, const ToolContex
         else
         {
             // try atom format (entry)
-            auto atomEntries = doc->getElementsByTagName("entry");
+            Poco::AutoPtr<Poco::XML::NodeList> atomEntries(doc->getElementsByTagName("entry"));
 
             for (unsigned long i = 0; i < atomEntries->length() && static_cast<int>(i) < count; ++i)
             {
@@ -187,7 +187,7 @@ ToolResult RssReaderTool::execute(const nlohmann::json &params, const ToolContex
 
                 // get link from link element's href attribute
                 std::string link;
-                auto linkNodes = entry->getElementsByTagName("link");
+                Poco::AutoPtr<Poco::XML::NodeList> linkNodes(entry->getElementsByTagName("link"));
 
                 if (linkNodes->length() > 0)
                 {

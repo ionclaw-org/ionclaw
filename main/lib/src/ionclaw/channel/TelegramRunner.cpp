@@ -129,8 +129,9 @@ void TelegramRunner::stopTypingTicker(const std::string &chatId)
 {
     std::thread t;
     {
+        // erasing both signals the ticker to stop (its predicate sees a missing entry) and keeps the map from growing per chat
         std::lock_guard<std::mutex> lock(typingMutex);
-        typingActive[chatId] = false;
+        typingActive.erase(chatId);
     }
     typingCv.notify_all();
 
