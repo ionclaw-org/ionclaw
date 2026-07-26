@@ -13,13 +13,18 @@ std::string PlatformBridge::platformName()
     return tool::Platform::current();
 }
 
-PlatformBridge::PlatformBridge()
+PlatformBridge::Handler PlatformBridge::defaultHandler()
+{
     // clang-format off
-    : handler([](const std::string &function, const nlohmann::json & /*params*/) -> std::string {
+    return [](const std::string &function, const nlohmann::json & /*params*/) -> std::string {
         spdlog::debug("[PlatformBridge] Function '{}' not implemented on {}", function, platformName());
         return "Error: '" + function + "' is not implemented on " + platformName() + ".";
-    })
-// clang-format on
+    };
+    // clang-format on
+}
+
+PlatformBridge::PlatformBridge()
+    : handler(defaultHandler())
 {
 }
 
@@ -34,6 +39,12 @@ void PlatformBridge::setHandler(Handler h)
     std::lock_guard<std::mutex> lock(mutex);
     handler = std::move(h);
     spdlog::info("[PlatformBridge] Handler registered");
+}
+
+void PlatformBridge::clearHandler()
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    handler = defaultHandler();
 }
 
 std::string PlatformBridge::invoke(const std::string &function, const nlohmann::json &params)
