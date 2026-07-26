@@ -8,6 +8,7 @@
 #include "spdlog/spdlog.h"
 
 #include "ionclaw/util/EnvironmentHelper.hpp"
+#include "ionclaw/util/FileHelper.hpp"
 
 namespace ionclaw
 {
@@ -107,29 +108,33 @@ nlohmann::json ConfigLoader::yamlToJson(const YAML::Node &node)
 
     if (node.IsScalar())
     {
-        // try bool before int because yaml-cpp accepts "true"/"false" as both and int-first would turn booleans into 0/1
-        try
+        // a quoted scalar keeps its string type so numeric-looking identifiers like phone_number_id survive the round-trip
+        if (node.Tag() != "!")
         {
-            return node.as<bool>();
-        }
-        catch (const YAML::BadConversion &)
-        {
-        }
+            // try bool before int because yaml-cpp accepts "true"/"false" as both and int-first would turn booleans into 0/1
+            try
+            {
+                return node.as<bool>();
+            }
+            catch (const YAML::BadConversion &)
+            {
+            }
 
-        try
-        {
-            return node.as<int>();
-        }
-        catch (const YAML::BadConversion &)
-        {
-        }
+            try
+            {
+                return node.as<int>();
+            }
+            catch (const YAML::BadConversion &)
+            {
+            }
 
-        try
-        {
-            return node.as<double>();
-        }
-        catch (const YAML::BadConversion &)
-        {
+            try
+            {
+                return node.as<double>();
+            }
+            catch (const YAML::BadConversion &)
+            {
+            }
         }
 
         return util::EnvironmentHelper::expandEnvVars(node.as<std::string>());
@@ -979,9 +984,18 @@ std::string ConfigLoader::toYaml(const Config &config)
 
             for (const auto *key : whatsAppKeys)
             {
-                if (channel.raw.contains(key) && channel.raw[key].is_string() && !channel.raw[key].get<std::string>().empty())
+                if (!channel.raw.contains(key))
                 {
-                    out << YAML::Key << key << YAML::Value << channel.raw[key].get<std::string>();
+                    continue;
+                }
+
+                // these ids are often long digit strings, so quote them to keep yaml from reloading them as numbers
+                const auto &value = channel.raw[key];
+                std::string text = value.is_string() ? value.get<std::string>() : (value.is_number_integer() ? std::to_string(value.get<int64_t>()) : "");
+
+                if (!text.empty())
+                {
+                    out << YAML::Key << key << YAML::Value << YAML::DoubleQuoted << text;
                 }
             }
 
@@ -1013,20 +1027,11 @@ std::string ConfigLoader::toYaml(const Config &config)
 void ConfigLoader::save(const Config &config, const std::string &path)
 {
     auto yaml = toYaml(config);
+    auto error = ionclaw::util::FileHelper::atomicWrite(path, yaml);
 
-    std::ofstream fout(path);
-
-    if (!fout.is_open())
+    if (!error.empty())
     {
-        throw std::runtime_error("[ConfigLoader] Failed to open file for writing: " + path);
-    }
-
-    fout << yaml;
-    fout.flush();
-
-    if (!fout.good())
-    {
-        throw std::runtime_error("[ConfigLoader] Failed to write config file: " + path);
+        throw std::runtime_error("[ConfigLoader] " + error);
     }
 }
 
