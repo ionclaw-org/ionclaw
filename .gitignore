@@ -69,10 +69,9 @@ apps/flutter/plugin/macos/libionclaw.dylib
 apps/flutter/plugin/macos/web
 apps/flutter/plugin/ios/ionclaw.xcframework
 
-# apple app (xcodegen generated project)
-apps/apple/IonClaw.xcodeproj
-apps/apple/*.xcworkspace
-apps/apple/build
+# apple app: the .xcodeproj is committed so a clone opens directly; xcodegen only regenerates it from project.yml
+apps/apple/**/xcuserdata/
+apps/apple/build/
 
 # litellm reference clone (not tracked)
 /temp/

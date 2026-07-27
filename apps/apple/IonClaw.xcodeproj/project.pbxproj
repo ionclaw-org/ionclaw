@@ -1,0 +1,856 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		066B893CB70D441908BBFE62 /* ServerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9CE8DD7151D596DC16CA55 /* ServerController.swift */; };
+		072C7A4CD1D7B052F7B60E35 /* ionclaw.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E252D3C5113FF3D18A869711 /* ionclaw.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		0D5BA2CFDB0086B638C34C99 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E3F9B34068EBA7007315802 /* Assets.xcassets */; };
+		18CD1A33272D48F99F741CEB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E3F9B34068EBA7007315802 /* Assets.xcassets */; };
+		1A036394EBAACA9F0CE6A0BF /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA075EA8FA4F226D94BE49B6 /* Theme.swift */; };
+		2433E00DF5EDD9D213C41658 /* ionclaw.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E252D3C5113FF3D18A869711 /* ionclaw.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		25938344D51894F64D2BAA2D /* InteractView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA3B73EA16CF765067282EF9 /* InteractView.swift */; };
+		27CF7BDA0316EB4D2F7B0620 /* IonClawRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECCEDC7C1280F9091E8BE10B /* IonClawRuntime.swift */; };
+		2B4CA93134E408AAC7976551 /* ServerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99CBD4CED80B3C78F0027074 /* ServerView.swift */; };
+		2E8E90EE13B3041FF6DA0853 /* QRCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A597EEE3A2DE1E2EEB957628 /* QRCode.swift */; };
+		327BE4E424C5B4AA1354E470 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 99BD11130CFC147ECA73F65D /* Assets.xcassets */; };
+		34F6446210658D7606603E3F /* ServerStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F4D1398023BAF1A34618D4 /* ServerStatusView.swift */; };
+		3709D15FC91AF52A757CA6F0 /* QRCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A597EEE3A2DE1E2EEB957628 /* QRCode.swift */; };
+		382118485A76DE81925D4719 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E1B64B3CAF1C0BF532AF3DEE /* Assets.xcassets */; };
+		4278B5DBCFD190CCE4D3C1A3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E3F9B34068EBA7007315802 /* Assets.xcassets */; };
+		4315EF72BDDB3C293F2C0C60 /* ServerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A01CD18260D048843B6ED48 /* ServerView.swift */; };
+		44F87ECFFC641118A8DEB68B /* ServerStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F4D1398023BAF1A34618D4 /* ServerStatusView.swift */; };
+		49D41F24DFA673AFBEBB8963 /* NetworkInterfaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06C747081E9038181EAAA8E9 /* NetworkInterfaces.swift */; };
+		4CA6B8C68B2AE485A2EC96F7 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBCEDB214357AA9B7493691A /* AppConfig.swift */; };
+		565B5DDEA8339A50524664A5 /* ionclaw.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E252D3C5113FF3D18A869711 /* ionclaw.xcframework */; };
+		638244062185DE8E3A4BB4CF /* NetworkInterfaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06C747081E9038181EAAA8E9 /* NetworkInterfaces.swift */; };
+		6C5087D6F5BB434A6D59108F /* MessageSender.swift in Sources */ = {isa = PBXBuildFile; fileRef = 609D1058D3941348FA065270 /* MessageSender.swift */; };
+		707B8853C545766EB9A5EE73 /* MessageSender.swift in Sources */ = {isa = PBXBuildFile; fileRef = 609D1058D3941348FA065270 /* MessageSender.swift */; };
+		7A43EBE289DE7E3183D3BDB7 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBCEDB214357AA9B7493691A /* AppConfig.swift */; };
+		7B31EE3B27C2F7E16E0D73A1 /* ServerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B217F6E352478D159F96318E /* ServerView.swift */; };
+		7E5E855C0AE84019484567EE /* ServerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9CE8DD7151D596DC16CA55 /* ServerController.swift */; };
+		831A71338C89AEE37DDB1E9E /* ServerStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F4D1398023BAF1A34618D4 /* ServerStatusView.swift */; };
+		85FBD206D0EA7360175DD979 /* ServerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9CE8DD7151D596DC16CA55 /* ServerController.swift */; };
+		886E9BADB02E47B4A6A806E0 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA075EA8FA4F226D94BE49B6 /* Theme.swift */; };
+		8A4A8D6DDC51E1EF2BC6CF80 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 75EA10E3ABD7CF300B525BCB /* Assets.xcassets */; };
+		8CA6641A7B911FBD980445AD /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA075EA8FA4F226D94BE49B6 /* Theme.swift */; };
+		8D452F50F1ED42EC409B2A6F /* PanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB88602B111EC56AC329E9D4 /* PanelView.swift */; };
+		905804EF6E68FD5BC8B15BE1 /* NetworkInterfaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06C747081E9038181EAAA8E9 /* NetworkInterfaces.swift */; };
+		9182AA7C7FEB75888D58B6B6 /* QRCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A597EEE3A2DE1E2EEB957628 /* QRCode.swift */; };
+		9A399107FBBF9E78A7A599CF /* QRCodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B897ED356E8C6A19DD77A589 /* QRCodeView.swift */; };
+		9E0BE28F26226FF19D0F2C20 /* PlatformBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1ADEE2AB62C35FB68F2C2D1 /* PlatformBridge.swift */; };
+		ACE260EAE23A14E4E2D4DAFF /* FilledActionButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF60C784BB174D0B04F659D6 /* FilledActionButtonStyle.swift */; };
+		B6C051A29D38436F78760B4D /* MessageSender.swift in Sources */ = {isa = PBXBuildFile; fileRef = 609D1058D3941348FA065270 /* MessageSender.swift */; };
+		BC8958C54D16DEC1A096829D /* InteractView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E36A44369AA95F0E07AF4D7 /* InteractView.swift */; };
+		BF53CBBA68CD6EA9B6FDB320 /* ionclaw.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E252D3C5113FF3D18A869711 /* ionclaw.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		C2ACA9C10895EC60FBEAF925 /* QRCodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B897ED356E8C6A19DD77A589 /* QRCodeView.swift */; };
+		CEBED7E74093A6C0DF1123BE /* IonClawApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462AFC387AC23901DF9E26C8 /* IonClawApp.swift */; };
+		D42554866A9FC14EB699F24F /* ChatClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576FEE13DE7EC8F6C62D4437 /* ChatClient.swift */; };
+		D4849F94583158E3A455B219 /* ChatClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576FEE13DE7EC8F6C62D4437 /* ChatClient.swift */; };
+		D697D7C4F56360486124DFED /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 476D2C7F466C238EDDF5A188 /* LaunchScreen.storyboard */; };
+		D7D7A75E2250E194807AD95A /* IonClawRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECCEDC7C1280F9091E8BE10B /* IonClawRuntime.swift */; };
+		D8127B82776143F4B5D9C9C7 /* ionclaw.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E252D3C5113FF3D18A869711 /* ionclaw.xcframework */; };
+		DE9B2C9F25CF165758CA6E8E /* IonClawApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1DBF606125D2493EB6B0880 /* IonClawApp.swift */; };
+		E01148A4DFFD736402AE3C87 /* QRCodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B897ED356E8C6A19DD77A589 /* QRCodeView.swift */; };
+		E0306DDD94AD01B1B86E6D3A /* ChatClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576FEE13DE7EC8F6C62D4437 /* ChatClient.swift */; };
+		E35943828548D31B7A3FE4F2 /* ionclaw.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E252D3C5113FF3D18A869711 /* ionclaw.xcframework */; };
+		EFBBB04DDC4EBA8B3B9A6B00 /* IonClawRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECCEDC7C1280F9091E8BE10B /* IonClawRuntime.swift */; };
+		F30A728BD96851E2C6501278 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBCEDB214357AA9B7493691A /* AppConfig.swift */; };
+		F3272EC4B459F778A7417AD7 /* PlatformBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1ADEE2AB62C35FB68F2C2D1 /* PlatformBridge.swift */; };
+		F9B322489B60689829915EF5 /* PlatformBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1ADEE2AB62C35FB68F2C2D1 /* PlatformBridge.swift */; };
+		FA6348ABB212086070AB0A51 /* IonClawApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9D1C0D5EDD7F0D5B016E7D0 /* IonClawApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		66BC091A792C12B1B27100BD /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				2433E00DF5EDD9D213C41658 /* ionclaw.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9CF236E90363F269A3BACE3C /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				072C7A4CD1D7B052F7B60E35 /* ionclaw.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F1D236FD446BF8701952B3F7 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				BF53CBBA68CD6EA9B6FDB320 /* ionclaw.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		06C747081E9038181EAAA8E9 /* NetworkInterfaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkInterfaces.swift; sourceTree = "<group>"; };
+		0A01CD18260D048843B6ED48 /* ServerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerView.swift; sourceTree = "<group>"; };
+		2E36A44369AA95F0E07AF4D7 /* InteractView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractView.swift; sourceTree = "<group>"; };
+		323AFB73AFB19AC2376F6F47 /* IonClaw-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "IonClaw-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		462AFC387AC23901DF9E26C8 /* IonClawApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IonClawApp.swift; sourceTree = "<group>"; };
+		476D2C7F466C238EDDF5A188 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		4E3F9B34068EBA7007315802 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		576FEE13DE7EC8F6C62D4437 /* ChatClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatClient.swift; sourceTree = "<group>"; };
+		609D1058D3941348FA065270 /* MessageSender.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageSender.swift; sourceTree = "<group>"; };
+		75EA10E3ABD7CF300B525BCB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		80E4D81F66FEFDA4BFFD7AAD /* IonClaw-watchOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "IonClaw-watchOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		99BD11130CFC147ECA73F65D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		99CBD4CED80B3C78F0027074 /* ServerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerView.swift; sourceTree = "<group>"; };
+		A1DBF606125D2493EB6B0880 /* IonClawApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IonClawApp.swift; sourceTree = "<group>"; };
+		A597EEE3A2DE1E2EEB957628 /* QRCode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRCode.swift; sourceTree = "<group>"; };
+		A9D1C0D5EDD7F0D5B016E7D0 /* IonClawApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IonClawApp.swift; sourceTree = "<group>"; };
+		AB88602B111EC56AC329E9D4 /* PanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelView.swift; sourceTree = "<group>"; };
+		B217F6E352478D159F96318E /* ServerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerView.swift; sourceTree = "<group>"; };
+		B897ED356E8C6A19DD77A589 /* QRCodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRCodeView.swift; sourceTree = "<group>"; };
+		BA3B73EA16CF765067282EF9 /* InteractView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractView.swift; sourceTree = "<group>"; };
+		CA075EA8FA4F226D94BE49B6 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		D0F4D1398023BAF1A34618D4 /* ServerStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerStatusView.swift; sourceTree = "<group>"; };
+		D1ADEE2AB62C35FB68F2C2D1 /* PlatformBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformBridge.swift; sourceTree = "<group>"; };
+		DBCEDB214357AA9B7493691A /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		DF60C784BB174D0B04F659D6 /* FilledActionButtonStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilledActionButtonStyle.swift; sourceTree = "<group>"; };
+		E1B64B3CAF1C0BF532AF3DEE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E252D3C5113FF3D18A869711 /* ionclaw.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = ionclaw.xcframework; path = ../../build/xcframework/ionclaw.xcframework; sourceTree = "<group>"; };
+		E2A3B9E4541CA63661A5FEB2 /* IonClaw-tvOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "IonClaw-tvOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		ECCEDC7C1280F9091E8BE10B /* IonClawRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IonClawRuntime.swift; sourceTree = "<group>"; };
+		EEB946D1D7D29A9D156075B7 /* project.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = project.yml; sourceTree = "<group>"; };
+		FA9CE8DD7151D596DC16CA55 /* ServerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerController.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		7F97D67B16FA88513808E541 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				565B5DDEA8339A50524664A5 /* ionclaw.xcframework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		873D1F7DEAA87FCFCA97FEF6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E35943828548D31B7A3FE4F2 /* ionclaw.xcframework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BC15999A927B0304942E150B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D8127B82776143F4B5D9C9C7 /* ionclaw.xcframework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		251E98F01A164068F5D54E87 /* watchOS */ = {
+			isa = PBXGroup;
+			children = (
+				96E9DB9A1C72F298C44C15FD /* Resources */,
+				A98DC0A9ED28545A4E38CDE6 /* Sources */,
+			);
+			path = watchOS;
+			sourceTree = "<group>";
+		};
+		2B0F1896CEA02FCC41024C31 /* Network */ = {
+			isa = PBXGroup;
+			children = (
+				576FEE13DE7EC8F6C62D4437 /* ChatClient.swift */,
+				609D1058D3941348FA065270 /* MessageSender.swift */,
+				06C747081E9038181EAAA8E9 /* NetworkInterfaces.swift */,
+			);
+			path = Network;
+			sourceTree = "<group>";
+		};
+		2E054CE4F13B8F1C8BA502D5 /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+				CA075EA8FA4F226D94BE49B6 /* Theme.swift */,
+			);
+			path = Theme;
+			sourceTree = "<group>";
+		};
+		3287B8EC129DD9C247BAAD02 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				4773C5D3EF838A960B8C72EC /* Resources */,
+				C2E4ADF578379905F7EF691B /* Sources */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		3CA66680D31F71E1287F5DAF /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				71D39C8FA9BF0A118495304A /* Resources */,
+				8B663BC3EBD731EFE004E3C9 /* Sources */,
+			);
+			path = iOS;
+			sourceTree = "<group>";
+		};
+		4773C5D3EF838A960B8C72EC /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				4E3F9B34068EBA7007315802 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		4E138A021FE88C0C654DE392 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				DF60C784BB174D0B04F659D6 /* FilledActionButtonStyle.swift */,
+				2E36A44369AA95F0E07AF4D7 /* InteractView.swift */,
+				A9D1C0D5EDD7F0D5B016E7D0 /* IonClawApp.swift */,
+				B217F6E352478D159F96318E /* ServerView.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		63FE2C4A5128A44403843A4C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				323AFB73AFB19AC2376F6F47 /* IonClaw-iOS.app */,
+				E2A3B9E4541CA63661A5FEB2 /* IonClaw-tvOS.app */,
+				80E4D81F66FEFDA4BFFD7AAD /* IonClaw-watchOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		71D39C8FA9BF0A118495304A /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				99BD11130CFC147ECA73F65D /* Assets.xcassets */,
+				476D2C7F466C238EDDF5A188 /* LaunchScreen.storyboard */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		7A6D7091EC55E5B257726AB7 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				E252D3C5113FF3D18A869711 /* ionclaw.xcframework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		7B9CE4ABFF0137DB35C285DB /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				DBCEDB214357AA9B7493691A /* AppConfig.swift */,
+			);
+			path = Model;
+			sourceTree = "<group>";
+		};
+		8B663BC3EBD731EFE004E3C9 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				462AFC387AC23901DF9E26C8 /* IonClawApp.swift */,
+				AB88602B111EC56AC329E9D4 /* PanelView.swift */,
+				0A01CD18260D048843B6ED48 /* ServerView.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		96E9DB9A1C72F298C44C15FD /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				75EA10E3ABD7CF300B525BCB /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		9B55B98EAF2F31BD520C38E2 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				E1B64B3CAF1C0BF532AF3DEE /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		9C0B66181667D1E0E6F89ECE /* Platform */ = {
+			isa = PBXGroup;
+			children = (
+				D1ADEE2AB62C35FB68F2C2D1 /* PlatformBridge.swift */,
+			);
+			path = Platform;
+			sourceTree = "<group>";
+		};
+		A15B5AB6ADEB445F6D53D30B /* Server */ = {
+			isa = PBXGroup;
+			children = (
+				ECCEDC7C1280F9091E8BE10B /* IonClawRuntime.swift */,
+				FA9CE8DD7151D596DC16CA55 /* ServerController.swift */,
+			);
+			path = Server;
+			sourceTree = "<group>";
+		};
+		A98DC0A9ED28545A4E38CDE6 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				BA3B73EA16CF765067282EF9 /* InteractView.swift */,
+				A1DBF606125D2493EB6B0880 /* IonClawApp.swift */,
+				99CBD4CED80B3C78F0027074 /* ServerView.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		B34F92165469D58136A588EF /* tvOS */ = {
+			isa = PBXGroup;
+			children = (
+				9B55B98EAF2F31BD520C38E2 /* Resources */,
+				4E138A021FE88C0C654DE392 /* Sources */,
+			);
+			path = tvOS;
+			sourceTree = "<group>";
+		};
+		C2E4ADF578379905F7EF691B /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				7B9CE4ABFF0137DB35C285DB /* Model */,
+				2B0F1896CEA02FCC41024C31 /* Network */,
+				9C0B66181667D1E0E6F89ECE /* Platform */,
+				A15B5AB6ADEB445F6D53D30B /* Server */,
+				2E054CE4F13B8F1C8BA502D5 /* Theme */,
+				D639794F6E5358028717D9AD /* UI */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		D639794F6E5358028717D9AD /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				A597EEE3A2DE1E2EEB957628 /* QRCode.swift */,
+				B897ED356E8C6A19DD77A589 /* QRCodeView.swift */,
+				D0F4D1398023BAF1A34618D4 /* ServerStatusView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		FE62F7A1DAB26787F2CC8554 = {
+			isa = PBXGroup;
+			children = (
+				EEB946D1D7D29A9D156075B7 /* project.yml */,
+				3CA66680D31F71E1287F5DAF /* iOS */,
+				3287B8EC129DD9C247BAAD02 /* Shared */,
+				B34F92165469D58136A588EF /* tvOS */,
+				251E98F01A164068F5D54E87 /* watchOS */,
+				7A6D7091EC55E5B257726AB7 /* Frameworks */,
+				63FE2C4A5128A44403843A4C /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		353E3F58A5F6C0602094E32E /* IonClaw-watchOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A629BC923686D617FA2154FE /* Build configuration list for PBXNativeTarget "IonClaw-watchOS" */;
+			buildPhases = (
+				BA742A8CC23A3F54DF88D90E /* Sources */,
+				4CD90FBB1C9545A448DC6AD0 /* Resources */,
+				873D1F7DEAA87FCFCA97FEF6 /* Frameworks */,
+				F1D236FD446BF8701952B3F7 /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "IonClaw-watchOS";
+			packageProductDependencies = (
+			);
+			productName = "IonClaw-watchOS";
+			productReference = 80E4D81F66FEFDA4BFFD7AAD /* IonClaw-watchOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+		657278DDFAFD8EAA7BE6C9C0 /* IonClaw-tvOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4FBE68871E0E63B951DA1F1D /* Build configuration list for PBXNativeTarget "IonClaw-tvOS" */;
+			buildPhases = (
+				529585CC7D822242106EEA7A /* Sources */,
+				3162B7148B612E2BF3744BF3 /* Resources */,
+				BC15999A927B0304942E150B /* Frameworks */,
+				9CF236E90363F269A3BACE3C /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "IonClaw-tvOS";
+			packageProductDependencies = (
+			);
+			productName = "IonClaw-tvOS";
+			productReference = E2A3B9E4541CA63661A5FEB2 /* IonClaw-tvOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+		89CD4419A082BA5CDB6A1BD0 /* IonClaw-iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 05A9E04327A0C8B3A99C5830 /* Build configuration list for PBXNativeTarget "IonClaw-iOS" */;
+			buildPhases = (
+				F27FC7CA8195566C2F77D8E7 /* Sources */,
+				294AF0A8A24DFDDB3C9E02EB /* Resources */,
+				7F97D67B16FA88513808E541 /* Frameworks */,
+				66BC091A792C12B1B27100BD /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "IonClaw-iOS";
+			packageProductDependencies = (
+			);
+			productName = "IonClaw-iOS";
+			productReference = 323AFB73AFB19AC2376F6F47 /* IonClaw-iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C8B6D20A0353AA69FADDE016 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					353E3F58A5F6C0602094E32E = {
+						DevelopmentTeam = 99AHAA343Q;
+						ProvisioningStyle = Automatic;
+					};
+					657278DDFAFD8EAA7BE6C9C0 = {
+						DevelopmentTeam = 99AHAA343Q;
+						ProvisioningStyle = Automatic;
+					};
+					89CD4419A082BA5CDB6A1BD0 = {
+						DevelopmentTeam = 99AHAA343Q;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 87BB617C7DA670C70147FAE6 /* Build configuration list for PBXProject "IonClaw" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = FE62F7A1DAB26787F2CC8554;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				89CD4419A082BA5CDB6A1BD0 /* IonClaw-iOS */,
+				657278DDFAFD8EAA7BE6C9C0 /* IonClaw-tvOS */,
+				353E3F58A5F6C0602094E32E /* IonClaw-watchOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		294AF0A8A24DFDDB3C9E02EB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0D5BA2CFDB0086B638C34C99 /* Assets.xcassets in Resources */,
+				327BE4E424C5B4AA1354E470 /* Assets.xcassets in Resources */,
+				D697D7C4F56360486124DFED /* LaunchScreen.storyboard in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3162B7148B612E2BF3744BF3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4278B5DBCFD190CCE4D3C1A3 /* Assets.xcassets in Resources */,
+				382118485A76DE81925D4719 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4CD90FBB1C9545A448DC6AD0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				18CD1A33272D48F99F741CEB /* Assets.xcassets in Resources */,
+				8A4A8D6DDC51E1EF2BC6CF80 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		529585CC7D822242106EEA7A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F30A728BD96851E2C6501278 /* AppConfig.swift in Sources */,
+				D4849F94583158E3A455B219 /* ChatClient.swift in Sources */,
+				ACE260EAE23A14E4E2D4DAFF /* FilledActionButtonStyle.swift in Sources */,
+				BC8958C54D16DEC1A096829D /* InteractView.swift in Sources */,
+				FA6348ABB212086070AB0A51 /* IonClawApp.swift in Sources */,
+				EFBBB04DDC4EBA8B3B9A6B00 /* IonClawRuntime.swift in Sources */,
+				6C5087D6F5BB434A6D59108F /* MessageSender.swift in Sources */,
+				49D41F24DFA673AFBEBB8963 /* NetworkInterfaces.swift in Sources */,
+				9E0BE28F26226FF19D0F2C20 /* PlatformBridge.swift in Sources */,
+				3709D15FC91AF52A757CA6F0 /* QRCode.swift in Sources */,
+				C2ACA9C10895EC60FBEAF925 /* QRCodeView.swift in Sources */,
+				85FBD206D0EA7360175DD979 /* ServerController.swift in Sources */,
+				831A71338C89AEE37DDB1E9E /* ServerStatusView.swift in Sources */,
+				7B31EE3B27C2F7E16E0D73A1 /* ServerView.swift in Sources */,
+				8CA6641A7B911FBD980445AD /* Theme.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BA742A8CC23A3F54DF88D90E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7A43EBE289DE7E3183D3BDB7 /* AppConfig.swift in Sources */,
+				D42554866A9FC14EB699F24F /* ChatClient.swift in Sources */,
+				25938344D51894F64D2BAA2D /* InteractView.swift in Sources */,
+				DE9B2C9F25CF165758CA6E8E /* IonClawApp.swift in Sources */,
+				D7D7A75E2250E194807AD95A /* IonClawRuntime.swift in Sources */,
+				B6C051A29D38436F78760B4D /* MessageSender.swift in Sources */,
+				638244062185DE8E3A4BB4CF /* NetworkInterfaces.swift in Sources */,
+				F3272EC4B459F778A7417AD7 /* PlatformBridge.swift in Sources */,
+				2E8E90EE13B3041FF6DA0853 /* QRCode.swift in Sources */,
+				E01148A4DFFD736402AE3C87 /* QRCodeView.swift in Sources */,
+				066B893CB70D441908BBFE62 /* ServerController.swift in Sources */,
+				44F87ECFFC641118A8DEB68B /* ServerStatusView.swift in Sources */,
+				2B4CA93134E408AAC7976551 /* ServerView.swift in Sources */,
+				1A036394EBAACA9F0CE6A0BF /* Theme.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F27FC7CA8195566C2F77D8E7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4CA6B8C68B2AE485A2EC96F7 /* AppConfig.swift in Sources */,
+				E0306DDD94AD01B1B86E6D3A /* ChatClient.swift in Sources */,
+				CEBED7E74093A6C0DF1123BE /* IonClawApp.swift in Sources */,
+				27CF7BDA0316EB4D2F7B0620 /* IonClawRuntime.swift in Sources */,
+				707B8853C545766EB9A5EE73 /* MessageSender.swift in Sources */,
+				905804EF6E68FD5BC8B15BE1 /* NetworkInterfaces.swift in Sources */,
+				8D452F50F1ED42EC409B2A6F /* PanelView.swift in Sources */,
+				F9B322489B60689829915EF5 /* PlatformBridge.swift in Sources */,
+				9182AA7C7FEB75888D58B6B6 /* QRCode.swift in Sources */,
+				9A399107FBBF9E78A7A599CF /* QRCodeView.swift in Sources */,
+				7E5E855C0AE84019484567EE /* ServerController.swift in Sources */,
+				34F6446210658D7606603E3F /* ServerStatusView.swift in Sources */,
+				4315EF72BDDB3C293F2C0C60 /* ServerView.swift in Sources */,
+				886E9BADB02E47B4A6A806E0 /* Theme.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		4C0B04A9159CBA4F4F43099A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 99AHAA343Q;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = IonClaw;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/Shared/CIonClaw";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TVOS_DEPLOYMENT_TARGET = 16.0;
+				WATCHOS_DEPLOYMENT_TARGET = 9.0;
+			};
+			name = Release;
+		};
+		66560DC92BB682C9FB3F7906 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"../../build/xcframework\"",
+				);
+				INFOPLIST_FILE = watchOS/Resources/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.watchos;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Debug;
+		};
+		8337B8EFB5EA118414CDF9EA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"../../build/xcframework\"",
+				);
+				INFOPLIST_FILE = tvOS/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.tvos;
+				SDKROOT = appletvos;
+				TARGETED_DEVICE_FAMILY = 3;
+			};
+			name = Release;
+		};
+		ABACA88C6367D9A09F09C90A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"../../build/xcframework\"",
+				);
+				INFOPLIST_FILE = watchOS/Resources/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.watchos;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Release;
+		};
+		C3E8E0C596AD1DD7DEE3F946 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"../../build/xcframework\"",
+				);
+				INFOPLIST_FILE = tvOS/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.tvos;
+				SDKROOT = appletvos;
+				TARGETED_DEVICE_FAMILY = 3;
+			};
+			name = Debug;
+		};
+		D5E86CDDB4AD4D9E8B5C67F7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"../../build/xcframework\"",
+				);
+				INFOPLIST_FILE = iOS/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F52A0F104F3FD14917A7C896 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 99AHAA343Q;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = IonClaw;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/Shared/CIonClaw";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TVOS_DEPLOYMENT_TARGET = 16.0;
+				WATCHOS_DEPLOYMENT_TARGET = 9.0;
+			};
+			name = Debug;
+		};
+		FD9E1504EE8793D19FE03DA2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"../../build/xcframework\"",
+				);
+				INFOPLIST_FILE = iOS/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		05A9E04327A0C8B3A99C5830 /* Build configuration list for PBXNativeTarget "IonClaw-iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D5E86CDDB4AD4D9E8B5C67F7 /* Debug */,
+				FD9E1504EE8793D19FE03DA2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		4FBE68871E0E63B951DA1F1D /* Build configuration list for PBXNativeTarget "IonClaw-tvOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C3E8E0C596AD1DD7DEE3F946 /* Debug */,
+				8337B8EFB5EA118414CDF9EA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		87BB617C7DA670C70147FAE6 /* Build configuration list for PBXProject "IonClaw" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F52A0F104F3FD14917A7C896 /* Debug */,
+				4C0B04A9159CBA4F4F43099A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A629BC923686D617FA2154FE /* Build configuration list for PBXNativeTarget "IonClaw-watchOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				66560DC92BB682C9FB3F7906 /* Debug */,
+				ABACA88C6367D9A09F09C90A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = C8B6D20A0353AA69FADDE016 /* Project object */;
+}

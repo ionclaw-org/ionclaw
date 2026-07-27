@@ -12,7 +12,8 @@ IonClaw includes native SwiftUI apps for **iOS, tvOS, and watchOS**. Each target
 
 ```
 apps/apple/
-  project.yml          XcodeGen spec (defines the 3 app targets)
+  IonClaw.xcodeproj    committed Xcode project (open directly after building the xcframework)
+  project.yml          XcodeGen spec (source of truth; regenerates the project)
   Shared/
     Sources/           shared swift: theme, server controller, c bridge, networking, ui
     CIonClaw/          clang module map exposing the native C ABI to swift
@@ -40,7 +41,7 @@ This builds `build/xcframework/ionclaw.xcframework` (iOS + tvOS + watchOS, devic
 open apps/apple/IonClaw.xcodeproj
 ```
 
-The `.xcodeproj` is generated from `project.yml` and is not checked in. After adding or removing source files, regenerate it with `make gen-apple`.
+The `.xcodeproj` is committed, so a fresh clone opens it directly — only the xcframework needs building first. `project.yml` stays the source of truth: after adding or removing source files, regenerate and commit the project with `make gen-apple`. Xcode's DerivedData should point at its default location (Xcode → Settings → Locations → Derived Data → Default), not inside `apps/apple/`.
 
 ## Targets
 
