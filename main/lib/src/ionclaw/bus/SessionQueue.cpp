@@ -242,7 +242,6 @@ bool SessionQueue::enqueue(const std::string &sessionKey, const InboundMessage &
     QueuedItem item;
     item.message = msg;
     item.mode = mode;
-    item.enqueuedAt = std::chrono::steady_clock::now();
 
     state.items.push_back(std::move(item));
     state.lastEnqueuedAt = std::chrono::steady_clock::now();

@@ -37,7 +37,6 @@ struct ActiveTurnHandle
 {
     std::string agentName;
     std::string taskId;
-    std::chrono::steady_clock::time_point startedAt;
     std::atomic<bool> aborted{false};
 };
 
@@ -52,9 +51,7 @@ public:
 
     void setCronService(std::shared_ptr<ionclaw::cron::CronService> cs);
 
-    std::vector<nlohmann::json> getToolDefinitions() const;
     std::vector<nlohmann::json> getFlatToolDefinitions() const;
-    std::vector<std::string> getAgentNames() const;
 
     bool isSessionActive(const std::string &sessionKey) const;
     std::shared_ptr<ActiveTurnHandle> getActiveTurn(const std::string &sessionKey) const;

@@ -5,7 +5,6 @@
 #include "ionclaw/agent/SkillsLoader.hpp"
 #include "ionclaw/provider/ProviderFactory.hpp"
 #include "ionclaw/session/SessionKeyUtils.hpp"
-#include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
 #include "ionclaw/util/UniqueId.hpp"
 #include "spdlog/spdlog.h"
@@ -595,7 +594,6 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
     // create active turn handle (keyed by base key for queue coordination)
     auto turnHandle = std::make_shared<ActiveTurnHandle>();
     turnHandle->agentName = targetAgent;
-    turnHandle->startedAt = std::chrono::steady_clock::now();
 
     if (message.metadata.contains("task_id") && message.metadata["task_id"].is_string())
     {
@@ -1306,29 +1304,9 @@ void Orchestrator::restart(const ionclaw::config::Config &newConfig)
     spdlog::info("[Orchestrator] Restart complete");
 }
 
-std::vector<nlohmann::json> Orchestrator::getToolDefinitions() const
-{
-    return toolRegistry->getOpenAiDefinitions();
-}
-
 std::vector<nlohmann::json> Orchestrator::getFlatToolDefinitions() const
 {
     return toolRegistry->getFlatDefinitions();
-}
-
-std::vector<std::string> Orchestrator::getAgentNames() const
-{
-    std::lock_guard<std::mutex> lock(lifecycleMutex);
-
-    std::vector<std::string> names;
-    names.reserve(config.agents.size());
-
-    for (const auto &[name, agentConfig] : config.agents)
-    {
-        names.push_back(name);
-    }
-
-    return names;
 }
 
 std::shared_ptr<ionclaw::bus::SessionQueue> Orchestrator::getSessionQueue() const

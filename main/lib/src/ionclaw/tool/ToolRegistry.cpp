@@ -201,26 +201,6 @@ ToolResult ToolRegistry::executeTool(const std::string &name, const nlohmann::js
     }
 }
 
-bool ToolRegistry::hasTool(const std::string &name) const
-{
-    std::lock_guard<std::mutex> lock(mutex);
-    return tools.find(name) != tools.end();
-}
-
-std::vector<ToolSchema> ToolRegistry::getSchemas() const
-{
-    std::lock_guard<std::mutex> lock(mutex);
-    std::vector<ToolSchema> schemas;
-    schemas.reserve(tools.size());
-
-    for (const auto &[name, tool] : tools)
-    {
-        schemas.push_back(tool->schema());
-    }
-
-    return schemas;
-}
-
 std::vector<std::string> ToolRegistry::getToolNames() const
 {
     std::lock_guard<std::mutex> lock(mutex);

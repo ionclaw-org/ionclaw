@@ -7,12 +7,6 @@ namespace ionclaw
 namespace agent
 {
 
-void HookRunner::registerHook(HookPoint point, HookCallback callback)
-{
-    std::lock_guard<std::mutex> lock(mutex);
-    hooks[point].push_back(std::move(callback));
-}
-
 void HookRunner::run(HookPoint point, HookContext &ctx) const
 {
     // copy callbacks under lock, then invoke outside to avoid holding mutex during arbitrary code

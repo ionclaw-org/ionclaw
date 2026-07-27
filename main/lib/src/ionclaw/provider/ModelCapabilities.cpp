@@ -40,18 +40,10 @@ void ModelCapabilities::ensureLoaded()
                 const auto &v = it.value();
                 ModelInfo info;
                 info.provider = v.value("litellm_provider", "");
-                info.mode = v.value("mode", "");
                 info.maxInputTokens = v.value("max_input_tokens", int64_t{0});
-                info.maxOutputTokens = v.value("max_output_tokens", int64_t{0});
-                info.maxTokens = v.value("max_tokens", int64_t{0});
-                info.inputCostPerToken = v.value("input_cost_per_token", 0.0);
-                info.outputCostPerToken = v.value("output_cost_per_token", 0.0);
                 info.supportsVision = v.value("supports_vision", false);
                 info.supportsFunctionCalling = v.value("supports_function_calling", false);
-                info.supportsToolChoice = v.value("supports_tool_choice", false);
                 info.supportsReasoning = v.value("supports_reasoning", false);
-                info.supportsPdfInput = v.value("supports_pdf_input", false);
-                info.supportsResponseSchema = v.value("supports_response_schema", false);
                 info.supportsPromptCaching = v.value("supports_prompt_caching", false);
 
                 table[it.key()] = std::move(info);

@@ -29,7 +29,6 @@ public:
     SkillsLoader(const std::string &projectPath, const std::string &workspacePath);
 
     std::vector<SkillInfo> listSkills() const;
-    std::string loadSkill(const std::string &name) const;
     std::string loadSkillRaw(const std::string &name) const;
     std::string saveSkill(const std::string &name, const std::string &content);
     std::string deleteSkill(const std::string &name);

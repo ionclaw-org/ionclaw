@@ -19,8 +19,6 @@ class EmbeddedResources
 {
 public:
     static bool hasWebResources();
-    static bool hasSkillResources();
-    static bool hasTemplateResources();
 
     static void loadWebResources();
     static std::pair<const char *, size_t> getWebFile(const std::string &path);

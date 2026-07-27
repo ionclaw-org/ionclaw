@@ -6,7 +6,6 @@
 #include <sstream>
 
 #include "ionclaw/util/StringHelper.hpp"
-#include "ionclaw/util/TimeHelper.hpp"
 
 namespace ionclaw
 {

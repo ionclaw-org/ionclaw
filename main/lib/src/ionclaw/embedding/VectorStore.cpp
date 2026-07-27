@@ -171,12 +171,6 @@ void VectorStore::open(const std::string &embeddingModel)
     spdlog::info("[VectorStore] Opened '{}' with {} entries (model={}, dim={})", impl->name, impl->entries.size(), embeddingModel, impl->dim);
 }
 
-bool VectorStore::isOpen() const
-{
-    std::lock_guard<std::mutex> lock(impl->mutex);
-    return !impl->model.empty();
-}
-
 void VectorStore::add(const std::string &id, const std::string &text, const std::vector<float> &vector, const nlohmann::json &metadata)
 {
     std::lock_guard<std::mutex> lock(impl->mutex);
@@ -304,12 +298,6 @@ size_t VectorStore::count() const
 {
     std::lock_guard<std::mutex> lock(impl->mutex);
     return impl->entries.size();
-}
-
-std::string VectorStore::embeddingModel() const
-{
-    std::lock_guard<std::mutex> lock(impl->mutex);
-    return impl->model;
 }
 
 void VectorStore::save() const

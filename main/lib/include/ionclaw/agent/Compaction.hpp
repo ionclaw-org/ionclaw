@@ -43,8 +43,6 @@ struct CompactionResult
     std::vector<ionclaw::provider::Message> messages;
     CompactionFailure failure = CompactionFailure::None;
     std::string failureReason;
-    int summarizedCount = 0;
-    int keptCount = 0;
 };
 
 class Compaction

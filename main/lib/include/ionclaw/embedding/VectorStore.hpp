@@ -30,14 +30,12 @@ public:
     VectorStore &operator=(const VectorStore &) = delete;
 
     void open(const std::string &embeddingModel);
-    bool isOpen() const;
 
     void add(const std::string &id, const std::string &text, const std::vector<float> &vector, const nlohmann::json &metadata = nlohmann::json::object());
     void remove(const std::string &id);
     std::vector<VectorSearchResult> search(const std::vector<float> &queryVector, size_t topK) const;
 
     size_t count() const;
-    std::string embeddingModel() const;
     void save() const;
 
 private:

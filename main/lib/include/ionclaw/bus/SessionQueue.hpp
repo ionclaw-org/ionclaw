@@ -21,7 +21,6 @@ struct QueuedItem
 {
     InboundMessage message;
     QueueMode mode;
-    std::chrono::steady_clock::time_point enqueuedAt;
 };
 
 struct QueueSettings

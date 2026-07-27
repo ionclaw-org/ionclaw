@@ -32,7 +32,6 @@ public:
 
     bool enqueue(const std::string &runId, const std::string &requesterSessionKey, const std::string &message, const std::string &announceId = "");
     std::vector<AnnounceEntry> drain(const std::string &sessionKey);
-    void markRetry(const std::string &runId);
     void processExpired();
 
 private:

@@ -476,8 +476,6 @@ CompactionResult Compaction::compactWithResult(const std::vector<ionclaw::provid
         result.messages.push_back(ackMsg);
 
         result.messages.insert(result.messages.end(), toKeep.begin(), toKeep.end());
-        result.summarizedCount = static_cast<int>(toSummarize.size());
-        result.keptCount = static_cast<int>(toKeep.size());
 
         spdlog::info("[Compaction] Compacted {} messages into summary ({} chars), keeping {} recent", toSummarize.size(), summary.size(), toKeep.size());
 

@@ -144,13 +144,6 @@ void TaskManager::setUsage(const std::string &taskId, const nlohmann::json &usag
     // clang-format on
 }
 
-void TaskManager::setLiveState(const std::string &taskId, const nlohmann::json &liveState)
-{
-    // clang-format off
-    mutateTask(taskId, "setLiveState", [&](Task &task) { task.liveState = liveState; });
-    // clang-format on
-}
-
 void TaskManager::setError(const std::string &taskId, const std::string &error)
 {
     // clang-format off

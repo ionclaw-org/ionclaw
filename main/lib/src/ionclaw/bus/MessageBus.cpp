@@ -189,25 +189,5 @@ bool MessageBus::consumeOutbound(const std::string &channel, OutboundMessage &ms
     return true;
 }
 
-size_t MessageBus::inboundSize() const
-{
-    std::lock_guard<std::mutex> lock(inboundMutex);
-    return inboundQueue.size();
-}
-
-size_t MessageBus::outboundSize() const
-{
-    std::lock_guard<std::mutex> lock(outboundMutex);
-
-    size_t total = 0;
-
-    for (const auto &[channel, queue] : outboundQueues)
-    {
-        total += queue.size();
-    }
-
-    return total;
-}
-
 } // namespace bus
 } // namespace ionclaw

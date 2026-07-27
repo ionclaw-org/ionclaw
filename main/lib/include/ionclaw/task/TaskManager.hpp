@@ -28,7 +28,6 @@ public:
     void incrementIteration(const std::string &taskId);
     void incrementToolCount(const std::string &taskId);
     void setUsage(const std::string &taskId, const nlohmann::json &usage);
-    void setLiveState(const std::string &taskId, const nlohmann::json &liveState);
     void setError(const std::string &taskId, const std::string &error);
 
     Task getTask(const std::string &taskId) const;

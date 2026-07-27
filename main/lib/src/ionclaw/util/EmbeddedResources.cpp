@@ -92,24 +92,6 @@ bool EmbeddedResources::hasWebResources()
 #endif
 }
 
-bool EmbeddedResources::hasSkillResources()
-{
-#ifdef IONCLAW_EMBEDDED_RESOURCES
-    return ionclaw_embedded_skills::getSize() > 0;
-#else
-    return false;
-#endif
-}
-
-bool EmbeddedResources::hasTemplateResources()
-{
-#ifdef IONCLAW_EMBEDDED_RESOURCES
-    return ionclaw_embedded_template::getSize() > 0;
-#else
-    return false;
-#endif
-}
-
 void EmbeddedResources::loadWebResources()
 {
     std::call_once(webLoadFlag, loadWebResourcesImpl);

@@ -80,7 +80,6 @@ public:
     void clearStoppedByUser(const std::string &sessionKey);
 
     void updateLiveStateField(const std::string &sessionKey, const std::string &field, const nlohmann::json &value);
-    void updateLastMessageContent(const std::string &sessionKey, const std::string &content);
 
     void setMaxCapacity(int capacity) { maxCapacity.store(capacity); }
     void setIdleTtlSeconds(int ttl) { idleTtlSeconds.store(ttl); }

@@ -49,11 +49,5 @@ std::string UniqueId::shortId()
     return oss.str();
 }
 
-std::string UniqueId::sequential(const std::string &prefix)
-{
-    auto id = counter.fetch_add(1, std::memory_order_relaxed);
-    return prefix + "-" + std::to_string(id);
-}
-
 } // namespace util
 } // namespace ionclaw

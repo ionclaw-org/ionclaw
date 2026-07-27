@@ -834,23 +834,6 @@ void SessionManager::updateLiveStateField(const std::string &sessionKey, const s
     it->second.liveState[field] = value;
 }
 
-void SessionManager::updateLastMessageContent(const std::string &sessionKey, const std::string &content)
-{
-    auto mtx = getSessionMutex(sessionKey);
-    std::lock_guard<std::mutex> lock(*mtx);
-
-    std::lock_guard<std::mutex> glock(globalMutex);
-
-    auto it = cache.find(sessionKey);
-
-    if (it == cache.end() || it->second.messages.empty())
-    {
-        return;
-    }
-
-    it->second.messages.back().content = content;
-}
-
 void SessionManager::touch(Session &session)
 {
     session.lastTouchedAt = util::TimeHelper::now();

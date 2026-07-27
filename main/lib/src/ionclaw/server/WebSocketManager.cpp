@@ -155,37 +155,5 @@ void WebSocketManager::broadcast(const std::string &eventType, const nlohmann::j
     }
 }
 
-void WebSocketManager::sendTo(const std::string &connectionId, const std::string &eventType, const nlohmann::json &data)
-{
-    nlohmann::json message = {
-        {"type", eventType},
-        {"data", data}};
-
-    auto payload = message.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
-
-    // snapshot connection under lock to avoid holding mutex during I/O
-    std::shared_ptr<WebSocketConnection> conn;
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        auto it = connections.find(connectionId);
-
-        if (it == connections.end())
-        {
-            spdlog::warn("[WebSocketManager] WebSocket connection not found: {}", connectionId);
-            return;
-        }
-
-        conn = it->second;
-    }
-
-    conn->enqueue(payload);
-}
-
-size_t WebSocketManager::connectionCount() const
-{
-    std::lock_guard<std::mutex> lock(mutex);
-    return connections.size();
-}
-
 } // namespace server
 } // namespace ionclaw

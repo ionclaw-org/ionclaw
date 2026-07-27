@@ -34,8 +34,6 @@ public:
     // outbound is routed per channel so each channel runner only receives its own messages and never drops another's
     bool consumeOutbound(const std::string &channel, OutboundMessage &msg, int timeoutMs = 1000);
 
-    size_t inboundSize() const;
-    size_t outboundSize() const;
 
 private:
     std::queue<InboundMessage> inboundQueue;

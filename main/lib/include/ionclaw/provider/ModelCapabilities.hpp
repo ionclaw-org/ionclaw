@@ -15,18 +15,10 @@ namespace provider
 struct ModelInfo
 {
     std::string provider;
-    std::string mode;
     int64_t maxInputTokens = 0;
-    int64_t maxOutputTokens = 0;
-    int64_t maxTokens = 0;
-    double inputCostPerToken = 0.0;
-    double outputCostPerToken = 0.0;
     bool supportsVision = false;
     bool supportsFunctionCalling = false;
-    bool supportsToolChoice = false;
     bool supportsReasoning = false;
-    bool supportsPdfInput = false;
-    bool supportsResponseSchema = false;
     bool supportsPromptCaching = false;
 };
 
