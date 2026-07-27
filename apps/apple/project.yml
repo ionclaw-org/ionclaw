@@ -83,3 +83,5 @@ targets:
         INFOPLIST_FILE: watchOS/Resources/Info.plist
         TARGETED_DEVICE_FAMILY: "4"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # watchos app targets default to an empty runpath, so point it at the embedded framework
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/Frameworks"

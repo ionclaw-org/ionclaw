@@ -24,7 +24,7 @@ final class IonClawPlatform: NSObject, UNUserNotificationCenterDelegate {
         ionclaw_set_platform_handler(platformCallback, 30)
     }
 
-    // asks for local notification permission upfront so the agent can notify the user later
+    // asks for local notification permission at launch so the agent can notify the user later
     private func requestNotificationAuthorization() {
         #if os(tvOS)
         let options: UNAuthorizationOptions = [.badge]
@@ -57,7 +57,7 @@ final class IonClawPlatform: NSObject, UNUserNotificationCenterDelegate {
 
         let center = UNUserNotificationCenter.current()
 
-        // request authorization lazily so the prompt appears on first real use, not at launch
+        // re-check authorization before sending in case the user declined the launch prompt
         center.requestAuthorization(options: [.alert, .sound, .badge]) { [weak self] granted, error in
             guard let self else { return }
 

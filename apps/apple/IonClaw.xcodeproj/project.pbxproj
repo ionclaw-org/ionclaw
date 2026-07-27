@@ -678,6 +678,7 @@
 					"\"../../build/xcframework\"",
 				);
 				INFOPLIST_FILE = watchOS/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.watch;
 				PRODUCT_NAME = "IonClaw Watch App";
 				SDKROOT = watchos;
@@ -715,6 +716,7 @@
 					"\"../../build/xcframework\"",
 				);
 				INFOPLIST_FILE = watchOS/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.watch;
 				PRODUCT_NAME = "IonClaw Watch App";
 				SDKROOT = watchos;
