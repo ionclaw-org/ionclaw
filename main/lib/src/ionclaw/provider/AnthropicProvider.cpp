@@ -76,7 +76,7 @@ nlohmann::json AnthropicProvider::validateTranscript(const nlohmann::json &messa
                 }
                 else
                 {
-                    // non-mergeable array content; insert placeholder to maintain alternation
+                    // non-mergeable array content needs a placeholder to maintain alternation
                     nlohmann::json placeholder;
                     placeholder["role"] = "assistant";
                     placeholder["content"] = "(continued)";

@@ -16,7 +16,7 @@ namespace channel
 class WebhookDedup
 {
 public:
-    // returns true if this id is new (process it); false if it was already seen within the retention window
+    // returns true if this id is new and false if it was already seen within the retention window
     bool markSeen(const std::string &msgId);
 
     size_t size() const;

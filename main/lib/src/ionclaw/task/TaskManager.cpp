@@ -351,7 +351,7 @@ void TaskManager::appendToFile(const Task &task)
 {
     std::lock_guard<std::mutex> flock(fileMutex);
 
-    // callers hold the data mutex, so tasks can be read here; periodically rewrite the whole file to bound its growth
+    // callers hold the data mutex so tasks can be read here, and the whole file is periodically rewritten to bound its growth
     if (++appendsSinceCompaction >= COMPACTION_APPEND_THRESHOLD)
     {
         appendsSinceCompaction = 0;

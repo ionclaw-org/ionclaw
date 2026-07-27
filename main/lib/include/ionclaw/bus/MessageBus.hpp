@@ -43,7 +43,7 @@ private:
     std::condition_variable inboundCv;
     std::condition_variable outboundCv;
 
-    // bounds inbound memory under a flood; a burst beyond this is rejected with a clear error rather than buffered without limit
+    // bounds inbound memory under a flood by rejecting a burst beyond this with a clear error instead of buffering without limit
     static constexpr size_t MAX_INBOUND_QUEUE = 1000;
 
     // bounds each channel's outbound backlog so a stalled runner cannot grow it without limit

@@ -15,8 +15,8 @@ namespace channel
 struct WebhookMedia
 {
     std::string kind;     // image | audio | video | document
-    std::string url;      // direct download url (z-api); empty for meta
-    std::string mediaId;  // media id to fetch in two steps (meta); empty for z-api
+    std::string url;      // direct download url for z-api, empty for meta
+    std::string mediaId;  // media id fetched in two steps for meta, empty for z-api
     std::string mimeType;
     std::string caption;
     std::string fileName;  // documents only
@@ -43,7 +43,7 @@ public:
     // z-api posts a single message object per webhook call
     static ParsedWebhookMessage parseZApi(const nlohmann::json &body);
 
-    // meta wraps messages under entry[].changes[].value.messages[]; one call may carry several
+    // meta wraps messages under entry[].changes[].value.messages[] and one call may carry several
     static std::vector<ParsedWebhookMessage> parseMeta(const nlohmann::json &body);
 
     // validates the meta X-Hub-Signature-256 header (sha256=<hex>) against hmac-sha256(rawBody, appSecret)

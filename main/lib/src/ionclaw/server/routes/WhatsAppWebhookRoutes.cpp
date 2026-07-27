@@ -25,7 +25,7 @@ void Routes::downloadWhatsAppMedia(ionclaw::channel::WebhookMedia &media, const 
     std::string url = media.url;
     std::map<std::string, std::string> headers;
 
-    // meta media: resolve the id to a temporary url; both this and the download use the bearer token
+    // meta media resolves the id to a temporary url, and both this and the download use the bearer token
     if (url.empty() && !media.mediaId.empty() && !accessToken.empty())
     {
         headers["Authorization"] = "Bearer " + accessToken;
@@ -144,7 +144,7 @@ void Routes::publishWhatsAppInbound(const ionclaw::channel::ParsedWebhookMessage
 
 void Routes::handleWhatsAppZApiWebhook(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp)
 {
-    // z-api only posts inbound messages; a stray get is answered so the provider stops retrying
+    // z-api only posts inbound messages, so a stray get is answered to stop the provider retrying
     if (req.getMethod() != "POST")
     {
         sendJson(resp, {{"status", "ok"}});

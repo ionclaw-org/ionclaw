@@ -316,7 +316,7 @@ std::vector<std::string> ToolRegistry::applyToolPolicy(const std::vector<std::st
         denySet.insert(lower);
     }
 
-    // build allow set (case-insensitive); empty = all allowed
+    // build the case-insensitive allow set where empty means all allowed
     std::set<std::string> allowSet;
     for (const auto &name : policy.allow)
     {

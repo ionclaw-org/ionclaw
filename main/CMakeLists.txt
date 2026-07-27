@@ -135,7 +135,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/handler/McpHandler.cpp
 )
 
-# --- embed resources (shared by server and shared library) ---
+# embed resources shared by the server and the shared library
 # web client
 file(GLOB_RECURSE IONCLAW_WEB_FILES "${CMAKE_CURRENT_SOURCE_DIR}/resources/web/*")
 add_custom_command(

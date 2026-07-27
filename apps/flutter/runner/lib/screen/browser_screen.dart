@@ -44,7 +44,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
               return NavigationDecision.prevent;
             }
 
-            // Intercept file download URLs
+            // intercept file download urls
             if (uri.path.startsWith('/api/files/download/')) {
               _downloadFile(uri);
               return NavigationDecision.prevent;

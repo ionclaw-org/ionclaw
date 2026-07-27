@@ -59,7 +59,7 @@ std::string GeminiImageGenerator::generate(const std::string &prompt, const std:
     Poco::URI baseUri(baseUrl);
     baseUrl = baseUri.getScheme() + "://" + baseUri.getAuthority();
 
-    // imagen models use :predict endpoint; gemini models use :generateContent
+    // imagen models use the :predict endpoint and gemini models use :generateContent
     if (isImagenModel(modelId))
     {
         return predict(prompt, filename, params, context, apiKey, baseUrl, modelId);

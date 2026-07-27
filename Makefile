@@ -1,5 +1,5 @@
-# IonClaw - Build System
-# Usage: make help
+# ionclaw build system
+# run make help for the list of targets
 
 .DEFAULT_GOAL := help
 
@@ -45,9 +45,7 @@ ANDROID_ABIS       := arm64-v8a armeabi-v7a x86_64 x86
 # --- helpers ---
 NPROC := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu)
 
-# ============================================================
-# Help
-# ============================================================
+# help
 
 .PHONY: help
 help:
@@ -117,9 +115,7 @@ help:
 	@echo "  make build-android ANDROID_NDK=/path/to/ndk"
 	@echo ""
 
-# ============================================================
-# Build
-# ============================================================
+# build
 
 .PHONY: build
 build: ## Build server executable (release)
@@ -384,9 +380,7 @@ build-docker: ## Build Docker image
 	docker build -t ionclaw .
 	@echo "==> Done: docker image 'ionclaw'"
 
-# ============================================================
-# Run
-# ============================================================
+# run
 
 .PHONY: run
 run: build ## Build and run server (release)
@@ -429,9 +423,7 @@ run-android: build-android-aar ## Build (if needed), install and launch the nati
 	adb shell am start -n com.ionclaw.app/.MainActivity
 	@echo "==> Done."
 
-# ============================================================
-# Setup
-# ============================================================
+# setup
 
 .PHONY: setup-web
 setup-web: ## Install web client npm dependencies
@@ -495,9 +487,7 @@ link-android: build-android-arm64 build-android-x86_64 ## Copy Android .so files
 	cp $$(find $(ANDROID_NDK)/toolchains/llvm/prebuilt -path '*/lib/linux/x86_64/libomp.so' | head -1) $(ANDROID_AAR_JNILIBS)/x86_64/libomp.so
 	@echo "==> Done: $(ANDROID_AAR_JNILIBS)/"
 
-# ============================================================
-# Release
-# ============================================================
+# release
 
 .PHONY: release-macos
 release-macos: link-flutter-macos link-flutter-web ## Build macOS release
@@ -534,9 +524,7 @@ android-gen-key: ## Generate Android upload keystore and certificate
 flutter-deps: ## Install and upgrade Flutter dependencies
 	cd $(FLUTTER_RUNNER_DIR) && flutter pub get && flutter pub upgrade
 
-# ============================================================
-# Clean
-# ============================================================
+# clean
 
 .PHONY: clean
 clean: ## Remove all build directories
@@ -569,9 +557,7 @@ clean-android: ## Remove Android build directories and jniLibs
 	rm -rf $(ANDROID_AAR_JNILIBS)
 	rm -rf $(BUILD_ANDROID_AAR)
 
-# ============================================================
-# Version
-# ============================================================
+# version
 
 .PHONY: version
 version: ## Set project version: make version V=1.0.0+2
@@ -597,9 +583,7 @@ version: ## Set project version: make version V=1.0.0+2
 	echo "  web/sw.js               → $$VER"; \
 	echo "==> Done."
 
-# ============================================================
-# Code
-# ============================================================
+# code
 
 .PHONY: format
 format: ## Format all C/C++/ObjC sources with clang-format

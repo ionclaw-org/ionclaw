@@ -1,7 +1,7 @@
 import Foundation
 
 // pure-swift qr code generator (byte mode), so it works on watchos where coreimage is unavailable.
-// follows the qr code model 2 specification (iso/iec 18004); algorithm based on project nayuki (mit).
+// follows the qr code model 2 specification (iso/iec 18004), algorithm based on project nayuki (mit).
 struct QRCode {
     enum Correction: Int {
         case low = 0

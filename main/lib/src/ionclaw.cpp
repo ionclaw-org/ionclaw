@@ -98,7 +98,7 @@ extern "C"
                 return jsonToMalloc({{"success", false}, {"error", "failed to extract template"}});
             }
 
-            // orchestrator state lives at the project root; the agent workspace holds the agent's own files, including public/
+            // orchestrator state lives at the project root while the agent workspace holds the agent's own files under public/
             std::filesystem::create_directories(targetDir + "/sessions", ec);
             std::filesystem::create_directories(targetDir + "/workspace/skills", ec);
             std::filesystem::create_directories(targetDir + "/workspace/memory", ec);

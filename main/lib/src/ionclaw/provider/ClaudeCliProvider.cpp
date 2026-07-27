@@ -334,7 +334,7 @@ ClaudeCliProvider::CliResult ClaudeCliProvider::runClaude(const std::string &, c
     return result;
 }
 
-#else // POSIX (Linux, macOS)
+#else // posix branch for linux and macos
 
 extern "C" char **environ;
 
