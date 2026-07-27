@@ -225,11 +225,12 @@ void Routes::handleWhatsAppMetaWebhook(Poco::Net::HTTPServerRequest &req, Poco::
 
         if (it != config->channels.end() && it->second.enabled && it->second.raw.is_object())
         {
+            const auto &raw = it->second.raw;
             enabled = true;
-            verifyToken = it->second.raw.value("verify_token", "");
-            appSecret = it->second.raw.value("app_secret", "");
-            accessToken = it->second.raw.value("access_token", "");
-            graphVersion = it->second.raw.value("graph_version", "v23.0");
+            verifyToken = raw.contains("verify_token") && raw["verify_token"].is_string() ? raw["verify_token"].get<std::string>() : "";
+            appSecret = raw.contains("app_secret") && raw["app_secret"].is_string() ? raw["app_secret"].get<std::string>() : "";
+            accessToken = raw.contains("access_token") && raw["access_token"].is_string() ? raw["access_token"].get<std::string>() : "";
+            graphVersion = raw.contains("graph_version") && raw["graph_version"].is_string() ? raw["graph_version"].get<std::string>() : "v23.0";
             allowedUsers = it->second.allowedUsers;
         }
     }

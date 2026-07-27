@@ -769,30 +769,41 @@ void TelegramRunner::sendMediaByUrl(const std::string &chatId, const std::string
 
 void TelegramRunner::processUpdate(const nlohmann::json &update)
 {
-    int64_t updateId = update.value("update_id", 0);
-    if (updateId > lastUpdateId)
+    if (!update.is_object())
     {
-        lastUpdateId = updateId;
+        return;
     }
 
-    if (!update.contains("message"))
+    if (update.contains("update_id") && update["update_id"].is_number_integer())
+    {
+        int64_t updateId = update["update_id"].get<int64_t>();
+
+        if (updateId > lastUpdateId)
+        {
+            lastUpdateId = updateId;
+        }
+    }
+
+    if (!update.contains("message") || !update["message"].is_object())
     {
         return;
     }
 
     const auto &msg = update["message"];
-    if (!msg.contains("from") || !msg.contains("chat"))
+
+    if (!msg.contains("from") || !msg["from"].is_object() || !msg.contains("chat") || !msg["chat"].is_object())
     {
         return;
     }
 
     // determine content: text, caption, or media-only
     std::string text;
-    if (msg.contains("text"))
+
+    if (msg.contains("text") && msg["text"].is_string())
     {
         text = msg["text"].get<std::string>();
     }
-    else if (msg.contains("caption"))
+    else if (msg.contains("caption") && msg["caption"].is_string())
     {
         text = msg["caption"].get<std::string>();
     }
@@ -872,10 +883,12 @@ void TelegramRunner::processUpdate(const nlohmann::json &update)
     }
 
     const auto &from = msg["from"];
-    int64_t fromId = from.value("id", int64_t(0));
-    std::string username = from.value("username", "");
-    int64_t chatId = msg["chat"].value("id", int64_t(0));
-    int messageId = msg.value("message_id", 0);
+    const auto &chat = msg["chat"];
+
+    int64_t fromId = from.contains("id") && from["id"].is_number_integer() ? from["id"].get<int64_t>() : 0;
+    std::string username = from.contains("username") && from["username"].is_string() ? from["username"].get<std::string>() : "";
+    int64_t chatId = chat.contains("id") && chat["id"].is_number_integer() ? chat["id"].get<int64_t>() : 0;
+    int messageId = msg.contains("message_id") && msg["message_id"].is_number_integer() ? msg["message_id"].get<int>() : 0;
 
     std::string userIdStr = std::to_string(fromId);
     if (!isAllowed(userIdStr, username))
@@ -995,10 +1008,11 @@ void TelegramRunner::pollLoop()
 
             backoffMs = 0;
 
-            if (!j.value("ok", false) || !j.contains("result"))
+            if (!j.is_object() || !j["ok"].is_boolean() || !j["ok"].get<bool>() || !j["result"].is_array())
             {
                 continue;
             }
+
             for (const auto &update : j["result"])
             {
                 processUpdate(update);

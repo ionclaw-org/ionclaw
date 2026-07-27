@@ -102,6 +102,10 @@ void WhatsAppRunner::outboundLoop()
         {
             spdlog::error("[WhatsAppRunner] Outbound error: {}", e.what());
         }
+        catch (...)
+        {
+            spdlog::error("[WhatsAppRunner] Outbound error: unknown exception");
+        }
     }
 }
 
