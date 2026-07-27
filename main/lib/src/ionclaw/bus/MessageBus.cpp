@@ -144,7 +144,16 @@ void MessageBus::publishOutbound(const OutboundMessage &msg)
 {
     {
         std::lock_guard<std::mutex> lock(outboundMutex);
-        outboundQueues[msg.channel].push(msg);
+        auto &queue = outboundQueues[msg.channel];
+
+        // bound the per-channel queue so a stalled or dead channel runner cannot grow it without limit
+        if (queue.size() >= MAX_OUTBOUND_QUEUE)
+        {
+            spdlog::warn("[MessageBus] Outbound queue full ({}) for channel {}, dropping oldest reply", queue.size(), msg.channel);
+            queue.pop();
+        }
+
+        queue.push(msg);
     }
 
     // wake every waiter so the consumer for this channel re-checks its own queue

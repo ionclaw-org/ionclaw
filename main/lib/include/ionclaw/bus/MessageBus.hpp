@@ -45,6 +45,9 @@ private:
 
     // bounds inbound memory under a flood; a burst beyond this is rejected with a clear error rather than buffered without limit
     static constexpr size_t MAX_INBOUND_QUEUE = 1000;
+
+    // bounds each channel's outbound backlog so a stalled runner cannot grow it without limit
+    static constexpr size_t MAX_OUTBOUND_QUEUE = 1000;
     static constexpr int DEDUP_TTL_SECONDS = 5;
     std::map<std::string, std::chrono::steady_clock::time_point> recentInbound;
     static std::string dedupKey(const InboundMessage &msg);

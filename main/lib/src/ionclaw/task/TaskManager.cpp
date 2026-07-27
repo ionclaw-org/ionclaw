@@ -275,25 +275,15 @@ void TaskManager::load()
 void TaskManager::save()
 {
     // snapshot under data lock, write outside to avoid blocking concurrent callers
-    std::vector<nlohmann::json> snapshots;
-
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        snapshots.reserve(tasks.size());
-
-        for (const auto &pair : tasks)
-        {
-            snapshots.push_back(pair.second.toJson());
-        }
-    }
-
+    // hold both locks in the mutateTask order (data then file) so a concurrent append cannot be lost between snapshot and write
+    std::lock_guard<std::mutex> lock(mutex);
     std::lock_guard<std::mutex> flock(fileMutex);
 
     std::string content;
 
-    for (const auto &j : snapshots)
+    for (const auto &pair : tasks)
     {
-        content += j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) + "\n";
+        content += pair.second.toJson().dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) + "\n";
     }
 
     auto error = ionclaw::util::FileHelper::atomicWrite(tasksFilePath, content);

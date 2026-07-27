@@ -261,7 +261,6 @@ bool SessionManager::addMessage(const std::string &sessionKey, const SessionMess
 
     // hold globalMutex while accessing session to prevent use-after-free from concurrent eviction
     std::string filePath;
-    bool fileExists;
     std::string createdAt;
     std::string updatedAt;
     std::string displayName;
@@ -317,7 +316,6 @@ bool SessionManager::addMessage(const std::string &sessionKey, const SessionMess
         }
 
         filePath = sessionFilePath(sessionKey);
-        fileExists = fs::exists(filePath);
         createdAt = session.createdAt;
         updatedAt = session.updatedAt;
         displayName = session.displayName;
@@ -333,7 +331,8 @@ bool SessionManager::addMessage(const std::string &sessionKey, const SessionMess
         return false;
     }
 
-    if (!fileExists)
+    // write the metadata header when the file is empty, judged from the open handle so a concurrent sweep that removed it still gets a fresh header
+    if (ofs.tellp() == std::streampos(0))
     {
         nlohmann::json meta;
         meta["_type"] = "metadata";
@@ -554,7 +553,6 @@ void SessionManager::clearSession(const std::string &sessionKey)
             it->second.messages.clear();
             it->second.updatedAt = util::TimeHelper::now();
             it->second.liveState = nullptr;
-            it->second.displayName.clear();
 
             key = it->second.key;
             createdAt = it->second.createdAt;
