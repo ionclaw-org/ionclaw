@@ -99,7 +99,7 @@ Open `http://localhost:8080` in your browser. The web panel is served automatica
 - [Llama.cpp Provider](docs/llama.md) — Offline GGUF models via the embedded llama.cpp backend
 - [Apple](docs/apple.md) — Native iOS, tvOS, and watchOS apps (SwiftUI + XcodeGen)
 - [Android](docs/android.md) — Native Android app (Kotlin + Compose) and the distributable aar
-- [Flutter](docs/flutter.md) — Flutter app, release builds, and signing
+- [Flutter](docs/flutter.md) — Flutter desktop app (macOS, Linux, Windows) and release builds
 - [Skills](docs/skills.md) — Creating and managing skills
 - [Tools](docs/tools.md) — Built-in tools reference
 - [MCP](docs/mcp.md) — MCP Server and Client (Model Context Protocol)

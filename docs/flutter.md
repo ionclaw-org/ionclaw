@@ -1,19 +1,17 @@
 # Flutter App
 
-IonClaw includes a native Flutter app for iOS, Android, macOS, Linux, and Windows. The app embeds the full C++ engine via FFI and runs everything locally on the device.
+IonClaw includes a Flutter desktop app for macOS, Linux, and Windows. It embeds the full C++ engine via FFI and runs everything locally. iOS and Android are served by the dedicated native apps (`apps/apple`, `apps/android`), so the Flutter target is desktop only.
 
 ## Requirements
 
-- [Flutter SDK](https://flutter.dev/docs/get-started/install) (stable channel)
-- For iOS: Xcode 15+
-- For Android: Android SDK, NDK, and JDK 17+
+- [Flutter SDK](https://flutter.dev/docs/get-started/install) (stable channel) with desktop support enabled
 - For macOS: Xcode 15+
 
 ## Project Structure
 
 ```
 apps/flutter/
-  plugin/       C++ FFI plugin (platform bindings)
+  plugin/       C++ FFI plugin (desktop platform bindings: linux, macos, windows)
   runner/       Flutter app (UI, screens, routing)
 ```
 
@@ -31,43 +29,13 @@ Each command builds the native library if not already present:
 
 ```bash
 make run-flutter-macos       # macOS
-make run-flutter-ios         # iOS
-make run-flutter-android     # Android
-make run-flutter             # device picker
-make run-flutter-release     # release mode, device picker
+make run-flutter             # device picker (desktop)
+make run-flutter-release     # release mode
 ```
+
+On Linux and Windows, run the app directly with `flutter run -d linux` / `flutter run -d windows` from `apps/flutter/runner` after building the shared library for that platform.
 
 ## Release Builds
-
-### Android
-
-1. Generate the upload keystore (one-time):
-
-```bash
-make android-gen-key
-```
-
-This creates `extras/android/upload-keystore.jks` and `extras/android/upload-certificate.pem`. The keystore is referenced by `apps/flutter/runner/android/key.properties`.
-
-2. Build the release appbundle:
-
-```bash
-make release-android
-```
-
-Output: `apps/flutter/runner/build/app/outputs/bundle/release/app-release.aab`
-
-Upload the `.aab` to Google Play Console. Google Play App Signing re-signs the app with the distribution key — the upload key is only used to authenticate the upload.
-
-### iOS
-
-```bash
-make release-ios
-```
-
-Output: `apps/flutter/runner/build/ios/archive/Runner.xcarchive`
-
-Open the archive in Xcode Organizer to validate and upload to App Store Connect.
 
 ### macOS
 
@@ -77,36 +45,21 @@ make release-macos
 
 Output: `apps/flutter/runner/build/macos/Build/Products/Release/`
 
+Linux and Windows release builds use `flutter build linux` / `flutter build windows` against the shared library built for the host.
+
 ## Native Library Linking
 
-The Flutter plugin loads the C++ shared library via FFI. The Makefile handles building and linking:
+The Flutter plugin loads the C++ shared library via FFI. The Makefile builds and links it:
 
 | Command | Description |
 |---|---|
 | `make link-flutter-macos` | Build macOS `.dylib` and symlink to plugin |
-| `make link-flutter-ios` | Build iOS XCFramework and symlink to plugin |
-| `make link-flutter-android` | Build Android `.so` for all ABIs and copy to plugin |
 | `make link-flutter-web` | Build web client and symlink to plugin for bundling |
 
-The `prepare-flutter-*` targets skip the build if the library already exists. Use `clean-*` followed by `link-flutter-*` to force a rebuild.
-
-## Android Signing
-
-The release signing config is in `apps/flutter/runner/android/key.properties`:
-
-```properties
-storePassword=upload
-keyPassword=upload
-keyAlias=upload
-storeFile=../../../../../extras/android/upload-keystore.jks
-```
-
-The `build.gradle.kts` loads this file dynamically. If `key.properties` is missing, the build falls back to the debug signing config.
+`prepare-flutter-macos` skips the build if the library already exists. Use `clean-lib` followed by `link-flutter-macos` to force a rebuild.
 
 ## Clean
 
 ```bash
 make clean-lib       # Remove macOS shared library build
-make clean-ios       # Remove iOS/XCFramework builds
-make clean-android   # Remove Android builds and jniLibs
 ```

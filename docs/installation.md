@@ -148,4 +148,4 @@ See [Deploy](deploy.md) for detailed instructions per platform.
 
 ## Mobile and Apple platforms
 
-IonClaw runs natively on iOS, tvOS, and watchOS via dedicated SwiftUI apps — see [Apple](apple.md) — and on Android via a native Kotlin/Compose app — see [Android](android.md). It also runs on iOS, Android, macOS, and desktop via the Flutter app — see [Flutter](flutter.md). They all embed the same C++ engine and run everything locally on the device.
+IonClaw runs natively on iOS, tvOS, and watchOS via dedicated SwiftUI apps — see [Apple](apple.md) — and on Android via a native Kotlin/Compose app — see [Android](android.md). On desktop (macOS, Linux, Windows) it runs via the Flutter app — see [Flutter](flutter.md). They all embed the same C++ engine and run everything locally on the device.

@@ -115,33 +115,13 @@ Builds the Docker image and **runs a container** exposing port 8080.
 
 ### `make run-flutter-macos`
 
-Runs the **Flutter app on macOS**. Only builds the native library and web client if they don't already exist (`prepare-flutter-macos`).
-
-### `make run-flutter-ios`
-
-Runs the **Flutter app on iOS**. Only builds the XCFramework if it doesn't already exist (`prepare-flutter-ios`).
-
-### `make run-flutter-android`
-
-Runs the **Flutter app on Android**. Only builds the native libraries and web client if they don't already exist (`prepare-flutter-android`).
+Runs the **Flutter desktop app on macOS**. Only builds the native library and web client if they don't already exist (`prepare-flutter-macos`).
 
 ### `make run-android`
 
 Builds (if needed) the aar via `build-android-aar`, installs the native [Android app](android.md) with `./gradlew installDebug` from `apps/android/app`, and launches it via `adb`.
 
 ## Release Commands
-
-### `make release-android`
-
-Builds the Android native libraries, bundles the web client, and creates a **release appbundle** (`.aab`) for Google Play upload.
-
-Output: `apps/flutter/runner/build/app/outputs/bundle/release/app-release.aab`
-
-### `make release-ios`
-
-Builds the iOS XCFramework, bundles the web client, and creates a **release archive** (`.ipa`) for App Store upload.
-
-Output: `apps/flutter/runner/build/ios/archive/Runner.xcarchive`
 
 ### `make release-macos`
 
@@ -161,18 +141,6 @@ Builds the macOS shared library and web client **only if they don't already exis
 
 To force a rebuild: `make clean-lib link-flutter-macos` and `make clean-web link-flutter-web`.
 
-### `make prepare-flutter-ios`
-
-Builds the iOS XCFramework **only if it doesn't already exist**. Used by `run-flutter-ios` to avoid rebuilding the native library on every Flutter run.
-
-To force a rebuild: `make clean-ios link-flutter-ios`.
-
-### `make prepare-flutter-android`
-
-Builds Android native libraries and web client **only if they don't already exist**. Used by `run-flutter-android`.
-
-To force a rebuild: `make clean-android link-flutter-android`.
-
 ### `make link-flutter-macos`
 
 Creates a **symlink** from the built macOS `libionclaw.dylib` to the Flutter plugin's `macos/` directory. Automatically builds the shared library first.
@@ -180,14 +148,6 @@ Creates a **symlink** from the built macOS `libionclaw.dylib` to the Flutter plu
 ### `make link-flutter-web`
 
 Creates a **symlink** from the built web client to the Flutter plugin's `macos/` directory for resource bundling. Automatically builds the web client first.
-
-### `make link-flutter-ios`
-
-Creates a **symlink** from the built iOS `ionclaw.xcframework` to the Flutter plugin's `ios/` directory. Automatically builds the XCFramework first.
-
-### `make link-flutter-android`
-
-Builds Android native libraries and **copies** the `.so` files to `apps/flutter/plugin/android/src/main/jniLibs/{ABI}/`. Automatically builds all ABIs first.
 
 ### `make link-android`
 
@@ -256,20 +216,7 @@ make build              # build server (release)
 ### Flutter (macOS)
 
 ```bash
-make run-flutter-macos  # builds lib, links, and runs Flutter app
-```
-
-### Flutter (iOS)
-
-```bash
-make run-flutter-ios    # builds xcframework, links, and runs Flutter app
-```
-
-### Flutter (Android)
-
-```bash
-# set NDK path (or export ANDROID_NDK_ROOT)
-make run-flutter-android ANDROID_NDK=/path/to/ndk
+make run-flutter-macos  # builds lib, links, and runs the Flutter desktop app
 ```
 
 ### Native app (Android)
@@ -283,9 +230,7 @@ make run-android ANDROID_NDK=/path/to/ndk         # builds the aar, installs, an
 ### Release builds
 
 ```bash
-make release-android    # builds .aab for Google Play
-make release-ios        # builds .ipa for App Store
-make release-macos      # builds macOS app
+make release-macos      # builds the Flutter macOS app
 ```
 
 ### Full rebuild
