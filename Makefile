@@ -26,7 +26,6 @@ WEB_SRC_DIR             := apps/web
 WEB_OUT_DIR             := main/resources/web
 FLUTTER_PLUGIN_DIR      := apps/flutter/plugin
 FLUTTER_RUNNER_DIR      := apps/flutter/runner
-FLUTTER_ANDROID_JNILIBS := $(FLUTTER_PLUGIN_DIR)/android/src/main/jniLibs
 ANDROID_APP_DIR         := apps/android/app
 ANDROID_LIB_DIR         := apps/android/library
 ANDROID_AAR_JNILIBS     := $(ANDROID_LIB_DIR)/src/main/jniLibs
@@ -78,13 +77,9 @@ help:
 	@echo "  make run-flutter             Build and run Flutter app (device picker)"
 	@echo "  make run-flutter-release     Build and run Flutter app (release, device picker)"
 	@echo "  make run-flutter-macos       Build and run Flutter app (macOS)"
-	@echo "  make run-flutter-ios         Build and run Flutter app (iOS)"
-	@echo "  make run-flutter-android     Build and run Flutter app (Android)"
 	@echo "  make run-android             Build, install and launch the native Android app"
 	@echo ""
 	@echo "Release:"
-	@echo "  make release-android         Build Android appbundle (.aab)"
-	@echo "  make release-ios             Build iOS archive (.ipa)"
 	@echo "  make release-macos           Build macOS app"
 	@echo "  make android-gen-key         Generate Android upload keystore and certificate"
 	@echo ""
@@ -92,16 +87,12 @@ help:
 	@echo "  make setup-web               Install web client npm dependencies"
 	@echo "  make flutter-deps            Install and upgrade Flutter dependencies"
 	@echo "  make prepare-flutter-macos   Build macOS dylib + web (if not present)"
-	@echo "  make prepare-flutter-ios     Build iOS XCFramework (if not present)"
 	@echo "  make prepare-apple           Build XCFramework + generate Apple Xcode project"
 	@echo "  make gen-apple               Generate Apple Xcode project (XcodeGen)"
-	@echo "  make prepare-flutter-android Build Android .so + web (if not present)"
 	@echo "  make prepare-android         Build Android .so for the aar library (if not present)"
 	@echo "  make link-android            Force rebuild Android .so files into the aar library"
 	@echo "  make link-flutter-macos      Force rebuild macOS dylib to Flutter plugin"
 	@echo "  make link-flutter-web        Force rebuild web client to Flutter plugin"
-	@echo "  make link-flutter-ios        Force rebuild iOS XCFramework to Flutter plugin"
-	@echo "  make link-flutter-android    Force rebuild Android .so files to Flutter plugin"
 	@echo ""
 	@echo "Clean:"
 	@echo "  make clean                   Remove all build directories"
@@ -384,7 +375,7 @@ build-all: build-web build build-lib ## Build everything (web + server + shared 
 	@echo "==> All targets built."
 
 .PHONY: build-apple
-build-apple: build-lib build-xcframework link-flutter-macos link-flutter-ios ## Build all Apple targets
+build-apple: build-lib build-xcframework ## Build all Apple targets
 	@echo "==> All Apple targets built."
 
 .PHONY: build-docker
@@ -431,16 +422,6 @@ run-flutter-macos: prepare-flutter-macos ## Build (if needed) and run Flutter ap
 	@echo "==> Running Flutter app (macOS)..."
 	cd $(FLUTTER_RUNNER_DIR) && flutter run -d macos
 
-.PHONY: run-flutter-ios
-run-flutter-ios: prepare-flutter-ios ## Build (if needed) and run Flutter app (iOS)
-	@echo "==> Running Flutter app (iOS)..."
-	cd $(FLUTTER_RUNNER_DIR) && flutter run -d ios
-
-.PHONY: run-flutter-android
-run-flutter-android: prepare-flutter-android ## Build (if needed) and run Flutter app (Android)
-	@echo "==> Running Flutter app (Android)..."
-	cd $(FLUTTER_RUNNER_DIR) && flutter run -d android
-
 .PHONY: run-android
 run-android: build-android-aar ## Build (if needed), install and launch the native Android app
 	@echo "==> Building and installing native Android app..."
@@ -463,11 +444,6 @@ prepare-flutter-macos: ## Build macOS dylib + web client only if not present
 	else echo "==> macOS dylib already built (skip). Use 'make clean-lib link-flutter-macos' to rebuild."; fi
 	@if [ ! -d "$(WEB_OUT_DIR)" ]; then $(MAKE) link-flutter-web; \
 	else echo "==> Web client already built (skip). Use 'make clean-web link-flutter-web' to rebuild."; fi
-
-.PHONY: prepare-flutter-ios
-prepare-flutter-ios: ## Build iOS XCFramework only if not present
-	@if [ ! -d "$(BUILD_XCFRAMEWORK)/ionclaw.xcframework" ]; then $(MAKE) link-flutter-ios; \
-	else echo "==> iOS XCFramework already built (skip). Use 'make clean-ios link-flutter-ios' to rebuild."; fi
 
 .PHONY: gen-apple
 gen-apple: ## Generate the Apple (iOS/tvOS/watchOS) Xcode project via XcodeGen
@@ -494,13 +470,6 @@ build-android-aar: prepare-android ## Assemble the standalone ionclaw aar for di
 	cp $(ANDROID_LIB_DIR)/build/outputs/aar/ionclaw-release.aar $(BUILD_ANDROID_AAR)/ionclaw.aar
 	@echo "==> Done: $(BUILD_ANDROID_AAR)/ionclaw.aar"
 
-.PHONY: prepare-flutter-android
-prepare-flutter-android: ## Build Android .so files only if not present
-	@if [ ! -d "$(FLUTTER_ANDROID_JNILIBS)/arm64-v8a" ]; then $(MAKE) link-flutter-android; \
-	else echo "==> Android libraries already built (skip). Use 'make clean-android link-flutter-android' to rebuild."; fi
-	@if [ ! -d "$(WEB_OUT_DIR)" ]; then $(MAKE) link-flutter-web; \
-	else echo "==> Web client already built (skip). Use 'make clean-web link-flutter-web' to rebuild."; fi
-
 .PHONY: link-flutter-macos
 link-flutter-macos: build-lib ## Symlink macOS dylib to Flutter plugin
 	@echo "==> Linking macOS dylib to Flutter plugin..."
@@ -512,19 +481,6 @@ link-flutter-web: build-web ## Symlink web client to Flutter plugin for bundling
 	@echo "==> Linking web client to Flutter plugin..."
 	ln -sf $$(pwd)/$(WEB_OUT_DIR) $(FLUTTER_PLUGIN_DIR)/macos/web
 	@echo "==> Done: $(FLUTTER_PLUGIN_DIR)/macos/web"
-
-.PHONY: link-flutter-android
-link-flutter-android: build-android ## Copy Android .so files to Flutter plugin jniLibs
-	@echo "==> Copying Android libraries to Flutter plugin..."
-	mkdir -p $(FLUTTER_ANDROID_JNILIBS)/arm64-v8a
-	mkdir -p $(FLUTTER_ANDROID_JNILIBS)/armeabi-v7a
-	mkdir -p $(FLUTTER_ANDROID_JNILIBS)/x86_64
-	mkdir -p $(FLUTTER_ANDROID_JNILIBS)/x86
-	cp $(BUILD_ANDROID_ARM64)/lib/libionclaw.so $(FLUTTER_ANDROID_JNILIBS)/arm64-v8a/
-	cp $(BUILD_ANDROID_ARMV7)/lib/libionclaw.so $(FLUTTER_ANDROID_JNILIBS)/armeabi-v7a/
-	cp $(BUILD_ANDROID_X86_64)/lib/libionclaw.so $(FLUTTER_ANDROID_JNILIBS)/x86_64/
-	cp $(BUILD_ANDROID_X86)/lib/libionclaw.so $(FLUTTER_ANDROID_JNILIBS)/x86/
-	@echo "==> Done: $(FLUTTER_ANDROID_JNILIBS)/"
 
 # the native app ships 64-bit abis only (llama.cpp does not build on 32-bit arm)
 .PHONY: link-android
@@ -539,29 +495,9 @@ link-android: build-android-arm64 build-android-x86_64 ## Copy Android .so files
 	cp $$(find $(ANDROID_NDK)/toolchains/llvm/prebuilt -path '*/lib/linux/x86_64/libomp.so' | head -1) $(ANDROID_AAR_JNILIBS)/x86_64/libomp.so
 	@echo "==> Done: $(ANDROID_AAR_JNILIBS)/"
 
-.PHONY: link-flutter-ios
-link-flutter-ios: build-xcframework ## Symlink iOS XCFramework to Flutter plugin
-	@echo "==> Linking iOS XCFramework to Flutter plugin..."
-	ln -sf $$(pwd)/$(BUILD_XCFRAMEWORK)/ionclaw.xcframework $(FLUTTER_PLUGIN_DIR)/ios/ionclaw.xcframework
-	@echo "==> Done: $(FLUTTER_PLUGIN_DIR)/ios/ionclaw.xcframework"
-
 # ============================================================
 # Release
 # ============================================================
-
-.PHONY: release-android
-release-android: link-flutter-android link-flutter-web ## Build Android release (appbundle)
-	@echo "==> Building Android release (appbundle)..."
-	cd $(FLUTTER_RUNNER_DIR) && flutter build appbundle
-	@echo "==> Done."
-	@echo "Upload: $(FLUTTER_RUNNER_DIR)/build/app/outputs/bundle/release/app-release.aab"
-
-.PHONY: release-ios
-release-ios: link-flutter-ios link-flutter-web ## Build iOS release (ipa)
-	@echo "==> Building iOS release (ipa)..."
-	cd $(FLUTTER_RUNNER_DIR) && flutter build ipa
-	@echo "==> Done."
-	@echo "Open: $(FLUTTER_RUNNER_DIR)/build/ios/archive/Runner.xcarchive"
 
 .PHONY: release-macos
 release-macos: link-flutter-macos link-flutter-web ## Build macOS release
@@ -630,7 +566,6 @@ clean-ios: ## Remove iOS/tvOS/watchOS/XCFramework build directories
 .PHONY: clean-android
 clean-android: ## Remove Android build directories and jniLibs
 	rm -rf $(BUILD_ANDROID_ARM64) $(BUILD_ANDROID_ARMV7) $(BUILD_ANDROID_X86_64) $(BUILD_ANDROID_X86)
-	rm -rf $(FLUTTER_ANDROID_JNILIBS)
 	rm -rf $(ANDROID_AAR_JNILIBS)
 	rm -rf $(BUILD_ANDROID_AAR)
 
@@ -653,13 +588,11 @@ version: ## Set project version: make version V=1.0.0+2
 	SED_INPLACE "s|set(IONCLAW_VERSION \"[^\"]*\"|set(IONCLAW_VERSION \"$$VER\"|" CMakeLists.txt; \
 	SED_INPLACE "s|^version: [0-9].*|version: $$VER+$$BUILD|" apps/flutter/runner/pubspec.yaml; \
 	SED_INPLACE "s|^version: [0-9].*|version: $$VER|" apps/flutter/plugin/pubspec.yaml; \
-	SED_INPLACE "s|^version '[0-9][^']*'|version '$$VER'|" apps/flutter/plugin/android/build.gradle; \
 	SED_INPLACE "s|\"version\": \"[0-9][^\"]*\"|\"version\": \"$$VER\"|" apps/web/package.json; \
 	SED_INPLACE "s|const CACHE_NAME = 'ionclaw_[^']*'|const CACHE_NAME = 'ionclaw_$$VER'|" apps/web/public/sw.js; \
 	echo "  CMakeLists.txt          → $$VER"; \
 	echo "  flutter/runner/pubspec  → $$VER+$$BUILD"; \
 	echo "  flutter/plugin/pubspec  → $$VER"; \
-	echo "  plugin/android/gradle   → $$VER"; \
 	echo "  web/package.json        → $$VER"; \
 	echo "  web/sw.js               → $$VER"; \
 	echo "==> Done."
