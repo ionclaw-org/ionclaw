@@ -56,6 +56,7 @@ private:
     int timeoutSeconds;
     std::map<std::string, std::string> defaultHeaders;
     static bool hasHeaderControlChar(const std::string &text);
+    static void stripSensitiveHeaders(std::map<std::string, std::string> &headers);
     static void applyHeaders(Poco::Net::HTTPRequest &request, const std::map<std::string, std::string> &headers);
     static HttpResponse readResponse(Poco::Net::HTTPResponse &response, std::istream &responseStream);
 };
