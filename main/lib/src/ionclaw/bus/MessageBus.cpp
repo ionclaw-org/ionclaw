@@ -120,14 +120,14 @@ PublishResult MessageBus::publishInbound(const InboundMessage &msg)
         // reject a single session that is flooding faster than the window allows, so it cannot monopolize the shared queue
         if (exceedsSessionRate(msg))
         {
-            spdlog::warn("[MessageBus] session {}:{} exceeded the per-session rate limit, rejecting message", msg.channel, msg.chatId);
+            spdlog::warn("[MessageBus] Session {}:{} exceeded the per-session rate limit, rejecting message", msg.channel, msg.chatId);
             return PublishResult::QueueFull;
         }
 
         // reject once the backlog is saturated so a flood cannot grow memory without bound
         if (inboundQueue.size() >= MAX_INBOUND_QUEUE)
         {
-            spdlog::warn("[MessageBus] inbound queue full ({}), rejecting message from {}:{}", inboundQueue.size(), msg.channel, msg.chatId);
+            spdlog::warn("[MessageBus] Inbound queue full ({}), rejecting message from {}:{}", inboundQueue.size(), msg.channel, msg.chatId);
             return PublishResult::QueueFull;
         }
 

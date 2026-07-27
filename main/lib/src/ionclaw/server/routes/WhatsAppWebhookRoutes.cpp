@@ -32,7 +32,7 @@ void Routes::downloadWhatsAppMedia(ionclaw::channel::WebhookMedia &media, const 
 
         if (info.statusCode < 200 || info.statusCode >= 300)
         {
-            spdlog::error("[Routes] whatsapp meta media info failed: HTTP {}", info.statusCode);
+            spdlog::error("[Routes] Whatsapp meta media info failed: HTTP {}", info.statusCode);
             return;
         }
 
@@ -48,7 +48,7 @@ void Routes::downloadWhatsAppMedia(ionclaw::channel::WebhookMedia &media, const 
         }
         catch (const std::exception &e)
         {
-            spdlog::error("[Routes] whatsapp meta media info parse failed: {}", e.what());
+            spdlog::error("[Routes] Whatsapp meta media info parse failed: {}", e.what());
             return;
         }
     }
@@ -62,7 +62,7 @@ void Routes::downloadWhatsAppMedia(ionclaw::channel::WebhookMedia &media, const 
 
     if (resp.statusCode < 200 || resp.statusCode >= 300 || resp.body.empty())
     {
-        spdlog::error("[Routes] whatsapp media download failed: HTTP {}", resp.statusCode);
+        spdlog::error("[Routes] Whatsapp media download failed: HTTP {}", resp.statusCode);
         return;
     }
 
@@ -85,7 +85,7 @@ void Routes::downloadWhatsAppMedia(ionclaw::channel::WebhookMedia &media, const 
 
     if (!error.empty())
     {
-        spdlog::error("[Routes] whatsapp media save failed: {}", error);
+        spdlog::error("[Routes] Whatsapp media save failed: {}", error);
         return;
     }
 
@@ -206,7 +206,7 @@ void Routes::handleWhatsAppZApiWebhook(Poco::Net::HTTPServerRequest &req, Poco::
     }
     catch (const std::exception &e)
     {
-        spdlog::error("[Routes] z-api webhook error: {}", e.what());
+        spdlog::error("[Routes] Z-api webhook error: {}", e.what());
         sendError(resp, e.what(), 500);
     }
 }
@@ -288,7 +288,7 @@ void Routes::handleWhatsAppMetaWebhook(Poco::Net::HTTPServerRequest &req, Poco::
 
         if (!ionclaw::channel::WhatsAppWebhook::verifyMetaSignature(rawBody, appSecret, signature))
         {
-            spdlog::warn("[Routes] whatsapp meta webhook signature verification failed");
+            spdlog::warn("[Routes] Whatsapp meta webhook signature verification failed");
             resp.setStatus(Poco::Net::HTTPResponse::HTTP_FORBIDDEN);
             sendJson(resp, {{"error", "invalid signature"}});
             return;
@@ -322,7 +322,7 @@ void Routes::handleWhatsAppMetaWebhook(Poco::Net::HTTPServerRequest &req, Poco::
     }
     catch (const std::exception &e)
     {
-        spdlog::error("[Routes] whatsapp meta webhook error: {}", e.what());
+        spdlog::error("[Routes] Whatsapp meta webhook error: {}", e.what());
         sendError(resp, e.what(), 500);
     }
 }

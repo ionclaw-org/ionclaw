@@ -158,7 +158,7 @@ void VectorStore::open(const std::string &embeddingModel)
     }
     catch (const std::exception &e)
     {
-        spdlog::error("[VectorStore] failed to load index '{}', rebuilding: {}", impl->name, e.what());
+        spdlog::error("[VectorStore] Failed to load index '{}', rebuilding: {}", impl->name, e.what());
         impl->space.reset();
         impl->index.reset();
         impl->idToLabel.clear();
@@ -168,7 +168,7 @@ void VectorStore::open(const std::string &embeddingModel)
         return;
     }
 
-    spdlog::info("[VectorStore] opened '{}' with {} entries (model={}, dim={})", impl->name, impl->entries.size(), embeddingModel, impl->dim);
+    spdlog::info("[VectorStore] Opened '{}' with {} entries (model={}, dim={})", impl->name, impl->entries.size(), embeddingModel, impl->dim);
 }
 
 bool VectorStore::isOpen() const
@@ -183,7 +183,7 @@ void VectorStore::add(const std::string &id, const std::string &text, const std:
 
     if (impl->model.empty())
     {
-        spdlog::error("[VectorStore] add called before open");
+        spdlog::error("[VectorStore] Add called before open");
         return;
     }
 
@@ -202,7 +202,7 @@ void VectorStore::add(const std::string &id, const std::string &text, const std:
 
     if (vector.size() != impl->dim)
     {
-        spdlog::error("[VectorStore] vector dimension {} does not match store dimension {}", vector.size(), impl->dim);
+        spdlog::error("[VectorStore] Vector dimension {} does not match store dimension {}", vector.size(), impl->dim);
         return;
     }
 
@@ -326,7 +326,7 @@ void VectorStore::save() const
 
     if (ec)
     {
-        spdlog::error("[VectorStore] failed to create directory '{}': {}", impl->directory, ec.message());
+        spdlog::error("[VectorStore] Failed to create directory '{}': {}", impl->directory, ec.message());
         return;
     }
 
@@ -353,7 +353,7 @@ void VectorStore::save() const
 
     if (!out.is_open())
     {
-        spdlog::error("[VectorStore] failed to write metadata '{}'", metaTmp);
+        spdlog::error("[VectorStore] Failed to write metadata '{}'", metaTmp);
         return;
     }
 
@@ -362,7 +362,7 @@ void VectorStore::save() const
 
     if (!out)
     {
-        spdlog::error("[VectorStore] failed to flush metadata '{}'", metaTmp);
+        spdlog::error("[VectorStore] Failed to flush metadata '{}'", metaTmp);
         return;
     }
 
@@ -371,7 +371,7 @@ void VectorStore::save() const
 
     if (ec)
     {
-        spdlog::error("[VectorStore] failed to commit index '{}': {}", impl->indexPath(), ec.message());
+        spdlog::error("[VectorStore] Failed to commit index '{}': {}", impl->indexPath(), ec.message());
         return;
     }
 
@@ -379,7 +379,7 @@ void VectorStore::save() const
 
     if (ec)
     {
-        spdlog::error("[VectorStore] committed index but failed to commit metadata '{}': {}", impl->metaPath(), ec.message());
+        spdlog::error("[VectorStore] Committed index but failed to commit metadata '{}': {}", impl->metaPath(), ec.message());
     }
 }
 

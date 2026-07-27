@@ -77,7 +77,7 @@ void AgentLoop::sendCommandResponse(const ionclaw::bus::InboundMessage &message,
         }
         catch (const std::exception &e)
         {
-            spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
+            spdlog::warn("[AgentLoop] TaskManager update failed: {}", e.what());
         }
     }
 
@@ -312,13 +312,13 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
         // confine media to the project root so a crafted path cannot exfiltrate arbitrary files
         if (!ionclaw::tool::builtin::ToolHelper::isPathWithinWorkspace(projectRoot, fullPath))
         {
-            spdlog::warn("[AgentLoop] media path escapes project root: {}", path);
+            spdlog::warn("[AgentLoop] Media path escapes project root: {}", path);
             continue;
         }
 
         if (!fs::exists(fullPath) || !fs::is_regular_file(fullPath))
         {
-            spdlog::warn("[AgentLoop] media file not found: {}", fullPath);
+            spdlog::warn("[AgentLoop] Media file not found: {}", fullPath);
             continue;
         }
 
@@ -335,7 +335,7 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
 
             if (!provider)
             {
-                spdlog::warn("[AgentLoop] no provider found for '{}', skipping audio", providerName);
+                spdlog::warn("[AgentLoop] No provider found for '{}', skipping audio", providerName);
                 blocks.push_back({{"type", "warning"}, {"text", "Transcription provider '" + providerName + "' not found. Audio was ignored."}});
                 continue;
             }
@@ -345,7 +345,7 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
 
             if (!f.is_open())
             {
-                spdlog::warn("[AgentLoop] failed to open: {}", fullPath);
+                spdlog::warn("[AgentLoop] Failed to open: {}", fullPath);
                 blocks.push_back({{"type", "warning"}, {"text", "Could not open the audio file '" + path + "' for transcription."}});
                 continue;
             }
@@ -355,7 +355,7 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
 
             if (audioData.empty())
             {
-                spdlog::warn("[AgentLoop] empty audio file: {}", fullPath);
+                spdlog::warn("[AgentLoop] Empty audio file: {}", fullPath);
                 blocks.push_back({{"type", "warning"}, {"text", "The audio file '" + path + "' is empty and could not be transcribed."}});
                 continue;
             }
@@ -375,24 +375,24 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
                 }
                 else
                 {
-                    spdlog::warn("[AgentLoop] empty result for: {}", fullPath);
+                    spdlog::warn("[AgentLoop] Empty result for: {}", fullPath);
                     blocks.push_back({{"type", "warning"}, {"text", "Transcription of the audio file '" + path + "' returned no text (the transcription service may have failed or the audio was silent)."}});
                 }
             }
             catch (const std::exception &e)
             {
-                spdlog::error("[AgentLoop] error: {}", e.what());
+                spdlog::error("[AgentLoop] Error: {}", e.what());
                 blocks.push_back({{"type", "warning"}, {"text", "Transcription of the audio file '" + path + "' failed: " + std::string(e.what())}});
             }
         }
         else
         {
-            spdlog::warn("[AgentLoop] no model configured, skipping audio: {}", fullPath);
+            spdlog::warn("[AgentLoop] No model configured, skipping audio: {}", fullPath);
             blocks.push_back({{"type", "warning"}, {"text", "No transcription model configured. Audio was ignored. Configure it in Settings."}});
         }
     }
 
-    spdlog::debug("[AgentLoop] resolved {} block(s)", blocks.size());
+    spdlog::debug("[AgentLoop] Resolved {} block(s)", blocks.size());
     return blocks;
 }
 
@@ -918,7 +918,7 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
             }
             catch (const std::exception &taskErr)
             {
-                spdlog::warn("[AgentLoop] taskManager update failed: {}", taskErr.what());
+                spdlog::warn("[AgentLoop] TaskManager update failed: {}", taskErr.what());
             }
         }
 
@@ -1040,7 +1040,7 @@ std::string AgentLoop::runAgentLoop(std::vector<ionclaw::provider::Message> &mes
             }
             catch (const std::exception &e)
             {
-                spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
+                spdlog::warn("[AgentLoop] TaskManager update failed: {}", e.what());
             }
         }
 
@@ -1219,7 +1219,7 @@ std::string AgentLoop::runAgentLoop(std::vector<ionclaw::provider::Message> &mes
                 }
                 catch (const std::exception &e)
                 {
-                    spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
+                    spdlog::warn("[AgentLoop] TaskManager update failed: {}", e.what());
                 }
             }
 
@@ -1259,7 +1259,7 @@ std::string AgentLoop::runAgentLoop(std::vector<ionclaw::provider::Message> &mes
                     }
                     catch (const std::exception &e)
                     {
-                        spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
+                        spdlog::warn("[AgentLoop] TaskManager update failed: {}", e.what());
                     }
                 }
 
@@ -1378,7 +1378,7 @@ std::string AgentLoop::runAgentLoop(std::vector<ionclaw::provider::Message> &mes
                     }
                     catch (const std::exception &e)
                     {
-                        spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
+                        spdlog::warn("[AgentLoop] TaskManager update failed: {}", e.what());
                     }
                 }
 
@@ -1434,7 +1434,7 @@ std::string AgentLoop::runAgentLoop(std::vector<ionclaw::provider::Message> &mes
                 }
                 catch (const std::exception &e)
                 {
-                    spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
+                    spdlog::warn("[AgentLoop] TaskManager update failed: {}", e.what());
                 }
             }
 
@@ -1486,7 +1486,7 @@ std::string AgentLoop::runAgentLoop(std::vector<ionclaw::provider::Message> &mes
         }
         catch (const std::exception &e)
         {
-            spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
+            spdlog::warn("[AgentLoop] TaskManager update failed: {}", e.what());
         }
     }
 
@@ -1602,7 +1602,7 @@ StreamResult AgentLoop::consumeStream(const std::vector<ionclaw::provider::Messa
     // diagnostic: log when stream produced no content and no tool calls
     if (contentParts.empty() && result.toolCalls.empty())
     {
-        spdlog::warn("[AgentLoop] consumeStream returned empty: no content, no tool calls (finishReason={})", result.finishReason);
+        spdlog::warn("[AgentLoop] ConsumeStream returned empty: no content, no tool calls (finishReason={})", result.finishReason);
     }
 
     // assemble reasoning

@@ -255,7 +255,7 @@ ToolResult McpClientTool::actionInitialize(const std::string &url, const std::st
     }
     catch (const std::exception &e)
     {
-        spdlog::warn("[McpClientTool] notifications/initialized failed (non-fatal): {}", e.what());
+        spdlog::warn("[McpClientTool] Notifications/initialized failed (non-fatal): {}", e.what());
     }
 
     auto output = nlohmann::json{

@@ -56,7 +56,7 @@ std::vector<std::vector<float>> OpenAiEmbeddingProvider::embed(const std::vector
 {
     if (!context.config)
     {
-        spdlog::error("[OpenAiEmbeddingProvider] no config available");
+        spdlog::error("[OpenAiEmbeddingProvider] No config available");
         return {};
     }
 
@@ -69,7 +69,7 @@ std::vector<std::vector<float>> OpenAiEmbeddingProvider::embed(const std::vector
 
     if (apiKey.empty())
     {
-        spdlog::error("[OpenAiEmbeddingProvider] no API key for provider '{}'", name);
+        spdlog::error("[OpenAiEmbeddingProvider] No API key for provider '{}'", name);
         return {};
     }
 
@@ -77,7 +77,7 @@ std::vector<std::vector<float>> OpenAiEmbeddingProvider::embed(const std::vector
 
     if (baseUrl.empty())
     {
-        spdlog::error("[OpenAiEmbeddingProvider] no base url for provider '{}'", name);
+        spdlog::error("[OpenAiEmbeddingProvider] No base url for provider '{}'", name);
         return {};
     }
 
@@ -104,7 +104,7 @@ std::vector<std::vector<float>> OpenAiEmbeddingProvider::embed(const std::vector
 
     if (json.is_discarded() || !json.contains("data") || !json["data"].is_array())
     {
-        spdlog::error("[OpenAiEmbeddingProvider] malformed embeddings response");
+        spdlog::error("[OpenAiEmbeddingProvider] Malformed embeddings response");
         return {};
     }
 
@@ -117,7 +117,7 @@ std::vector<std::vector<float>> OpenAiEmbeddingProvider::embed(const std::vector
 
         if (index < 0 || index >= static_cast<int>(vectors.size()) || !entry.contains("embedding") || !entry["embedding"].is_array())
         {
-            spdlog::error("[OpenAiEmbeddingProvider] embeddings response entry is out of range or missing its vector");
+            spdlog::error("[OpenAiEmbeddingProvider] Embeddings response entry is out of range or missing its vector");
             return {};
         }
 
@@ -128,7 +128,7 @@ std::vector<std::vector<float>> OpenAiEmbeddingProvider::embed(const std::vector
         {
             if (!value.is_number())
             {
-                spdlog::error("[OpenAiEmbeddingProvider] embeddings response contains a non-numeric element");
+                spdlog::error("[OpenAiEmbeddingProvider] Embeddings response contains a non-numeric element");
                 return {};
             }
 

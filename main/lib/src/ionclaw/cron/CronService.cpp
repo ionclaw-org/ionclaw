@@ -40,7 +40,7 @@ void CronService::start()
         jobCount = jobs.size();
     }
     loopThread = std::thread(&CronService::runLoop, this);
-    spdlog::info("[CronService] started ({} jobs)", jobCount);
+    spdlog::info("[CronService] Started ({} jobs)", jobCount);
 }
 
 void CronService::stop()
@@ -55,7 +55,7 @@ void CronService::stop()
         loopThread.join();
     }
 
-    spdlog::info("[CronService] stopped");
+    spdlog::info("[CronService] Stopped");
 }
 
 CronJob CronService::addJob(const std::string &name, const CronSchedule &schedule, const std::string &message, const std::string &channel, const std::string &to, bool deleteAfterRun)
@@ -77,7 +77,7 @@ CronJob CronService::addJob(const std::string &name, const CronSchedule &schedul
         persist();
     }
 
-    spdlog::info("[CronService] job added: {} (id: {})", name, job.id);
+    spdlog::info("[CronService] Job added: {} (id: {})", name, job.id);
     return job;
 }
 
@@ -96,7 +96,7 @@ bool CronService::removeJob(const std::string &jobId)
 
     jobs.erase(it, jobs.end());
     persist();
-    spdlog::info("[CronService] job removed: {}", jobId);
+    spdlog::info("[CronService] Job removed: {}", jobId);
     return true;
 }
 
@@ -132,7 +132,7 @@ bool CronService::updateJob(const std::string &jobId, const CronJob &patch)
     }
 
     persist();
-    spdlog::info("[CronService] job updated: {}", jobId);
+    spdlog::info("[CronService] Job updated: {}", jobId);
     return true;
 }
 
@@ -165,11 +165,11 @@ void CronService::runLoop()
         }
         catch (const std::exception &e)
         {
-            spdlog::error("[CronService] tick error: {}", e.what());
+            spdlog::error("[CronService] Tick error: {}", e.what());
         }
         catch (...)
         {
-            spdlog::error("[CronService] non-standard exception in run loop");
+            spdlog::error("[CronService] Non-standard exception in run loop");
         }
     }
 }
@@ -195,7 +195,7 @@ void CronService::tick()
             continue;
         }
 
-        spdlog::info("[CronService] executing job: {} (id: {})", job.name, job.id);
+        spdlog::info("[CronService] Executing job: {} (id: {})", job.name, job.id);
 
         // publish inbound message to trigger agent processing
         try
@@ -244,7 +244,7 @@ void CronService::tick()
         }
         catch (const std::exception &e)
         {
-            spdlog::error("[CronService] job {} failed: {}", job.id, e.what());
+            spdlog::error("[CronService] Job {} failed: {}", job.id, e.what());
             job.state.errors++;
             dirty = true;
         }
@@ -287,11 +287,11 @@ void CronService::load()
             jobs.push_back(jobFromJson(jd));
         }
 
-        spdlog::info("[CronService] loaded {} jobs from {}", jobs.size(), storePath);
+        spdlog::info("[CronService] Loaded {} jobs from {}", jobs.size(), storePath);
     }
     catch (const std::exception &e)
     {
-        spdlog::warn("[CronService] failed to load jobs: {}", e.what());
+        spdlog::warn("[CronService] Failed to load jobs: {}", e.what());
     }
 }
 
@@ -332,7 +332,7 @@ void CronService::persist()
     }
     catch (const std::exception &e)
     {
-        spdlog::error("[CronService] failed to persist jobs: {}", e.what());
+        spdlog::error("[CronService] Failed to persist jobs: {}", e.what());
     }
 }
 

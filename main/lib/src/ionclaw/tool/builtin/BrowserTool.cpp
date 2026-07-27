@@ -399,7 +399,7 @@ public:
             }
 
             // process died, reset and re-launch
-            spdlog::warn("[BrowserTool] browser: Chrome process {} is dead, re-launching", pid.load());
+            spdlog::warn("[BrowserTool] Browser: Chrome process {} is dead, re-launching", pid.load());
 
             if (handle != nullptr)
             {
@@ -418,7 +418,7 @@ public:
             }
 
             // process died, reset and re-launch
-            spdlog::warn("[BrowserTool] browser: Chrome process {} is dead, re-launching", pid.load());
+            spdlog::warn("[BrowserTool] Browser: Chrome process {} is dead, re-launching", pid.load());
             pid = 0;
 #endif
         }
@@ -539,13 +539,13 @@ public:
 
                 if (response.statusCode == 200)
                 {
-                    spdlog::info("[BrowserTool] browser: Chrome launched (pid={})", pid.load());
+                    spdlog::info("[BrowserTool] Browser: Chrome launched (pid={})", pid.load());
                     return "";
                 }
             }
             catch (const std::exception &e)
             {
-                spdlog::debug("[BrowserTool] browser: CDP probe attempt {}/{} failed: {}", i + 1, CHROME_LAUNCH_RETRIES, e.what());
+                spdlog::debug("[BrowserTool] Browser: CDP probe attempt {}/{} failed: {}", i + 1, CHROME_LAUNCH_RETRIES, e.what());
             }
         }
 
@@ -560,7 +560,7 @@ public:
 
         if (terminateProcessLocked())
         {
-            spdlog::info("[BrowserTool] browser: Chrome shut down");
+            spdlog::info("[BrowserTool] Browser: Chrome shut down");
         }
     }
 
@@ -728,7 +728,7 @@ public:
             path = "/";
         }
 
-        spdlog::debug("[BrowserTool] browser: CDP connecting to {}:{}{} (from wsUrl={})", host, port, path, socketUrl);
+        spdlog::debug("[BrowserTool] Browser: CDP connecting to {}:{}{} (from wsUrl={})", host, port, path, socketUrl);
 
         for (int attempt = 0; attempt < maxRetries; ++attempt)
         {
@@ -750,7 +750,7 @@ public:
                 socket->setReceiveTimeout(Poco::Timespan(CDP_TIMEOUT_SECONDS, 0));
 
                 connected = true;
-                spdlog::info("[BrowserTool] browser: CDP connected to {}:{}{}", host, port, path);
+                spdlog::info("[BrowserTool] Browser: CDP connected to {}:{}{}", host, port, path);
 
                 // enable required CDP domains
                 sendCommandLocked(cdp::page::Enable);
@@ -762,7 +762,7 @@ public:
             }
             catch (const std::exception &e)
             {
-                spdlog::warn("[BrowserTool] browser: CDP connect attempt {}/{} to {}:{} failed: {}", attempt + 1, maxRetries, host, port, e.what());
+                spdlog::warn("[BrowserTool] Browser: CDP connect attempt {}/{} to {}:{} failed: {}", attempt + 1, maxRetries, host, port, e.what());
                 socket.reset();
                 httpSession.reset();
 
@@ -773,7 +773,7 @@ public:
             }
         }
 
-        spdlog::error("[BrowserTool] browser: CDP connect to {}:{}{} failed after {} attempts", host, port, path, maxRetries);
+        spdlog::error("[BrowserTool] Browser: CDP connect to {}:{}{} failed after {} attempts", host, port, path, maxRetries);
         return false;
     }
 
@@ -843,7 +843,7 @@ public:
         }
         catch (const std::exception &e)
         {
-            spdlog::debug("[BrowserTool] browser: drainEvents error: {}", e.what());
+            spdlog::debug("[BrowserTool] Browser: drainEvents error: {}", e.what());
         }
     }
 
@@ -1327,7 +1327,7 @@ public:
 
             if (response.statusCode != 200)
             {
-                spdlog::warn("[BrowserTool] browser: /json endpoint returned status {}", response.statusCode);
+                spdlog::warn("[BrowserTool] Browser: /json endpoint returned status {}", response.statusCode);
                 return nlohmann::json::array();
             }
 
@@ -1335,7 +1335,7 @@ public:
 
             if (targets.is_discarded())
             {
-                spdlog::warn("[BrowserTool] browser: /json returned invalid JSON");
+                spdlog::warn("[BrowserTool] Browser: /json returned invalid JSON");
                 return nlohmann::json::array();
             }
 
@@ -1357,7 +1357,7 @@ public:
         }
         catch (const std::exception &e)
         {
-            spdlog::warn("[BrowserTool] browser: failed to list tabs: {}", e.what());
+            spdlog::warn("[BrowserTool] Browser: failed to list tabs: {}", e.what());
             return nlohmann::json::array();
         }
     }
@@ -1370,7 +1370,7 @@ public:
 
             if (response.statusCode != 200)
             {
-                spdlog::warn("[BrowserTool] browser: /json/new returned status {}", response.statusCode);
+                spdlog::warn("[BrowserTool] Browser: /json/new returned status {}", response.statusCode);
                 return "";
             }
 
@@ -1378,7 +1378,7 @@ public:
 
             if (result.is_discarded())
             {
-                spdlog::warn("[BrowserTool] browser: /json/new returned invalid JSON");
+                spdlog::warn("[BrowserTool] Browser: /json/new returned invalid JSON");
                 return "";
             }
 
@@ -1394,7 +1394,7 @@ public:
         }
         catch (const std::exception &e)
         {
-            spdlog::warn("[BrowserTool] browser: failed to open tab: {}", e.what());
+            spdlog::warn("[BrowserTool] Browser: failed to open tab: {}", e.what());
             return "";
         }
     }
@@ -1412,12 +1412,12 @@ public:
                 return true;
             }
 
-            spdlog::warn("[BrowserTool] browser: /json/activate returned status {}", response.statusCode);
+            spdlog::warn("[BrowserTool] Browser: /json/activate returned status {}", response.statusCode);
             return false;
         }
         catch (const std::exception &e)
         {
-            spdlog::warn("[BrowserTool] browser: failed to focus tab {}: {}", targetId, e.what());
+            spdlog::warn("[BrowserTool] Browser: failed to focus tab {}: {}", targetId, e.what());
             return false;
         }
     }
@@ -1471,7 +1471,7 @@ public:
         }
         catch (const std::exception &e)
         {
-            spdlog::warn("[BrowserTool] browser: failed to close tab {}: {}", id, e.what());
+            spdlog::warn("[BrowserTool] Browser: failed to close tab {}: {}", id, e.what());
             return false;
         }
     }
@@ -1559,7 +1559,7 @@ private:
                         if (target.value("id", "") == targetId)
                         {
                             targetFound = true;
-                            spdlog::debug("[BrowserTool] browser: found target {} (url={}, type={})", targetId, target.value("url", ""), target.value("type", ""));
+                            spdlog::debug("[BrowserTool] Browser: found target {} (url={}, type={})", targetId, target.value("url", ""), target.value("type", ""));
                             break;
                         }
                     }
@@ -1568,20 +1568,20 @@ private:
         }
         catch (const std::exception &e)
         {
-            spdlog::warn("[BrowserTool] browser: failed to query /json for target {}: {}", targetId, e.what());
+            spdlog::warn("[BrowserTool] Browser: failed to query /json for target {}: {}", targetId, e.what());
             return nullptr;
         }
 
         if (!targetFound)
         {
-            spdlog::warn("[BrowserTool] browser: target {} not found in /json response", targetId);
+            spdlog::warn("[BrowserTool] Browser: target {} not found in /json response", targetId);
             return nullptr;
         }
 
         // construct WebSocket URL deterministically (don't rely on webSocketDebuggerUrl
         // which may be absent in newer Chrome versions or have wrong host/port)
         auto wsUrl = "ws://127.0.0.1:" + std::to_string(CDP_PORT) + "/devtools/page/" + targetId;
-        spdlog::debug("[BrowserTool] browser: connecting to {}", wsUrl);
+        spdlog::debug("[BrowserTool] Browser: connecting to {}", wsUrl);
 
         auto tab = std::make_unique<CdpTab>(wsUrl);
 
@@ -1710,7 +1710,7 @@ static std::string formatPageState(CdpTab &tab)
     }
     catch (const std::exception &e)
     {
-        spdlog::warn("[BrowserTool] browser: failed to get page info: {}", e.what());
+        spdlog::warn("[BrowserTool] Browser: failed to get page info: {}", e.what());
     }
 
     auto ctx = formatTabContext();
@@ -2177,7 +2177,7 @@ static std::string actionNavigate(CdpTab &tab, const std::string &url)
     }
     catch (const std::exception &e)
     {
-        spdlog::warn("[BrowserTool] browser: failed to get page info after navigation: {}", e.what());
+        spdlog::warn("[BrowserTool] Browser: failed to get page info after navigation: {}", e.what());
     }
 
     auto ctx = formatTabContext();
@@ -2236,7 +2236,7 @@ static std::string actionBack(CdpTab &tab)
     }
     catch (const std::exception &e)
     {
-        spdlog::warn("[BrowserTool] browser: failed to get page info after back: {}", e.what());
+        spdlog::warn("[BrowserTool] Browser: failed to get page info after back: {}", e.what());
     }
 
     return "Navigated back to: " + (info.url.empty() ? "(unknown)" : info.url) + (info.title.empty() ? "" : " | Title: \"" + info.title + "\"") + " " + formatTabContext();
@@ -2266,7 +2266,7 @@ static std::string actionForward(CdpTab &tab)
     }
     catch (const std::exception &e)
     {
-        spdlog::warn("[BrowserTool] browser: failed to get page info after forward: {}", e.what());
+        spdlog::warn("[BrowserTool] Browser: failed to get page info after forward: {}", e.what());
     }
 
     return "Navigated forward to: " + (info.url.empty() ? "(unknown)" : info.url) + (info.title.empty() ? "" : " | Title: \"" + info.title + "\"") + " " + formatTabContext();
@@ -2285,7 +2285,7 @@ static std::string actionReload(CdpTab &tab)
     }
     catch (const std::exception &e)
     {
-        spdlog::warn("[BrowserTool] browser: failed to get page info after reload: {}", e.what());
+        spdlog::warn("[BrowserTool] Browser: failed to get page info after reload: {}", e.what());
     }
 
     return "Reloaded: " + (info.url.empty() ? "(unknown)" : info.url) + (info.title.empty() ? "" : " | Title: \"" + info.title + "\"") + " " + formatTabContext();
@@ -3111,7 +3111,7 @@ static std::string actionFill(CdpTab &tab, const nlohmann::json &params)
         if (selector.empty())
         {
             skipped++;
-            spdlog::warn("[BrowserTool] browser: fill skipped field with empty selector");
+            spdlog::warn("[BrowserTool] Browser: fill skipped field with empty selector");
             continue;
         }
 
@@ -4253,7 +4253,7 @@ ToolResult BrowserTool::execute(const nlohmann::json &params, const ToolContext 
     }
     catch (const std::exception &e)
     {
-        spdlog::error("[BrowserTool] browser: action '{}' failed: {}", action, e.what());
+        spdlog::error("[BrowserTool] Browser: action '{}' failed: {}", action, e.what());
 
         // on CDP error, only disconnect the failed tab (not all tabs)
         auto currentId = TabManager::instance().currentTargetId();

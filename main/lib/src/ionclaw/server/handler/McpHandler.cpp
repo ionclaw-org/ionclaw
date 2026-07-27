@@ -261,7 +261,7 @@ void McpHandler::handlePost(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
         }
         catch (const std::exception &e)
         {
-            spdlog::error("[McpHandler] dispatch exception: {}", e.what());
+            spdlog::error("[McpHandler] Dispatch exception: {}", e.what());
             resp.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_OK);
             resp.setContentType("application/json");
             auto &ostr = resp.send();

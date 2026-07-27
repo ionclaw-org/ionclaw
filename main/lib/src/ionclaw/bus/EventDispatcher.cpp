@@ -61,12 +61,12 @@ void EventDispatcher::broadcast(const std::string &eventType, const nlohmann::js
         }
         catch (const std::exception &e)
         {
-            spdlog::error("[EventDispatcher] handler exception: {}", e.what());
+            spdlog::error("[EventDispatcher] Handler exception: {}", e.what());
         }
         catch (...)
         {
             // never let a handler escape, or the broadcasting counter would leak and drain() would hang forever
-            spdlog::error("[EventDispatcher] handler threw a non-standard exception");
+            spdlog::error("[EventDispatcher] Handler threw a non-standard exception");
         }
     }
 
@@ -78,12 +78,12 @@ void EventDispatcher::broadcast(const std::string &eventType, const nlohmann::js
         }
         catch (const std::exception &e)
         {
-            spdlog::error("[EventDispatcher] named handler exception: {}", e.what());
+            spdlog::error("[EventDispatcher] Named handler exception: {}", e.what());
         }
         catch (...)
         {
             // never let a handler escape, or the broadcasting counter would leak and drain() would hang forever
-            spdlog::error("[EventDispatcher] named handler threw a non-standard exception");
+            spdlog::error("[EventDispatcher] Named handler threw a non-standard exception");
         }
     }
 

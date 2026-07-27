@@ -449,7 +449,7 @@ nlohmann::json AnthropicProvider::buildRequestBody(const ChatCompletionRequest &
     // attach tools unless the capability table marks the model as non-function-calling, which would make the request fail
     if (!request.tools.empty() && !ModelCapabilities::supportsFunctionCalling(request.model))
     {
-        spdlog::warn("[AnthropicProvider] model '{}' does not support function calling, dropping {} tool(s) from the request", request.model, request.tools.size());
+        spdlog::warn("[AnthropicProvider] Model '{}' does not support function calling, dropping {} tool(s) from the request", request.model, request.tools.size());
     }
     else if (!request.tools.empty())
     {

@@ -105,7 +105,7 @@ void LlamaEmbeddingProvider::ensureModel(const std::string &modelPath) const
 
     release();
 
-    spdlog::info("[LlamaEmbeddingProvider] loading model: {}", modelPath);
+    spdlog::info("[LlamaEmbeddingProvider] Loading model: {}", modelPath);
 
     auto modelParams = llama_model_default_params();
     model = llama_model_load_from_file(modelPath.c_str(), modelParams);
@@ -134,7 +134,7 @@ void LlamaEmbeddingProvider::ensureModel(const std::string &modelPath) const
     }
 
     loadedModelPath = modelPath;
-    spdlog::info("[LlamaEmbeddingProvider] embedding model ready (n_embd={})", nEmbd);
+    spdlog::info("[LlamaEmbeddingProvider] Embedding model ready (n_embd={})", nEmbd);
 }
 
 std::vector<float> LlamaEmbeddingProvider::embedOne(const std::string &text) const
@@ -166,7 +166,7 @@ std::vector<float> LlamaEmbeddingProvider::embedOne(const std::string &text) con
     if (rc != 0)
     {
         llama_batch_free(batch);
-        spdlog::error("[LlamaEmbeddingProvider] failed to run the model on the input");
+        spdlog::error("[LlamaEmbeddingProvider] Failed to run the model on the input");
         return {};
     }
 
@@ -175,7 +175,7 @@ std::vector<float> LlamaEmbeddingProvider::embedOne(const std::string &text) con
     if (!embeddings)
     {
         llama_batch_free(batch);
-        spdlog::error("[LlamaEmbeddingProvider] model returned no pooled embedding");
+        spdlog::error("[LlamaEmbeddingProvider] Model returned no pooled embedding");
         return {};
     }
 
@@ -196,7 +196,7 @@ std::vector<std::vector<float>> LlamaEmbeddingProvider::embed(const std::vector<
 
     if (modelPath.empty())
     {
-        spdlog::error("[LlamaEmbeddingProvider] no gguf model matches '{}'", context.model);
+        spdlog::error("[LlamaEmbeddingProvider] No gguf model matches '{}'", context.model);
         return {};
     }
 

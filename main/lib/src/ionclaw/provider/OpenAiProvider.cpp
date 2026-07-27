@@ -446,7 +446,7 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
     // a model the capability table marks as non-function-calling rejects a tools payload, so drop it with a clear warning
     if (!request.tools.empty() && !ModelCapabilities::supportsFunctionCalling(request.model))
     {
-        spdlog::warn("[OpenAiProvider] model '{}' does not support function calling, dropping {} tool(s) from the request", request.model, request.tools.size());
+        spdlog::warn("[OpenAiProvider] Model '{}' does not support function calling, dropping {} tool(s) from the request", request.model, request.tools.size());
     }
     // wrap tools in openai function format
     else if (!request.tools.empty())

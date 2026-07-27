@@ -431,7 +431,7 @@ nlohmann::json McpDispatcher::toolChat(const std::string &sessionId, const nlohm
 
     auto sessionKey = std::string(MCP_CHANNEL) + ":" + chatId;
 
-    spdlog::info("[McpDispatcher] chat tool called (session: {}, streaming: {})", sessionKey, sseCallback ? "yes" : "no");
+    spdlog::info("[McpDispatcher] Chat tool called (session: {}, streaming: {})", sessionKey, sseCallback ? "yes" : "no");
 
     // create task for tracking
     auto taskTitle = ionclaw::util::StringHelper::utf8SafeTruncate(message, 100);

@@ -233,7 +233,7 @@ void TelegramRunner::start()
     }
     catch (const std::exception &e)
     {
-        spdlog::warn("[TelegramRunner] deleteWebhook failed: {}", e.what());
+        spdlog::warn("[TelegramRunner] DeleteWebhook failed: {}", e.what());
     }
 
     // validate bot token on startup
@@ -397,7 +397,7 @@ void TelegramRunner::sendTypingAction(const std::string &chatId)
     }
     catch (const std::exception &e)
     {
-        spdlog::debug("[TelegramRunner] sendChatAction failed: {}", e.what());
+        spdlog::debug("[TelegramRunner] SendChatAction failed: {}", e.what());
     }
 }
 
@@ -621,7 +621,7 @@ void TelegramRunner::sendTextMessage(const std::string &chatId, const std::strin
     catch (const std::exception &firstErr)
     {
         std::string err = firstErr.what();
-        spdlog::error("[TelegramRunner] sendMessage failed for chatId={}: {}", chatId, err);
+        spdlog::error("[TelegramRunner] SendMessage failed for chatId={}: {}", chatId, err);
 
         // chat not found = user never sent /start to the bot
         if (err.find("chat not found") != std::string::npos)
@@ -1083,7 +1083,7 @@ void TelegramRunner::outboundLoop()
 
                 if (url.empty())
                 {
-                    spdlog::error("[TelegramRunner] cannot send media '{}' to {}: server.public_url is not configured", part.mediaPath, chatId);
+                    spdlog::error("[TelegramRunner] Cannot send media '{}' to {}: server.public_url is not configured", part.mediaPath, chatId);
                     continue;
                 }
 

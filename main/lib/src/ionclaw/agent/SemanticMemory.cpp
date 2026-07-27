@@ -183,7 +183,7 @@ void SemanticMemory::sync()
 
         if (vectors.size() != chunks.size())
         {
-            spdlog::error("[SemanticMemory] embedding failed for '{}', it will be retried on the next search", path);
+            spdlog::error("[SemanticMemory] Embedding failed for '{}', it will be retried on the next search", path);
             continue;
         }
 

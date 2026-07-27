@@ -674,7 +674,7 @@ ChatCompletionResponse ClaudeCliProvider::invokeCli(const std::string &prompt, c
     if (process.exitCode != 0)
     {
         auto safe = ProviderHelper::sanitizeErrorMessage(output);
-        spdlog::error("[ClaudeCliProvider] cli failed (exit {}): {}", process.exitCode, safe);
+        spdlog::error("[ClaudeCliProvider] Cli failed (exit {}): {}", process.exitCode, safe);
         throw std::runtime_error("[ClaudeCliProvider] claude cli failed (exit " + std::to_string(process.exitCode) + "): " + ionclaw::util::StringHelper::utf8SafeTruncate(safe, 500));
     }
 

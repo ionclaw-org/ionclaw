@@ -21,7 +21,7 @@ void ModelCapabilities::ensureLoaded()
 
         if (raw.empty())
         {
-            spdlog::warn("[ModelCapabilities] capability table is empty");
+            spdlog::warn("[ModelCapabilities] Capability table is empty");
             return;
         }
 
@@ -57,11 +57,11 @@ void ModelCapabilities::ensureLoaded()
                 table[it.key()] = std::move(info);
             }
 
-            spdlog::info("[ModelCapabilities] loaded {} models", table.size());
+            spdlog::info("[ModelCapabilities] Loaded {} models", table.size());
         }
         catch (const std::exception &e)
         {
-            spdlog::error("[ModelCapabilities] failed to parse capability table: {}", e.what());
+            spdlog::error("[ModelCapabilities] Failed to parse capability table: {}", e.what());
         }
     });
     // clang-format on

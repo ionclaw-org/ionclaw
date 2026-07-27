@@ -40,6 +40,12 @@ Code and comments are in English. The code must read as if an experienced produc
 - If a comment needs more than one line, finish each sentence with punctuation before the next line. Never continue one sentence onto the next line, and keep comments objective and natural rather than verbose or narrative.
 - In a complex method, a short one-line comment can mark the intent of each meaningful block.
 
+### Logging
+
+- Every log message carries a `[Component]` prefix in PascalCase, e.g. `[BrowserTool]`, `[VectorStore]`, matching the class or subsystem that emits it.
+- The message after the prefix starts with a capital letter and reads as a sentence: `spdlog::warn("[AgentLoop] No provider found for '{}'", name)`. This is the opposite of the lowercase rule for `//` comments, which never carry a prefix.
+- Report every failure the operator or the AI must see; never swallow it. Keep the message objective and free of semicolon-split clauses, same as comments.
+
 ### Formatting and flow
 
 - Preserve the project's existing visual, structural, and architectural pattern. Keep it compact, professional, and consistent.

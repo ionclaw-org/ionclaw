@@ -235,7 +235,7 @@ bool SessionQueue::enqueue(const std::string &sessionKey, const InboundMessage &
 
     if (state.items.size() >= HARD_QUEUE_CEILING)
     {
-        spdlog::warn("[SessionQueue] hard queue ceiling {} reached for {}, rejecting {} message", HARD_QUEUE_CEILING, sessionKey, queueModeToString(mode));
+        spdlog::warn("[SessionQueue] Hard queue ceiling {} reached for {}, rejecting {} message", HARD_QUEUE_CEILING, sessionKey, queueModeToString(mode));
         return false;
     }
 

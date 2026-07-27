@@ -104,7 +104,7 @@ TranscriptionResult OpenAITranscriptionProvider::transcribe(const std::string &a
 {
     if (!context.config)
     {
-        spdlog::error("[OpenAITranscriptionProvider] no config available");
+        spdlog::error("[OpenAITranscriptionProvider] No config available");
         return {};
     }
 
@@ -112,7 +112,7 @@ TranscriptionResult OpenAITranscriptionProvider::transcribe(const std::string &a
 
     if (apiKey.empty())
     {
-        spdlog::error("[OpenAITranscriptionProvider] no API key for provider '{}'", name);
+        spdlog::error("[OpenAITranscriptionProvider] No API key for provider '{}'", name);
         return {};
     }
 
@@ -128,7 +128,7 @@ TranscriptionResult OpenAITranscriptionProvider::transcribe(const std::string &a
         urlStr = baseUrl + "v1/audio/transcriptions";
     }
 
-    spdlog::info("[OpenAITranscriptionProvider] calling {} with model '{}' ({} bytes audio)", urlStr, modelId, audioData.size());
+    spdlog::info("[OpenAITranscriptionProvider] Calling {} with model '{}' ({} bytes audio)", urlStr, modelId, audioData.size());
 
     Poco::URI uri(urlStr);
     auto host = uri.getHost();
@@ -209,13 +209,13 @@ TranscriptionResult OpenAITranscriptionProvider::transcribe(const std::string &a
         result.language = json.value("language", "");
         result.durationSeconds = json.value("duration", 0.0);
 
-        spdlog::info("[OpenAITranscriptionProvider] transcribed {} seconds of audio (lang={}): {}", result.durationSeconds, result.language, ionclaw::util::StringHelper::utf8SafeTruncate(result.text, 100));
+        spdlog::info("[OpenAITranscriptionProvider] Transcribed {} seconds of audio (lang={}): {}", result.durationSeconds, result.language, ionclaw::util::StringHelper::utf8SafeTruncate(result.text, 100));
 
         return result;
     }
     catch (const std::exception &e)
     {
-        spdlog::error("[OpenAITranscriptionProvider] failed to parse response: {}", e.what());
+        spdlog::error("[OpenAITranscriptionProvider] Failed to parse response: {}", e.what());
         return {};
     }
 }

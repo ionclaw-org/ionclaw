@@ -233,7 +233,7 @@ nlohmann::json ProviderHelper::repairJsonArgs(const std::string &args)
         }
     }
 
-    spdlog::warn("[ProviderHelper] failed to repair JSON args: {}", ionclaw::util::StringHelper::utf8SafeTruncate(args, 200));
+    spdlog::warn("[ProviderHelper] Failed to repair JSON args: {}", ionclaw::util::StringHelper::utf8SafeTruncate(args, 200));
     return nlohmann::json::object();
 }
 

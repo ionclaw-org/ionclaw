@@ -202,7 +202,7 @@ int64_t CronParser::nextRun(const std::string &expr, const std::string &tz)
 
     if (fieldCount != 5)
     {
-        spdlog::warn("[CronParser] invalid cron expression (need 5 fields): {}", expr);
+        spdlog::warn("[CronParser] Invalid cron expression (need 5 fields): {}", expr);
         auto now = std::chrono::system_clock::now();
         return std::chrono::duration_cast<std::chrono::milliseconds>((now + std::chrono::minutes(1)).time_since_epoch()).count();
     }
@@ -279,7 +279,7 @@ int64_t CronParser::nextRun(const std::string &expr, const std::string &tz)
     }
     catch (const std::exception &e)
     {
-        spdlog::warn("[CronParser] unknown timezone '{}', using system local: {}", tz, e.what());
+        spdlog::warn("[CronParser] Unknown timezone '{}', using system local: {}", tz, e.what());
         zone = date::current_zone();
     }
 
@@ -347,7 +347,7 @@ int64_t CronParser::nextRun(const std::string &expr, const std::string &tz)
 #endif
 
     // no match found within a year, fall back to one hour from now
-    spdlog::warn("[CronParser] no match found for cron expression: {}", expr);
+    spdlog::warn("[CronParser] No match found for cron expression: {}", expr);
     auto fallback = std::chrono::system_clock::now() + std::chrono::hours(1);
     return std::chrono::duration_cast<std::chrono::milliseconds>(fallback.time_since_epoch()).count();
 }

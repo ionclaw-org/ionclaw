@@ -173,7 +173,7 @@ std::string GrokImageGenerator::editImage(const std::string &prompt, const std::
 
     if (imageEntries.empty())
     {
-        spdlog::warn("[GrokImageGenerator] no valid reference images resolved, falling back to generation");
+        spdlog::warn("[GrokImageGenerator] No valid reference images resolved, falling back to generation");
         return generateImage(prompt, filename, params, context, apiKey, baseUrl);
     }
 

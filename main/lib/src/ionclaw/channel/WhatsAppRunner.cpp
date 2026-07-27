@@ -36,7 +36,7 @@ void WhatsAppRunner::start()
     }
 
     outboundThread = std::thread(&WhatsAppRunner::outboundLoop, this);
-    spdlog::info("[WhatsAppRunner] started");
+    spdlog::info("[WhatsAppRunner] Started");
 }
 
 void WhatsAppRunner::stop()
@@ -51,7 +51,7 @@ void WhatsAppRunner::stop()
         outboundThread.join();
     }
 
-    spdlog::info("[WhatsAppRunner] stopped");
+    spdlog::info("[WhatsAppRunner] Stopped");
 }
 
 std::vector<std::string> WhatsAppRunner::splitMessage(const std::string &text, size_t maxChars)
@@ -100,7 +100,7 @@ void WhatsAppRunner::outboundLoop()
         }
         catch (const std::exception &e)
         {
-            spdlog::error("[WhatsAppRunner] outbound error: {}", e.what());
+            spdlog::error("[WhatsAppRunner] Outbound error: {}", e.what());
         }
     }
 }
@@ -149,7 +149,7 @@ void WhatsAppRunner::execute(const OutboundRequest &req, const std::string &chat
 
     if (resp.statusCode < 200 || resp.statusCode >= 300)
     {
-        spdlog::error("[WhatsAppRunner] send to {} failed: HTTP {} {}", chatId, resp.statusCode, resp.body);
+        spdlog::error("[WhatsAppRunner] Send to {} failed: HTTP {} {}", chatId, resp.statusCode, resp.body);
     }
 }
 
@@ -169,7 +169,7 @@ void WhatsAppRunner::send(const ionclaw::bus::OutboundMessage &msg)
 
     if (!useMeta && !useZApi)
     {
-        spdlog::warn("[WhatsAppRunner] no whatsapp provider is enabled, dropping reply to {}", msg.chatId);
+        spdlog::warn("[WhatsAppRunner] No whatsapp provider is enabled, dropping reply to {}", msg.chatId);
         return;
     }
 
@@ -208,7 +208,7 @@ void WhatsAppRunner::send(const ionclaw::bus::OutboundMessage &msg)
 
         if (url.empty())
         {
-            spdlog::error("[WhatsAppRunner] cannot send media '{}' to {}: server.public_url is not configured", part.mediaPath, msg.chatId);
+            spdlog::error("[WhatsAppRunner] Cannot send media '{}' to {}: server.public_url is not configured", part.mediaPath, msg.chatId);
             continue;
         }
 
