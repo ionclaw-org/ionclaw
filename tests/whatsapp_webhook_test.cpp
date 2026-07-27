@@ -133,3 +133,33 @@ TEST_CASE("meta signature verification matches a canonical hmac-sha256 vector")
     CHECK_FALSE(WhatsAppWebhook::verifyMetaSignature(body, secret, good.substr(7))); // missing sha256= prefix
     CHECK_FALSE(WhatsAppWebhook::verifyMetaSignature(body, "", good));
 }
+
+TEST_CASE("z-api parser survives null and wrong-typed fields")
+{
+    // present-but-null or wrong-typed fields must not throw, they are simply ignored
+    CHECK_NOTHROW(WhatsAppWebhook::parseZApi(nlohmann::json::parse(R"({"phone":null})")));
+    CHECK_NOTHROW(WhatsAppWebhook::parseZApi(nlohmann::json::parse(R"({"phone":12345})")));
+    CHECK_NOTHROW(WhatsAppWebhook::parseZApi(nlohmann::json::parse(R"({"phone":"5511","text":null})")));
+    CHECK_NOTHROW(WhatsAppWebhook::parseZApi(nlohmann::json::parse(R"({"phone":"5511","text":"not-an-object"})")));
+    CHECK_NOTHROW(WhatsAppWebhook::parseZApi(nlohmann::json::parse(R"({"phone":"5511","image":null})")));
+    CHECK_NOTHROW(WhatsAppWebhook::parseZApi(nlohmann::json::parse("[]")));
+    CHECK_NOTHROW(WhatsAppWebhook::parseZApi(nlohmann::json::parse("\"string-body\"")));
+
+    // a body with no usable content is not a valid inbound message
+    CHECK_FALSE(WhatsAppWebhook::parseZApi(nlohmann::json::parse(R"({"phone":"5511"})")).valid);
+    CHECK_FALSE(WhatsAppWebhook::parseZApi(nlohmann::json::parse(R"({"fromMe":true})")).valid);
+}
+
+TEST_CASE("meta parser survives malformed envelopes")
+{
+    // every level guards its type, so a garbage envelope yields an empty list rather than a throw
+    CHECK_NOTHROW(WhatsAppWebhook::parseMeta(nlohmann::json::parse(R"({"entry":null})")));
+    CHECK_NOTHROW(WhatsAppWebhook::parseMeta(nlohmann::json::parse(R"({"entry":"x"})")));
+    CHECK_NOTHROW(WhatsAppWebhook::parseMeta(nlohmann::json::parse(R"({"entry":[{"changes":null}]})")));
+    CHECK_NOTHROW(WhatsAppWebhook::parseMeta(nlohmann::json::parse(R"({"entry":[{"changes":[{"value":null}]}]})")));
+    CHECK_NOTHROW(WhatsAppWebhook::parseMeta(nlohmann::json::parse(R"({"entry":[{"changes":[{"value":{"messages":"x"}}]}]})")));
+    CHECK_NOTHROW(WhatsAppWebhook::parseMeta(nlohmann::json::parse(R"({"entry":[{"changes":[{"value":{"contacts":null,"messages":[{"type":null}]}}]}]})")));
+    CHECK_NOTHROW(WhatsAppWebhook::parseMeta(nlohmann::json::parse("[]")));
+
+    CHECK(WhatsAppWebhook::parseMeta(nlohmann::json::parse(R"({"entry":null})")).empty());
+}

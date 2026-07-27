@@ -21,6 +21,16 @@ set(IONCLAW_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/delivery_parser_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/message_bus_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/usage_tracker_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/text_chunker_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/time_helper_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ssrf_guard_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/crypto_helper_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/environment_helper_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/session_queue_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/subagent_registry_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/task_manager_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/vector_store_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/heartbeat_service_test.cpp
 )
 
 add_executable(ionclaw-tests ${IONCLAW_TEST_SOURCES})

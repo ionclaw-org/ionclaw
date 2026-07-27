@@ -7,7 +7,7 @@ Dependencies come through CPM: Poco (HTTP/TLS/XML/Zip), nlohmann/json, yaml-cpp,
 ## Build and test
 
 - `make build` — release server (`build/bin/ionclaw-server`).
-- `make test` — configure with `-DIONCLAW_BUILD_TESTS=ON` and run the doctest suite (`build/bin/ionclaw-tests`).
+- `make test` — configure with `-DIONCLAW_BUILD_TESTS=ON` and run the doctest suite (`build/bin/ionclaw-tests`). The suite covers pure helpers, internal-state round-trips, and stress/concurrency cases (many-thread producers/consumers, lock-scope races, persistence under concurrent writers). Add a test file to `tests/`, list it in `tests/CMakeLists.txt`, and keep every fix covered by a regression case. doctest cannot decompose `&&`/`||` inside `CHECK` — assign to a bool first. Guard any potential-infinite-loop regression with a `std::async` + `wait_for` timeout so a regression fails instead of hanging CI.
 - `make build-web` — Vue client into `main/resources/web` (gitignored, embedded via CMake). Rebuild it before a cmake build when the web changed, then re-run cmake so the embed picks up the new asset hashes.
 - `make build-lib` / `make build-xcframework` / `make build-android` — shared-library targets.
 
