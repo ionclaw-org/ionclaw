@@ -360,12 +360,26 @@ void VectorStore::save() const
     out << meta.dump();
     out.close();
 
+    if (!out)
+    {
+        spdlog::error("[VectorStore] failed to flush metadata '{}'", metaTmp);
+        return;
+    }
+
+    // commit the index first, and only publish the matching metadata once the index is live so the two never diverge
     fs::rename(indexTmp, impl->indexPath(), ec);
+
+    if (ec)
+    {
+        spdlog::error("[VectorStore] failed to commit index '{}': {}", impl->indexPath(), ec.message());
+        return;
+    }
+
     fs::rename(metaTmp, impl->metaPath(), ec);
 
     if (ec)
     {
-        spdlog::error("[VectorStore] failed to commit index files: {}", ec.message());
+        spdlog::error("[VectorStore] committed index but failed to commit metadata '{}': {}", impl->metaPath(), ec.message());
     }
 }
 

@@ -159,22 +159,27 @@ std::string GeminiImageGenerator::generateContent(const std::string &prompt, con
         return "Error: failed to parse image generation response";
     }
 
-    auto candidates = json.value("candidates", nlohmann::json::array());
-
-    if (candidates.empty())
+    // check the type at each level: operator[] with a string key throws on a non-object, non-null value
+    if (!json.is_object() || !json["candidates"].is_array() || json["candidates"].empty())
     {
         return "Error: no candidates in response";
     }
 
-    auto content = candidates[0].value("content", nlohmann::json::object());
-    auto respParts = content.value("parts", nlohmann::json::array());
+    auto &content = json["candidates"][0];
+    bool hasParts = content.is_object() && content["content"].is_object() && content["content"]["parts"].is_array();
+
+    if (!hasParts)
+    {
+        return "Error: no image data in response (check model supports image generation)";
+    }
+
     std::string b64;
 
-    for (const auto &part : respParts)
+    for (auto &part : content["content"]["parts"])
     {
-        if (part.contains("inlineData"))
+        if (part.is_object() && part["inlineData"].is_object() && part["inlineData"]["data"].is_string())
         {
-            b64 = part["inlineData"].value("data", "");
+            b64 = part["inlineData"]["data"].get<std::string>();
             break;
         }
     }
@@ -251,19 +256,19 @@ std::string GeminiImageGenerator::predict(const std::string &prompt, const std::
     }
 
     // imagen response: predictions[0].bytesBase64Encoded
-    auto predictions = json.value("predictions", nlohmann::json::array());
-
-    if (predictions.empty())
+    if (!json.is_object() || !json["predictions"].is_array() || json["predictions"].empty())
     {
         return "Error: no predictions in response";
     }
 
-    std::string b64 = predictions[0].value("bytesBase64Encoded", "");
+    auto &firstPrediction = json["predictions"][0];
 
-    if (b64.empty())
+    if (!firstPrediction.is_object() || !firstPrediction["bytesBase64Encoded"].is_string())
     {
         return "Error: no image data in Imagen response";
     }
+
+    std::string b64 = firstPrediction["bytesBase64Encoded"].get<std::string>();
 
     std::string imageData = util::Base64::decode(b64);
     std::string saved = ImageGeneratorHelper::saveToPublicMedia(imageData, context.publicPath, filename, context.config->server.publicUrl);

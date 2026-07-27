@@ -156,21 +156,21 @@ std::string ImageGeneratorHelper::decodeAndSave(const std::string &responseBody,
         return "";
     }
 
-    auto data = json.value("data", nlohmann::json::array());
-
-    if (data.empty())
+    if (!json.is_object() || !json["data"].is_array() || json["data"].empty())
     {
         spdlog::error("[ImageGeneratorHelper] No image data in response");
         return "";
     }
 
-    std::string b64 = data[0].value("b64_json", "");
+    auto &first = json["data"][0];
 
-    if (b64.empty())
+    if (!first.is_object() || !first["b64_json"].is_string() || first["b64_json"].get<std::string>().empty())
     {
         spdlog::error("[ImageGeneratorHelper] No base64 image data in response");
         return "";
     }
+
+    std::string b64 = first["b64_json"].get<std::string>();
 
     std::string imageData = util::Base64::decode(b64);
     return saveToPublicMedia(imageData, publicPath, filename, publicUrl);
