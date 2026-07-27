@@ -223,7 +223,9 @@ constexpr int MAX_BROWSER_RESULT_CHARS = 100000; // safety cap for any browser t
 constexpr int CHROME_LAUNCH_RETRIES = 30;
 constexpr int CHROME_LAUNCH_RETRY_MS = 200;
 constexpr int EVENT_DRAIN_TIMEOUT_MS = 100;
-constexpr size_t WS_BUFFER_SIZE = 8388608; // 8MB — screenshots return large base64 payloads
+constexpr int EVENT_DRAIN_TOTAL_MS = 2000;                  // overall budget so a chatty page cannot stall the drain forever
+constexpr size_t WS_BUFFER_SIZE = 8388608;                  // 8MB — screenshots return large base64 payloads
+constexpr size_t MAX_CDP_MESSAGE_BYTES = 96UL * 1024 * 1024; // hard ceiling on a single reassembled CDP message
 
 // ── key definitions ────────────────────────────────────────────────────────
 
@@ -344,19 +346,40 @@ public:
 #ifdef _WIN32
         // the tracked process handle tells us whether the browser we launched is still alive
         auto handle = chromeProcess.load();
-        return handle != nullptr && WaitForSingleObject(handle, 0) == WAIT_TIMEOUT;
+
+        if (handle != nullptr && WaitForSingleObject(handle, 0) == WAIT_TIMEOUT)
+        {
+            return true;
+        }
+
+        // the process is gone, so forget it and let the next launch start fresh
+        if (handle != nullptr)
+        {
+            CloseHandle(handle);
+            chromeProcess = nullptr;
+        }
+
+        pid = 0;
+        return false;
 #elif defined(__ANDROID__) || defined(IONCLAW_NO_PROCESS_EXEC)
         return false;
 #else
-        // reap the child if it has exited so a zombie is not misread as still running by kill(pid, 0)
+        // reap the child if it has exited and forget its pid so a recycled pid can never be misread as the browser
         int status = 0;
 
         if (waitpid(static_cast<pid_t>(pid.load()), &status, WNOHANG) == static_cast<pid_t>(pid.load()))
         {
+            pid = 0;
             return false;
         }
 
-        return kill(static_cast<pid_t>(pid.load()), 0) == 0;
+        if (kill(static_cast<pid_t>(pid.load()), 0) != 0)
+        {
+            pid = 0;
+            return false;
+        }
+
+        return true;
 #endif
     }
 
@@ -526,6 +549,8 @@ public:
             }
         }
 
+        // the browser never opened its debug port, so kill it instead of leaving an orphan that wedges every later launch
+        terminateProcessLocked();
         return "Error: Chrome launched but CDP endpoint not responding on port " + std::to_string(CDP_PORT);
     }
 
@@ -533,25 +558,8 @@ public:
     {
         std::lock_guard<std::mutex> lock(mutex);
 
-        if (pid > 0)
+        if (terminateProcessLocked())
         {
-#ifdef _WIN32
-            // terminate only the browser we launched, not every chrome on the machine
-            if (auto handle = chromeProcess.load())
-            {
-                TerminateProcess(handle, 0);
-                CloseHandle(handle);
-                chromeProcess = nullptr;
-            }
-#elif !defined(__ANDROID__) && !defined(IONCLAW_NO_PROCESS_EXEC)
-            auto childPid = static_cast<pid_t>(pid.load());
-            kill(childPid, SIGTERM);
-
-            // reap the terminated child so it does not linger as a zombie
-            int status = 0;
-            waitpid(childPid, &status, 0);
-#endif
-            pid = 0;
             spdlog::info("[BrowserTool] browser: Chrome shut down");
         }
     }
@@ -559,6 +567,34 @@ public:
 private:
     ChromeManager() = default;
     ~ChromeManager() { shutdown(); }
+
+    // terminate the browser we launched and forget it; caller must hold mutex
+    bool terminateProcessLocked()
+    {
+        if (pid <= 0)
+        {
+            return false;
+        }
+
+#ifdef _WIN32
+        // terminate only the browser we launched, not every chrome on the machine
+        if (auto handle = chromeProcess.load())
+        {
+            TerminateProcess(handle, 0);
+            CloseHandle(handle);
+            chromeProcess = nullptr;
+        }
+#elif !defined(__ANDROID__) && !defined(IONCLAW_NO_PROCESS_EXEC)
+        auto childPid = static_cast<pid_t>(pid.load());
+        kill(childPid, SIGTERM);
+
+        // reap the terminated child so it does not linger as a zombie
+        int status = 0;
+        waitpid(childPid, &status, 0);
+#endif
+        pid = 0;
+        return true;
+    }
 
     std::string findChrome()
     {
@@ -648,12 +684,12 @@ private:
     }
 #endif
 
-    std::atomic<int> pid{0};
+    mutable std::atomic<int> pid{0};
     std::mutex mutex;
 
 #ifdef _WIN32
     // handle to the chrome process we launched, so shutdown can target it directly
-    std::atomic<void *> chromeProcess{nullptr};
+    mutable std::atomic<void *> chromeProcess{nullptr};
 #endif
 };
 
@@ -772,7 +808,9 @@ public:
             socket->setReceiveTimeout(Poco::Timespan(0, EVENT_DRAIN_TIMEOUT_MS * 1000));
             int flags;
 
-            while (true)
+            auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(EVENT_DRAIN_TOTAL_MS);
+
+            while (std::chrono::steady_clock::now() < deadline)
             {
                 try
                 {
@@ -968,25 +1006,11 @@ private:
 
         int flags;
 
-        while (true)
+        // bound the whole call so a page that streams events without our response ever arriving cannot spin here forever
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(CDP_TIMEOUT_SECONDS);
+
+        while (std::chrono::steady_clock::now() < deadline)
         {
-            // check if a recursive call (via processEventLocked) already buffered our response
-            auto buffered = pendingResponses.find(id);
-
-            if (buffered != pendingResponses.end())
-            {
-                auto resp = std::move(buffered->second);
-                pendingResponses.erase(buffered);
-
-                if (resp.contains("error"))
-                {
-                    auto errorMsg = resp["error"].value("message", "unknown CDP error");
-                    throw std::runtime_error("[BrowserTool] CDP error: " + errorMsg);
-                }
-
-                return resp.value("result", nlohmann::json::object());
-            }
-
             std::string assembled;
 
             do
@@ -1007,6 +1031,12 @@ private:
                 }
 
                 assembled.append(recvBuffer.data(), static_cast<size_t>(n));
+
+                if (assembled.size() > MAX_CDP_MESSAGE_BYTES)
+                {
+                    connected = false;
+                    throw std::runtime_error("[BrowserTool] CDP message exceeded size limit");
+                }
             } while (!(flags & Poco::Net::WebSocket::FRAME_FLAG_FIN));
 
             auto response = nlohmann::json::parse(assembled, nullptr, false);
@@ -1016,31 +1046,47 @@ private:
                 continue;
             }
 
-            // process events while waiting for our response
-            // (processEventLocked may recursively call sendCommandLocked,
-            // which can consume and buffer our response in pendingResponses)
+            // record page events inline while we wait, sending any follow-up command fire-and-forget so this loop never re-enters
             if (!response.contains("id"))
             {
                 processEventLocked(response);
                 continue;
             }
 
-            if (!response["id"].is_number() || response["id"].get<int64_t>() != id)
+            // wsMutex serializes callers, so a response for a different id is a fire-and-forget follow-up and can be dropped
+            if (!response["id"].is_number_integer() || response["id"].get<int64_t>() != id)
             {
-                // buffer the response so the caller waiting for this id can find it
-                auto respId = response["id"].get<int64_t>();
-                pendingResponses[respId] = std::move(response);
                 continue;
             }
 
             if (response.contains("error"))
             {
-                auto errorMsg = response["error"].value("message", "unknown CDP error");
+                auto errorMsg = response["error"].is_object() ? response["error"].value("message", "unknown CDP error") : std::string("unknown CDP error");
                 throw std::runtime_error("[BrowserTool] CDP error: " + errorMsg);
             }
 
             return response.value("result", nlohmann::json::object());
         }
+
+        throw std::runtime_error("[BrowserTool] timed out waiting for CDP response to " + method);
+    }
+
+    // send a command without waiting for its response so an event handler never re-enters the read loop
+    void sendCommandNoWaitLocked(const std::string &method, const nlohmann::json &cmdParams)
+    {
+        if (!connected || !socket)
+        {
+            return;
+        }
+
+        nlohmann::json message = {
+            {"id", nextId++},
+            {"method", method},
+            {"params", cmdParams},
+        };
+
+        auto msgStr = message.dump();
+        socket->sendFrame(msgStr.data(), static_cast<int>(msgStr.size()), Poco::Net::WebSocket::FRAME_TEXT);
     }
 
     void processEventLocked(const nlohmann::json &event)
@@ -1196,37 +1242,23 @@ private:
 
                 if (!user.empty())
                 {
-                    try
-                    {
-                        sendCommandLocked(cdp::fetch::ContinueWithAuth, {
-                                                                            {"requestId", requestId},
-                                                                            {"authChallengeResponse", {
-                                                                                                          {"response", "ProvideCredentials"},
-                                                                                                          {"username", user},
-                                                                                                          {"password", pass},
-                                                                                                      }},
-                                                                        });
-                    }
-                    catch (const std::exception &e)
-                    {
-                        spdlog::warn("[BrowserTool] browser: failed to respond to auth challenge: {}", e.what());
-                    }
+                    sendCommandNoWaitLocked(cdp::fetch::ContinueWithAuth, {
+                                                                              {"requestId", requestId},
+                                                                              {"authChallengeResponse", {
+                                                                                                            {"response", "ProvideCredentials"},
+                                                                                                            {"username", user},
+                                                                                                            {"password", pass},
+                                                                                                        }},
+                                                                          });
                 }
                 else
                 {
-                    try
-                    {
-                        sendCommandLocked(cdp::fetch::ContinueWithAuth, {
-                                                                            {"requestId", requestId},
-                                                                            {"authChallengeResponse", {
-                                                                                                          {"response", "CancelAuth"},
-                                                                                                      }},
-                                                                        });
-                    }
-                    catch (const std::exception &e)
-                    {
-                        spdlog::debug("[BrowserTool] browser: failed to cancel auth: {}", e.what());
-                    }
+                    sendCommandNoWaitLocked(cdp::fetch::ContinueWithAuth, {
+                                                                              {"requestId", requestId},
+                                                                              {"authChallengeResponse", {
+                                                                                                            {"response", "CancelAuth"},
+                                                                                                        }},
+                                                                          });
                 }
             }
         }
@@ -1237,14 +1269,7 @@ private:
 
             if (!requestId.empty())
             {
-                try
-                {
-                    sendCommandLocked(cdp::fetch::ContinueRequest, {{"requestId", requestId}});
-                }
-                catch (const std::exception &e)
-                {
-                    spdlog::debug("[BrowserTool] browser: failed to continue paused request: {}", e.what());
-                }
+                sendCommandNoWaitLocked(cdp::fetch::ContinueRequest, {{"requestId", requestId}});
             }
         }
         else if (method == cdp::page::JavascriptDialogOpening)
@@ -1271,8 +1296,7 @@ private:
     std::atomic<bool> connected{false};
     std::atomic<int64_t> nextId{1};
     std::mutex wsMutex;
-    std::vector<char> recvBuffer;                                 // reusable receive buffer (allocated once per tab)
-    std::unordered_map<int64_t, nlohmann::json> pendingResponses; // buffered responses from recursive calls
+    std::vector<char> recvBuffer; // reusable receive buffer (allocated once per tab)
 
     std::vector<ConsoleMessage> consoleLog;
     std::vector<PageError> errorList;
