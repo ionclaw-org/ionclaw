@@ -1,9 +1,13 @@
 #pragma once
 
+#include <atomic>
+#include <condition_variable>
+#include <deque>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 
 #include "nlohmann/json.hpp"
 
@@ -21,6 +25,22 @@ struct WebSocketConnection
     std::mutex sendMutex;
 
     WebSocketConnection(Poco::Net::WebSocket ws, const std::string &id);
+    ~WebSocketConnection();
+
+    void start();
+    void stop();
+
+    // hand a frame to the connection's own sender thread so a slow client never blocks the caller
+    void enqueue(const std::string &payload);
+
+private:
+    void senderLoop();
+
+    std::deque<std::string> outbound;
+    std::mutex outboundMutex;
+    std::condition_variable outboundCv;
+    std::thread senderThread;
+    std::atomic<bool> running{false};
 };
 
 class WebSocketManager
