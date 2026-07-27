@@ -10,6 +10,7 @@
 		066B893CB70D441908BBFE62 /* ServerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9CE8DD7151D596DC16CA55 /* ServerController.swift */; };
 		072C7A4CD1D7B052F7B60E35 /* ionclaw.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E252D3C5113FF3D18A869711 /* ionclaw.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		0D5BA2CFDB0086B638C34C99 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E3F9B34068EBA7007315802 /* Assets.xcassets */; };
+		14DFBBB553715BC6199AD4D3 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 153169BEB88FED41DC7C6CC2 /* PrivacyInfo.xcprivacy */; };
 		18CD1A33272D48F99F741CEB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E3F9B34068EBA7007315802 /* Assets.xcassets */; };
 		1A036394EBAACA9F0CE6A0BF /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA075EA8FA4F226D94BE49B6 /* Theme.swift */; };
 		2433E00DF5EDD9D213C41658 /* ionclaw.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E252D3C5113FF3D18A869711 /* ionclaw.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -23,6 +24,7 @@
 		382118485A76DE81925D4719 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E1B64B3CAF1C0BF532AF3DEE /* Assets.xcassets */; };
 		4278B5DBCFD190CCE4D3C1A3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E3F9B34068EBA7007315802 /* Assets.xcassets */; };
 		4315EF72BDDB3C293F2C0C60 /* ServerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A01CD18260D048843B6ED48 /* ServerView.swift */; };
+		43CE069D2EB0E3E7A11EBDEA /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 153169BEB88FED41DC7C6CC2 /* PrivacyInfo.xcprivacy */; };
 		44F87ECFFC641118A8DEB68B /* ServerStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F4D1398023BAF1A34618D4 /* ServerStatusView.swift */; };
 		49D41F24DFA673AFBEBB8963 /* NetworkInterfaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06C747081E9038181EAAA8E9 /* NetworkInterfaces.swift */; };
 		4CA6B8C68B2AE485A2EC96F7 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBCEDB214357AA9B7493691A /* AppConfig.swift */; };
@@ -43,6 +45,7 @@
 		9182AA7C7FEB75888D58B6B6 /* QRCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A597EEE3A2DE1E2EEB957628 /* QRCode.swift */; };
 		9A399107FBBF9E78A7A599CF /* QRCodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B897ED356E8C6A19DD77A589 /* QRCodeView.swift */; };
 		9E0BE28F26226FF19D0F2C20 /* PlatformBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1ADEE2AB62C35FB68F2C2D1 /* PlatformBridge.swift */; };
+		AC90C8B6E3403D6A70D4DFB5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 153169BEB88FED41DC7C6CC2 /* PrivacyInfo.xcprivacy */; };
 		ACE260EAE23A14E4E2D4DAFF /* FilledActionButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF60C784BB174D0B04F659D6 /* FilledActionButtonStyle.swift */; };
 		B6C051A29D38436F78760B4D /* MessageSender.swift in Sources */ = {isa = PBXBuildFile; fileRef = 609D1058D3941348FA065270 /* MessageSender.swift */; };
 		BC8958C54D16DEC1A096829D /* InteractView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E36A44369AA95F0E07AF4D7 /* InteractView.swift */; };
@@ -104,6 +107,7 @@
 /* Begin PBXFileReference section */
 		06C747081E9038181EAAA8E9 /* NetworkInterfaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkInterfaces.swift; sourceTree = "<group>"; };
 		0A01CD18260D048843B6ED48 /* ServerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerView.swift; sourceTree = "<group>"; };
+		153169BEB88FED41DC7C6CC2 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		2E36A44369AA95F0E07AF4D7 /* InteractView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractView.swift; sourceTree = "<group>"; };
 		323AFB73AFB19AC2376F6F47 /* IonClaw-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "IonClaw-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		462AFC387AC23901DF9E26C8 /* IonClawApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IonClawApp.swift; sourceTree = "<group>"; };
@@ -212,6 +216,7 @@
 			isa = PBXGroup;
 			children = (
 				4E3F9B34068EBA7007315802 /* Assets.xcassets */,
+				153169BEB88FED41DC7C6CC2 /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -475,6 +480,7 @@
 				0D5BA2CFDB0086B638C34C99 /* Assets.xcassets in Resources */,
 				327BE4E424C5B4AA1354E470 /* Assets.xcassets in Resources */,
 				D697D7C4F56360486124DFED /* LaunchScreen.storyboard in Resources */,
+				AC90C8B6E3403D6A70D4DFB5 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -484,6 +490,7 @@
 			files = (
 				4278B5DBCFD190CCE4D3C1A3 /* Assets.xcassets in Resources */,
 				382118485A76DE81925D4719 /* Assets.xcassets in Resources */,
+				14DFBBB553715BC6199AD4D3 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -493,6 +500,7 @@
 			files = (
 				18CD1A33272D48F99F741CEB /* Assets.xcassets in Resources */,
 				8A4A8D6DDC51E1EF2BC6CF80 /* Assets.xcassets in Resources */,
+				43CE069D2EB0E3E7A11EBDEA /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -30,6 +30,7 @@ targetTemplates:
     sources:
       - path: Shared/Sources
       - path: Shared/Resources/Assets.xcassets
+      - path: Shared/Resources/PrivacyInfo.xcprivacy
     dependencies:
       - framework: ../../build/xcframework/ionclaw.xcframework
         embed: true
