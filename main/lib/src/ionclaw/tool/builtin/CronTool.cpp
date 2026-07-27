@@ -10,6 +10,7 @@
 #include "ionclaw/cron/CronTypes.hpp"
 #include "ionclaw/session/SessionKeyUtils.hpp"
 #include "ionclaw/util/StringHelper.hpp"
+#include "ionclaw/util/TimeHelper.hpp"
 
 namespace ionclaw
 {
@@ -93,7 +94,7 @@ ToolResult CronTool::execute(const nlohmann::json &params, const ToolContext &co
 
             // parse ISO datetime to epoch ms
             std::tm tm{};
-            tm.tm_isdst = -1; // let mktime auto-detect DST
+            tm.tm_isdst = 0; // the datetime is interpreted as utc
             std::istringstream ss(atStr);
             ss.imbue(std::locale::classic());
             ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
@@ -103,7 +104,7 @@ ToolResult CronTool::execute(const nlohmann::json &params, const ToolContext &co
                 return "Error: invalid datetime format, use ISO 8601 (e.g. 2026-03-05T15:30:00)";
             }
 
-            auto epochTime = std::mktime(&tm);
+            auto epochTime = ionclaw::util::TimeHelper::timegmUtc(tm);
 
             if (epochTime == static_cast<std::time_t>(-1))
             {
@@ -201,7 +202,7 @@ ToolResult CronTool::execute(const nlohmann::json &params, const ToolContext &co
         {
             auto atStr = params["at"].get<std::string>();
             std::tm tm{};
-            tm.tm_isdst = -1;
+            tm.tm_isdst = 0;
             std::istringstream ss(atStr);
             ss.imbue(std::locale::classic());
             ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
@@ -211,7 +212,7 @@ ToolResult CronTool::execute(const nlohmann::json &params, const ToolContext &co
                 return "Error: invalid datetime format, use ISO 8601 (e.g. 2026-03-05T15:30:00)";
             }
 
-            auto epochTime = std::mktime(&tm);
+            auto epochTime = ionclaw::util::TimeHelper::timegmUtc(tm);
 
             if (epochTime == static_cast<std::time_t>(-1))
             {

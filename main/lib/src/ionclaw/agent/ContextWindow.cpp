@@ -128,7 +128,7 @@ int ContextWindow::estimateTokens(const std::vector<ionclaw::provider::Message> 
 
             for (const auto &block : msg.contentBlocks)
             {
-                auto blockType = block.value("type", "");
+                auto blockType = block.is_object() && block.contains("type") && block["type"].is_string() ? block["type"].get<std::string>() : "";
 
                 if (block.contains("text") && block["text"].is_string())
                 {

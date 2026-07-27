@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <set>
 
 #include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
@@ -233,8 +234,9 @@ std::vector<std::string> SubagentRegistry::getDescendantSessionKeys(const std::s
 
     std::vector<std::string> descendants;
 
-    // walk the run tree breadth-first, expanding only live runs so the walk stays bounded
+    // walk the run tree breadth-first, expanding only live runs and tracking visited keys so a cyclic or corrupted state file cannot loop forever
     std::vector<std::string> frontier = {sessionKey};
+    std::set<std::string> visited = {sessionKey};
 
     while (!frontier.empty())
     {
@@ -249,6 +251,11 @@ std::vector<std::string> SubagentRegistry::getDescendantSessionKeys(const std::s
             }
 
             if (record.status != SubagentStatus::Pending && record.status != SubagentStatus::Active)
+            {
+                continue;
+            }
+
+            if (!visited.insert(record.childSessionKey).second)
             {
                 continue;
             }

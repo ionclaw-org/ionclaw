@@ -91,7 +91,10 @@ std::vector<std::string> TextChunker::chunk(const std::string &text, size_t maxC
 
         // advance by the window minus the overlap so consecutive chunks share context
         size_t advance = std::max<size_t>(1, (end - pos) - overlapChars);
-        pos = utf8SafeBoundary(trimmed, pos + advance);
+        size_t next = utf8SafeBoundary(trimmed, pos + advance);
+
+        // fall back to the chunk boundary when a large overlap on multibyte text would otherwise stall
+        pos = next > pos ? next : end;
     }
 
     return chunks;

@@ -10,8 +10,6 @@ namespace ionclaw
 namespace util
 {
 
-std::atomic<uint64_t> UniqueId::counter{0};
-
 std::string UniqueId::uuid()
 {
     auto hi = RandomHelper::secureUint64();

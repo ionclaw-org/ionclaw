@@ -73,9 +73,9 @@ std::string ContextBuilder::contentToText(const nlohmann::json &content)
 
         for (const auto &block : content)
         {
-            if (block.is_object() && block.value("type", "") == "text")
+            if (block.is_object() && block.contains("type") && block["type"].is_string() && block["type"].get<std::string>() == "text")
             {
-                auto text = block.value("text", "");
+                auto text = block.contains("text") && block["text"].is_string() ? block["text"].get<std::string>() : "";
 
                 if (!text.empty())
                 {
@@ -868,8 +868,14 @@ void ContextBuilder::enforceToolResultBudget(std::vector<ionclaw::provider::Mess
 
             auto tail = msg.content.substr(tailStart);
 
-            msg.content = head + "\n[... tool output compacted ...]\n" + tail;
-            excess -= (currentSize - static_cast<int>(msg.content.size()));
+            auto compacted = head + "\n[... tool output compacted ...]\n" + tail;
+
+            // only apply when it actually shrinks the message, otherwise a near-minimum result would grow and inflate the remaining excess
+            if (static_cast<int>(compacted.size()) < currentSize)
+            {
+                excess -= (currentSize - static_cast<int>(compacted.size()));
+                msg.content = std::move(compacted);
+            }
         }
     }
 
@@ -931,7 +937,7 @@ void ContextBuilder::pruneHistoryImages(std::vector<ionclaw::provider::Message> 
 
         for (const auto &block : messages[i].contentBlocks)
         {
-            auto type = block.value("type", "");
+            auto type = block.is_object() && block.contains("type") && block["type"].is_string() ? block["type"].get<std::string>() : "";
 
             if (type == "image" || type == "image_url")
             {

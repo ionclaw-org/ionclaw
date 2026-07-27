@@ -16,6 +16,15 @@ namespace ionclaw
 namespace util
 {
 
+std::time_t TimeHelper::timegmUtc(std::tm &tm)
+{
+#if defined(_WIN32)
+    return _mkgmtime(&tm);
+#else
+    return timegm(&tm);
+#endif
+}
+
 std::string TimeHelper::now()
 {
     auto tp = std::chrono::system_clock::now();
