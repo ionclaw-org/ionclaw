@@ -37,6 +37,8 @@ list(GET IONCLAW_VERSION_PARTS 2 IONCLAW_VERSION_PATCH)
 set(IONCLAW_LLAMA_CPP_DEFAULT ON)
 if(CMAKE_SYSTEM_NAME MATCHES "^(tvOS|watchOS|visionOS)$")
     set(IONCLAW_LLAMA_CPP_DEFAULT OFF)
+    # tvos, watchos, and visionos have no fork/exec, so the process-launching paths are compiled out
+    add_compile_definitions(IONCLAW_NO_PROCESS_EXEC)
 endif()
 option(IONCLAW_LLAMA_CPP "Build With llama.cpp For Local LLM Inference" ${IONCLAW_LLAMA_CPP_DEFAULT})
 
