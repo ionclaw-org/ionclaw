@@ -57,6 +57,7 @@
 		D697D7C4F56360486124DFED /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 476D2C7F466C238EDDF5A188 /* LaunchScreen.storyboard */; };
 		D7D7A75E2250E194807AD95A /* IonClawRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECCEDC7C1280F9091E8BE10B /* IonClawRuntime.swift */; };
 		D8127B82776143F4B5D9C9C7 /* ionclaw.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E252D3C5113FF3D18A869711 /* ionclaw.xcframework */; };
+		DAFB89A5BC4F0173068BA20F /* IonClaw-watchOS.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 80E4D81F66FEFDA4BFFD7AAD /* IonClaw-watchOS.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		DE9B2C9F25CF165758CA6E8E /* IonClawApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1DBF606125D2493EB6B0880 /* IonClawApp.swift */; };
 		E01148A4DFFD736402AE3C87 /* QRCodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B897ED356E8C6A19DD77A589 /* QRCodeView.swift */; };
 		E0306DDD94AD01B1B86E6D3A /* ChatClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576FEE13DE7EC8F6C62D4437 /* ChatClient.swift */; };
@@ -67,6 +68,16 @@
 		F9B322489B60689829915EF5 /* PlatformBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1ADEE2AB62C35FB68F2C2D1 /* PlatformBridge.swift */; };
 		FA6348ABB212086070AB0A51 /* IonClawApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9D1C0D5EDD7F0D5B016E7D0 /* IonClawApp.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		BB84CE0E0BA4D523E3EF0915 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C8B6D20A0353AA69FADDE016 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 353E3F58A5F6C0602094E32E;
+			remoteInfo = "IonClaw-watchOS";
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		66BC091A792C12B1B27100BD /* Embed Frameworks */ = {
@@ -89,6 +100,17 @@
 				072C7A4CD1D7B052F7B60E35 /* ionclaw.xcframework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EC69244EDF896E318D674DCB /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				DAFB89A5BC4F0173068BA20F /* IonClaw-watchOS.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		F1D236FD446BF8701952B3F7 /* Embed Frameworks */ = {
@@ -416,10 +438,12 @@
 				294AF0A8A24DFDDB3C9E02EB /* Resources */,
 				7F97D67B16FA88513808E541 /* Frameworks */,
 				66BC091A792C12B1B27100BD /* Embed Frameworks */,
+				EC69244EDF896E318D674DCB /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				FD4FE4CC7F5518B0408AFA02 /* PBXTargetDependency */,
 			);
 			name = "IonClaw-iOS";
 			packageProductDependencies = (
@@ -573,6 +597,14 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		FD4FE4CC7F5518B0408AFA02 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 353E3F58A5F6C0602094E32E /* IonClaw-watchOS */;
+			targetProxy = BB84CE0E0BA4D523E3EF0915 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
 		4C0B04A9159CBA4F4F43099A /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -646,7 +678,7 @@
 					"\"../../build/xcframework\"",
 				);
 				INFOPLIST_FILE = watchOS/Resources/Info.plist;
-				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.watchos;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.watchkitapp;
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = 4;
@@ -667,7 +699,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.tvos;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app;
 				SDKROOT = appletvos;
 				TARGETED_DEVICE_FAMILY = 3;
 			};
@@ -682,7 +714,7 @@
 					"\"../../build/xcframework\"",
 				);
 				INFOPLIST_FILE = watchOS/Resources/Info.plist;
-				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.watchos;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.watchkitapp;
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = 4;
@@ -703,7 +735,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.tvos;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app;
 				SDKROOT = appletvos;
 				TARGETED_DEVICE_FAMILY = 3;
 			};

@@ -33,7 +33,7 @@
 	<string>IonClaw uses the microphone to dictate messages.</string>
 	<key>WKApplication</key>
 	<true/>
-	<key>WKWatchOnly</key>
-	<true/>
+	<key>WKCompanionAppBundleIdentifier</key>
+	<string>com.ionclaw.app</string>
 </dict>
 </plist>

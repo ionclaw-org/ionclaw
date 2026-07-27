@@ -45,6 +45,9 @@ targets:
       - path: iOS/Sources
       - path: iOS/Resources/Assets.xcassets
       - path: iOS/Resources/LaunchScreen.storyboard
+    dependencies:
+      - target: IonClaw-watchOS
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ionclaw.app
@@ -61,7 +64,7 @@ targets:
       - path: tvOS/Resources/Assets.xcassets
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ionclaw.app.tvos
+        PRODUCT_BUNDLE_IDENTIFIER: com.ionclaw.app
         INFOPLIST_FILE: tvOS/Resources/Info.plist
         TARGETED_DEVICE_FAMILY: "3"
         ASSETCATALOG_COMPILER_APPICON_NAME: "App Icon & Top Shelf Image"
@@ -75,7 +78,7 @@ targets:
       - path: watchOS/Resources/Assets.xcassets
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ionclaw.app.watchos
+        PRODUCT_BUNDLE_IDENTIFIER: com.ionclaw.app.watchkitapp
         INFOPLIST_FILE: watchOS/Resources/Info.plist
         TARGETED_DEVICE_FAMILY: "4"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
