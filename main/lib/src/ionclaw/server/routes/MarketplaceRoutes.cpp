@@ -23,6 +23,7 @@ const char *Routes::MARKETPLACE_BASE = "https://ionclaw.com";
 
 void Routes::handleMarketplaceTargets(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp)
 {
+    auto config = configStore->snapshot();
     nlohmann::json arr = nlohmann::json::array();
     arr.push_back({{"label", "Project"}, {"value", ""}});
 
@@ -75,6 +76,7 @@ void Routes::handleMarketplaceCheck(Poco::Net::HTTPServerRequest &req, Poco::Net
     }
 
     // resolve skill path based on agent
+    auto config = configStore->snapshot();
     std::string skillPath;
 
     if (agent.empty())
@@ -128,6 +130,7 @@ void Routes::handleMarketplaceInstall(Poco::Net::HTTPServerRequest &req, Poco::N
         }
 
         // resolve base directory for skill installation
+        auto config = configStore->snapshot();
         std::string baseDir;
 
         if (agent.empty())
@@ -223,11 +226,17 @@ void Routes::handleMarketplaceInstall(Poco::Net::HTTPServerRequest &req, Poco::N
 
                 fs::path outputPath = targetDir / relativePath;
 
-                // zip slip protection: verify resolved path is within target directory
+                // zip slip protection: verify the resolved path is within the target directory
                 auto resolvedOutput = fs::weakly_canonical(outputPath).string();
                 auto resolvedTarget = fs::weakly_canonical(targetDir).string();
 
-                if (resolvedOutput.rfind(resolvedTarget, 0) != 0)
+                // append the separator so a sibling like target-evil cannot pass the prefix check
+                if (!resolvedTarget.empty() && resolvedTarget.back() != static_cast<char>(fs::path::preferred_separator))
+                {
+                    resolvedTarget += static_cast<char>(fs::path::preferred_separator);
+                }
+
+                if (!resolvedOutput.starts_with(resolvedTarget))
                 {
                     spdlog::warn("[Routes] Zip entry escapes target dir: {}", entryName);
                     continue;

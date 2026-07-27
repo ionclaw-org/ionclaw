@@ -297,6 +297,8 @@ ProcessResult ProcessRunner::run(const std::string &command, int timeoutSeconds,
                 result.timedOut = true;
             }
 
+            // the child is already reaped here, so keep the -1 status from being re-collected below
+            childExited = true;
             result.exitCode = -1;
             break;
         }
@@ -397,8 +399,28 @@ ProcessResult ProcessRunner::run(const std::string &command, int timeoutSeconds,
 
         if (!childExited)
         {
-            // force-collect after poll exhaustion
-            waitpid(pid, &status, 0);
+            // the child closed its pipes but is still running, so terminate it instead of blocking on waitpid forever
+            kill(-pid, SIGTERM);
+
+            auto grace = std::chrono::steady_clock::now() + std::chrono::milliseconds(GRACE_PERIOD_MS);
+
+            while (std::chrono::steady_clock::now() < grace)
+            {
+                if (waitpid(pid, &status, WNOHANG) == pid)
+                {
+                    childExited = true;
+                    break;
+                }
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(GRACE_POLL_MS));
+            }
+
+            if (!childExited)
+            {
+                kill(-pid, SIGKILL);
+                waitpid(pid, &status, 0);
+            }
+
             collectExitStatus(result, status);
         }
     }

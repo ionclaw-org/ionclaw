@@ -7,6 +7,7 @@
 
 #include "ionclaw/config/Config.hpp"
 #include "ionclaw/provider/LlmProvider.hpp"
+#include "nlohmann/json.hpp"
 
 namespace ionclaw
 {
@@ -22,6 +23,11 @@ public:
 
 private:
     static std::string defaultBaseUrl(const std::string &providerName);
+    static std::shared_ptr<LlmProvider> makeLlamaProvider(const std::string &modelPath, const nlohmann::json &params);
+    static std::string fileNameOf(const std::string &path);
+    static bool startsWithCaseInsensitive(const std::string &text, const std::string &prefix);
+    static bool isModelFile(const std::string &fileName);
+    static const ionclaw::config::ProviderConfig &resolveLlamaProvider(const ionclaw::config::Config &config, const std::string &requested);
 };
 
 } // namespace provider

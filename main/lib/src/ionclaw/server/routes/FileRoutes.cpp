@@ -34,7 +34,7 @@ std::string Routes::resolveFilePath(const std::string &relativePath) const
 
         auto canonicalStr = canonicalPath.string();
 
-        if (canonicalStr != canonicalRoot.string() && canonicalStr.rfind(rootStr, 0) != 0)
+        if (canonicalStr != canonicalRoot.string() && !canonicalStr.starts_with(rootStr))
         {
             return "";
         }
@@ -63,7 +63,7 @@ const std::set<std::string> Routes::SYSTEM_FILES = {
 bool Routes::isProtectedFile(const std::string &path)
 {
     auto name = fs::path(path).filename().string();
-    return PROTECTED_FILES.count(name) > 0;
+    return PROTECTED_FILES.contains(name);
 }
 
 bool Routes::isHiddenPath(const std::string &path)
@@ -84,7 +84,7 @@ bool Routes::isHiddenPath(const std::string &path)
             return true;
         }
 
-        if (SYSTEM_FILES.count(s) > 0)
+        if (SYSTEM_FILES.contains(s))
         {
             return true;
         }
@@ -95,7 +95,7 @@ bool Routes::isHiddenPath(const std::string &path)
 
 bool Routes::isSystemFile(const std::string &name)
 {
-    return SYSTEM_FILES.count(name) > 0 || (!name.empty() && name[0] == '.');
+    return SYSTEM_FILES.contains(name) || (!name.empty() && name[0] == '.');
 }
 
 void Routes::handleFilesList(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp)
@@ -155,8 +155,13 @@ void Routes::handleFileRead(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServe
 
     auto fileType = detectFileType(ext);
 
+    // large text files are served through the streaming download path instead of being buffered whole into a json response
+    static constexpr int64_t MAX_INLINE_TEXT_BYTES = 5 * 1024 * 1024;
+    std::error_code sizeEc;
+    auto fileBytes = static_cast<int64_t>(fs::file_size(fullPath, sizeEc));
+
     // return text content inline
-    if (fileType == "text")
+    if (fileType == "text" && !sizeEc && fileBytes <= MAX_INLINE_TEXT_BYTES)
     {
         std::ifstream ifs(fullPath);
 
@@ -172,8 +177,8 @@ void Routes::handleFileRead(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServe
     }
     else
     {
-        // return metadata with download url for binary files
-        auto size = static_cast<int64_t>(fs::file_size(fullPath));
+        // return metadata with a download url for binary and oversized-text files
+        auto size = fileBytes;
         std::string mime = "application/octet-stream";
 
         if (fileType == "image")

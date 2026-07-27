@@ -44,6 +44,11 @@ bot:
   description: ""                 # str  -- Short description.
 
 # ---------------------------------------------------------------------------
+# Timezone
+# ---------------------------------------------------------------------------
+timezone: ""                     # str  -- IANA zone (e.g. America/Sao_Paulo) for the assistant clock in the prompt and the cron default. Empty uses the server local zone.
+
+# ---------------------------------------------------------------------------
 # Server
 # ---------------------------------------------------------------------------
 server:
@@ -142,13 +147,16 @@ image:
 # Tools
 # ---------------------------------------------------------------------------
 tools:
+  restrict_to_workspace: true   # bool -- Confine file/exec/download tools to the workspace, project, and public dirs.
   exec_timeout: 60              # int  -- Max execution time for exec tool (seconds).
   web_search_provider: brave    # str  -- Search provider: "brave" or "duckduckgo".
   web_search_credential: brave  # str  -- Credential name for the search API.
+  web_search_max_results: 5     # int  -- Maximum results returned by the web_search tool.
   # Nested form (alternative, same effect):
   # web_search:
   #   provider: brave
   #   credential: brave
+  #   max_results: 5
 
 # ---------------------------------------------------------------------------
 # Channels
@@ -158,6 +166,8 @@ channels:
     enabled: false              # bool -- Enable Telegram bot.
     credential: ""              # str  -- Credential name (type: simple) for Bot API token.
     allowed_users: []           # list -- Telegram usernames or user IDs; empty = allow all.
+    # reply_to_message: false   # bool -- Reply threaded to the user's message.
+    # proxy: ""                 # str  -- Optional proxy URL for the Telegram API.
 
 # ---------------------------------------------------------------------------
 # Storage
@@ -214,7 +224,7 @@ File-related tools are restricted to (restriction is always enforced by the back
 
 1. The agent's own workspace directory.
 2. The project root directory.
-3. The shared `public/` directory at the project root.
+3. The shared `public/` directory inside the workspace (`workspace/public`), served on the web.
 
 For relative paths, the tool resolves against the workspace first, then the project root. This allows agents to read project-level files (e.g., skills in `skills/`) without requiring the workspace to contain them.
 
@@ -327,7 +337,12 @@ See [Custom Providers — Model Parameters Merge Order](custom-providers.md#mode
 
 Special model parameters:
 
-- **`thinking`** — Extended thinking/reasoning level. Values: `off`, `low`, `medium`, `high`. For Anthropic models, this maps to `budget_tokens` scaling. For OpenRouter models, this maps to `reasoning.effort`.
+- **`thinking`** — Extended thinking/reasoning level. Values: `off`, `low`, `medium`, `high`, `adaptive`. Mapping by provider:
+  - **Anthropic** — scales the `budget_tokens` of the thinking block; `off` disables it. During a tool-use loop the model's thinking blocks (and their signature) are replayed verbatim before the `tool_use` blocks on each follow-up request, as the API requires; encrypted `redacted_thinking` blocks are preserved the same way.
+  - **OpenRouter** — sets `reasoning.effort`.
+  - **OpenAI-compatible** — sets the flat `reasoning_effort` field (only `low`, `medium`, `high` are sent) and pins `temperature` to the default that reasoning models require.
+
+  `adaptive` is treated as `medium` on the OpenRouter and OpenAI-compatible paths.
 - **`context_window`** — Override the context window size for a specific model. Useful for custom or fine-tuned models whose context window size is not in the built-in lookup table.
 
 ### Auth profile failover

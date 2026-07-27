@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <sstream>
 
+#include "ionclaw/util/FileHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
 #include "ionclaw/util/UniqueId.hpp"
 #include "spdlog/spdlog.h"
@@ -57,9 +58,11 @@ Task TaskManager::createTask(const std::string &title, const std::string &descri
 
         tasks[task.id] = task;
         snapshot = task;
+
+        // persist under the lock so concurrent mutations never append out of order and revert a later state
+        appendToFile(snapshot);
     }
 
-    appendToFile(snapshot);
     broadcastUpdate(snapshot);
 
     spdlog::info("[TaskManager] Task created: {}", snapshot.id);
@@ -86,9 +89,11 @@ void TaskManager::mutateTask(const std::string &taskId, const char *caller, Muta
         it->second.updatedAt = util::TimeHelper::now();
         mutate(it->second);
         snapshot = it->second;
+
+        // persist under the lock so concurrent mutations never append out of order and revert a later state
+        appendToFile(snapshot);
     }
 
-    appendToFile(snapshot);
     broadcastUpdate(snapshot);
 }
 
@@ -136,13 +141,6 @@ void TaskManager::setUsage(const std::string &taskId, const nlohmann::json &usag
 {
     // clang-format off
     mutateTask(taskId, "setUsage", [&](Task &task) { task.usage = usage; });
-    // clang-format on
-}
-
-void TaskManager::setLiveState(const std::string &taskId, const nlohmann::json &liveState)
-{
-    // clang-format off
-    mutateTask(taskId, "setLiveState", [&](Task &task) { task.liveState = liveState; });
     // clang-format on
 }
 
@@ -277,38 +275,22 @@ void TaskManager::load()
 void TaskManager::save()
 {
     // snapshot under data lock, write outside to avoid blocking concurrent callers
-    std::vector<nlohmann::json> snapshots;
-
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        snapshots.reserve(tasks.size());
-
-        for (const auto &pair : tasks)
-        {
-            snapshots.push_back(pair.second.toJson());
-        }
-    }
-
+    // hold both locks in the mutateTask order (data then file) so a concurrent append cannot be lost between snapshot and write
+    std::lock_guard<std::mutex> lock(mutex);
     std::lock_guard<std::mutex> flock(fileMutex);
 
-    std::ofstream ofs(tasksFilePath, std::ios::trunc);
+    std::string content;
 
-    if (!ofs.is_open())
+    for (const auto &pair : tasks)
     {
-        spdlog::error("[TaskManager] Failed to open tasks file for save: {}", tasksFilePath);
-        return;
+        content += pair.second.toJson().dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) + "\n";
     }
 
-    for (const auto &j : snapshots)
-    {
-        ofs << j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << "\n";
-    }
+    auto error = ionclaw::util::FileHelper::atomicWrite(tasksFilePath, content);
 
-    ofs.flush();
-
-    if (!ofs.good())
+    if (!error.empty())
     {
-        spdlog::error("[TaskManager] Failed to flush tasks file on save: {}", tasksFilePath);
+        spdlog::error("[TaskManager] {}", error);
     }
 }
 
@@ -347,21 +329,18 @@ void TaskManager::recoverStaleTasks()
     if (recovered > 0)
     {
         std::lock_guard<std::mutex> flock(fileMutex);
-        std::ofstream ofs(tasksFilePath, std::ios::trunc);
+        std::string content;
 
-        if (ofs.is_open())
+        for (const auto &t : snapshots)
         {
-            for (const auto &t : snapshots)
-            {
-                ofs << t.toJson().dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << "\n";
-            }
+            content += t.toJson().dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) + "\n";
+        }
 
-            ofs.flush();
+        auto error = ionclaw::util::FileHelper::atomicWrite(tasksFilePath, content);
 
-            if (!ofs.good())
-            {
-                spdlog::error("[TaskManager] Failed to flush tasks file on recovery: {}", tasksFilePath);
-            }
+        if (!error.empty())
+        {
+            spdlog::error("[TaskManager] {}", error);
         }
 
         spdlog::info("[TaskManager] Recovered {} stale DOING tasks to ERROR", recovered);
@@ -371,6 +350,28 @@ void TaskManager::recoverStaleTasks()
 void TaskManager::appendToFile(const Task &task)
 {
     std::lock_guard<std::mutex> flock(fileMutex);
+
+    // callers hold the data mutex, so tasks can be read here; periodically rewrite the whole file to bound its growth
+    if (++appendsSinceCompaction >= COMPACTION_APPEND_THRESHOLD)
+    {
+        appendsSinceCompaction = 0;
+
+        std::string content;
+
+        for (const auto &[id, t] : tasks)
+        {
+            content += t.toJson().dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) + "\n";
+        }
+
+        auto error = ionclaw::util::FileHelper::atomicWrite(tasksFilePath, content);
+
+        if (!error.empty())
+        {
+            spdlog::error("[TaskManager] {}", error);
+        }
+
+        return;
+    }
 
     std::ofstream ofs(tasksFilePath, std::ios::app);
 

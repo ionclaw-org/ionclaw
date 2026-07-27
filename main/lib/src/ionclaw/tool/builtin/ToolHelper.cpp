@@ -47,7 +47,7 @@ bool ToolHelper::isPathWithinWorkspace(const std::string &workspacePath, const s
         workspace += '/';
     }
 
-    return target == workspace.substr(0, workspace.size() - 1) || target.rfind(workspace, 0) == 0;
+    return target == workspace.substr(0, workspace.size() - 1) || target.starts_with(workspace);
 }
 
 std::string ToolHelper::validateAndResolvePath(const std::string &projectPath, const std::string &workspacePath, const std::string &rawPath, const std::string &publicPath, bool restrictToWorkspace)
@@ -55,6 +55,12 @@ std::string ToolHelper::validateAndResolvePath(const std::string &projectPath, c
     if (workspacePath.empty())
     {
         throw std::runtime_error("[ToolHelper] Workspace path is not configured");
+    }
+
+    // a null byte truncates the path at the os layer, so reject it before any resolution
+    if (rawPath.find('\0') != std::string::npos)
+    {
+        throw std::runtime_error("[ToolHelper] Path contains a null byte");
     }
 
     std::string resolved;
@@ -69,12 +75,17 @@ std::string ToolHelper::validateAndResolvePath(const std::string &projectPath, c
     }
     else
     {
-        // relative path: search workspace first, then project root
+        // relative path: prefer the workspace, only fall back to the project root for a file that already exists there
         resolved = normalizePath(workspacePath, rawPath);
 
         if (!fs::exists(resolved) && !projectPath.empty() && projectPath != workspacePath)
         {
-            resolved = normalizePath(projectPath, rawPath);
+            auto projectResolved = normalizePath(projectPath, rawPath);
+
+            if (fs::exists(projectResolved))
+            {
+                resolved = projectResolved;
+            }
         }
     }
 
@@ -109,7 +120,7 @@ std::string ToolHelper::toRelativePath(const std::string &absolutePath, const st
         root += '/';
     }
 
-    if (abs.rfind(root, 0) == 0)
+    if (abs.starts_with(root))
     {
         return abs.substr(root.size());
     }

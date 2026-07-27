@@ -3,10 +3,12 @@
 #include <filesystem>
 #include <random>
 #include <sstream>
+#include <vector>
 
 #include "ionclaw/config/ConfigLoader.hpp"
 #include "ionclaw/util/EmbeddedResources.hpp"
 #include "ionclaw/util/EnvironmentHelper.hpp"
+#include "ionclaw/util/RandomHelper.hpp"
 
 #include "spdlog/spdlog.h"
 
@@ -15,7 +17,7 @@ namespace ionclaw
 namespace server
 {
 
-std::shared_ptr<ionclaw::config::Config> ServerInstance::config;
+std::shared_ptr<ionclaw::config::ConfigStore> ServerInstance::configStore;
 std::shared_ptr<ionclaw::bus::EventDispatcher> ServerInstance::dispatcher;
 std::shared_ptr<ionclaw::bus::MessageBus> ServerInstance::bus;
 std::shared_ptr<ionclaw::session::SessionManager> ServerInstance::sessionManager;
@@ -77,20 +79,9 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
 
         if (cfg.credentials.find(serverCredName) == cfg.credentials.end())
         {
-            std::random_device rd;
-            std::mt19937 gen(rd());
-            std::uniform_int_distribution<> dis(0, 15);
-            std::ostringstream oss;
-            const char hex[] = "0123456789abcdef";
-
-            for (int i = 0; i < 64; ++i)
-            {
-                oss << hex[dis(gen)];
-            }
-
             ionclaw::config::CredentialConfig serverCred;
             serverCred.type = "simple";
-            serverCred.key = oss.str();
+            serverCred.key = ionclaw::util::RandomHelper::secureHex(32);
             cfg.credentials[serverCredName] = serverCred;
             cfg.server.credential = serverCredName;
             defaultsCreated = true;
@@ -132,16 +123,16 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
         ionclaw::config::ConfigLoader::resolveWorkspaces(cfg, resolvedPath);
         auto defaultWorkspace = resolvedPath + "/workspace";
 
-        // set public directory path on config
-        cfg.publicDir = resolvedPath + "/public";
+        // the public directory lives inside the agent workspace, since the agent can only write within its workspace
+        cfg.publicDir = defaultWorkspace + "/public";
 
-        config = std::make_shared<ionclaw::config::Config>(cfg);
+        configStore = std::make_shared<ionclaw::config::ConfigStore>(cfg);
 
-        // create core components
+        // create core components; orchestrator state lives at the project root, outside the agent's workspace
         dispatcher = std::make_shared<ionclaw::bus::EventDispatcher>();
         bus = std::make_shared<ionclaw::bus::MessageBus>();
-        sessionManager = std::make_shared<ionclaw::session::SessionManager>(defaultWorkspace + "/sessions", cfg.sessionBudget.maxDiskBytes, cfg.sessionBudget.highWaterRatio);
-        taskManager = std::make_shared<ionclaw::task::TaskManager>(defaultWorkspace + "/tasks.jsonl", dispatcher);
+        sessionManager = std::make_shared<ionclaw::session::SessionManager>(resolvedPath + "/sessions", cfg.sessionBudget.maxDiskBytes, cfg.sessionBudget.highWaterRatio);
+        taskManager = std::make_shared<ionclaw::task::TaskManager>(resolvedPath + "/tasks.jsonl", dispatcher);
         toolRegistry = std::make_shared<ionclaw::tool::ToolRegistry>();
         wsManager = std::make_shared<WebSocketManager>();
         auth = std::make_shared<Auth>(cfg);
@@ -204,24 +195,26 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
             }
         }
 
-        // public directory for static file serving
-        auto publicDir = resolvedPath + "/public";
+        // public directory for static file serving, inside the agent workspace
+        auto publicDir = resolvedPath + "/workspace/public";
         spdlog::info("[ServerInstance] Serving public files from: {}", publicDir);
 
         // create MCP dispatcher
-        mcpDispatcher = std::make_shared<ionclaw::mcp::McpDispatcher>(orchestrator, sessionManager, taskManager, bus, dispatcher, config);
+        mcpDispatcher = std::make_shared<ionclaw::mcp::McpDispatcher>(orchestrator, sessionManager, taskManager, bus, dispatcher, configStore);
 
         // create channel manager and start channels
-        channelManager = std::make_shared<ionclaw::channel::ChannelManager>(config, bus, sessionManager, taskManager, dispatcher, mcpDispatcher);
+        channelManager = std::make_shared<ionclaw::channel::ChannelManager>(configStore, bus, sessionManager, taskManager, dispatcher, mcpDispatcher);
 
-        for (auto &[name, ch] : config->channels)
+        auto startupConfig = configStore->snapshot();
+        std::vector<std::string> startedChannels;
+        for (const auto &[name, ch] : startupConfig->channels)
         {
             if (ch.enabled)
             {
                 try
                 {
                     channelManager->startChannel(name);
-                    ch.running = true;
+                    startedChannels.push_back(name);
                 }
                 catch (const std::exception &e)
                 {
@@ -230,21 +223,41 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
             }
         }
 
+        // publish the running state of the channels that started successfully
+        if (!startedChannels.empty())
+        {
+            // clang-format off
+            configStore->update([&](ionclaw::config::Config &config) {
+                for (const auto &name : startedChannels)
+                {
+                    auto it = config.channels.find(name);
+                    if (it != config.channels.end())
+                    {
+                        it->second.running = true;
+                    }
+                }
+            });
+            // clang-format on
+        }
+
         // create and start heartbeat service
         heartbeatService = std::make_shared<ionclaw::heartbeat::HeartbeatService>(bus, sessionManager, defaultWorkspace, cfg.heartbeat.interval, cfg.heartbeat.enabled, cfg.heartbeat.agent);
         heartbeatService->start();
 
-        // create and start cron service
-        cronService = std::make_shared<ionclaw::cron::CronService>(bus, taskManager, defaultWorkspace);
+        // create and start cron service; its job store lives at the project root, outside the agent's workspace
+        cronService = std::make_shared<ionclaw::cron::CronService>(bus, taskManager, resolvedPath);
         cronService->start();
 
         // wire cron service into orchestrator for agent tool access
         orchestrator->setCronService(cronService);
 
         // create routes and http server
-        routes = std::make_shared<Routes>(config, auth, orchestrator, channelManager, heartbeatService, cronService, sessionManager, taskManager, bus, dispatcher, wsManager, webDir, resolvedPath, publicDir, defaultWorkspace);
+        routes = std::make_shared<Routes>(configStore, auth, orchestrator, channelManager, heartbeatService, cronService, sessionManager, taskManager, bus, dispatcher, wsManager, webDir, resolvedPath, publicDir, defaultWorkspace);
 
         httpServer = std::make_shared<HttpServer>(routes, auth, wsManager, mcpDispatcher, cfg.server, webDir, publicDir);
+
+        // surface insecure configuration before accepting any traffic
+        warnInsecureConfig(cfg);
 
         // start services
         orchestrator->start();
@@ -334,6 +347,12 @@ ServerResult ServerInstance::stop()
         // set abort cutoff on all active sessions before shutdown
         sessionManager->setAbortCutoffAll();
 
+        // disable the mcp channel first so a parked streaming handler releases its pool thread before we join the http pool
+        if (mcpDispatcher)
+        {
+            mcpDispatcher->disable();
+        }
+
         // shutdown services
         httpServer->stop();
 
@@ -377,7 +396,41 @@ void ServerInstance::resetComponents()
     sessionManager.reset();
     bus.reset();
     dispatcher.reset();
-    config.reset();
+    configStore.reset();
+}
+
+void ServerInstance::warnInsecureConfig(const ionclaw::config::Config &cfg)
+{
+    // default web credential is trivially guessable and grants the full admin api
+    auto webCredIt = cfg.credentials.find(cfg.webClient.credential);
+
+    if (webCredIt != cfg.credentials.end() && webCredIt->second.username == "admin" && webCredIt->second.password == "admin")
+    {
+        spdlog::warn("[ServerInstance] Web client uses the default admin/admin credential, change it before exposing the server");
+    }
+
+    // a channel with no allowed_users accepts messages from anyone who can reach it
+    for (const auto &[name, channel] : cfg.channels)
+    {
+        if (!channel.enabled)
+        {
+            continue;
+        }
+
+        if (name == "mcp")
+        {
+            bool requireAuth = channel.raw.contains("require_auth") && channel.raw["require_auth"].is_boolean() && channel.raw["require_auth"].get<bool>();
+
+            if (!requireAuth)
+            {
+                spdlog::warn("[ServerInstance] MCP channel is enabled without require_auth, any client that reaches it can drive the agent");
+            }
+        }
+        else if (channel.allowedUsers.empty())
+        {
+            spdlog::warn("[ServerInstance] Channel '{}' is enabled with no allowed_users, it will accept messages from anyone", name);
+        }
+    }
 }
 
 } // namespace server

@@ -120,6 +120,12 @@ struct ServerView: View {
         return Button {
             UIPasteboard.general.string = url
             copiedAddress = address
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                if copiedAddress == address {
+                    copiedAddress = nil
+                }
+            }
         } label: {
             HStack {
                 Text(url)

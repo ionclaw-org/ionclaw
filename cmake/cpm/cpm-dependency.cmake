@@ -82,6 +82,25 @@ CPMAddPackage(
         "YAML_CPP_BUILD_TOOLS OFF"
 )
 
+# iana time zone database for thread-safe cron zone conversions on desktop, where apple libc++ ships no std::chrono tzdb
+# disabled where it does not fit: windows keeps its native path, apple mobile bundles no system zoneinfo, android uses a bionic-specific layout
+set(IONCLAW_USE_TZ_LIB TRUE)
+if(WIN32 OR ANDROID OR CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS|watchOS|visionOS)$")
+    set(IONCLAW_USE_TZ_LIB FALSE)
+endif()
+
+if(IONCLAW_USE_TZ_LIB)
+    CPMAddPackage(
+        NAME "date"
+        VERSION "3.0.4"
+        GITHUB_REPOSITORY "HowardHinnant/date"
+        GIT_TAG "v3.0.4"
+        OPTIONS
+            "BUILD_TZ_LIB ON"
+            "USE_SYSTEM_TZ_DB ON"
+    )
+endif()
+
 # stb image for local image generation (png output)
 CPMAddPackage(
     NAME "stb"
@@ -105,6 +124,19 @@ if(jwt-cpp_ADDED)
     target_compile_definitions(jwt-cpp INTERFACE JWT_DISABLE_PICOJSON)
 endif()
 
+# hnswlib for approximate nearest neighbor search over embeddings (header-only)
+CPMAddPackage(
+    NAME "hnswlib"
+    VERSION "0.8.0"
+    GITHUB_REPOSITORY "nmslib/hnswlib"
+    DOWNLOAD_ONLY YES
+)
+
+if(hnswlib_ADDED)
+    add_library(hnswlib INTERFACE)
+    target_include_directories(hnswlib INTERFACE ${hnswlib_SOURCE_DIR})
+endif()
+
 # ssl link targets
 if(WIN32)
     set(IONCLAW_SSL_LIBS Poco::NetSSLWin)
@@ -124,8 +156,20 @@ if(stb_ADDED)
     endif()
 endif()
 
+if(hnswlib_ADDED)
+    target_link_libraries(ionclaw-lib PRIVATE hnswlib)
+
+    if(IONCLAW_BUILD_SHARED)
+        target_link_libraries(ionclaw-shared PRIVATE hnswlib)
+    endif()
+endif()
+
 # local llm inference via llama.cpp
 if(IONCLAW_LLAMA_CPP)
+    # this llama.cpp commit uses u8 string literals that become char8_t under C++20 and break MSVC, so pin its subproject to C++17
+    set(IONCLAW_SAVED_CXX_STANDARD ${CMAKE_CXX_STANDARD})
+    set(CMAKE_CXX_STANDARD 17)
+
     CPMAddPackage(
         NAME llama.cpp
         GITHUB_REPOSITORY ggml-org/llama.cpp
@@ -144,12 +188,18 @@ if(IONCLAW_LLAMA_CPP)
             "GGML_NATIVE OFF"
     )
 
+    set(CMAKE_CXX_STANDARD ${IONCLAW_SAVED_CXX_STANDARD})
+
     if(NOT llama.cpp_ADDED)
         message(FATAL_ERROR "IonClaw: IONCLAW_LLAMA_CPP is ON but llama.cpp could not be fetched")
     endif()
 
     # build the provider in its own target so llama-common's bundled includes (its vendored nlohmann) never leak into the rest of the codebase
-    add_library(ionclaw-llama STATIC ${CMAKE_SOURCE_DIR}/main/lib/src/ionclaw/provider/LlamaProvider.cpp)
+    add_library(ionclaw-llama STATIC
+        ${CMAKE_SOURCE_DIR}/main/lib/src/ionclaw/provider/LlamaBackend.cpp
+        ${CMAKE_SOURCE_DIR}/main/lib/src/ionclaw/provider/LlamaProvider.cpp
+        ${CMAKE_SOURCE_DIR}/main/lib/src/ionclaw/embedding/LlamaEmbeddingProvider.cpp
+    )
     set_target_properties(ionclaw-llama PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_include_directories(ionclaw-llama PRIVATE ${CMAKE_SOURCE_DIR}/main/lib/include)
     target_compile_definitions(ionclaw-llama PRIVATE IONCLAW_HAS_LLAMA_CPP)
@@ -180,6 +230,26 @@ target_link_libraries(ionclaw-lib PUBLIC
     yaml-cpp
     ${IONCLAW_SSL_LIBS}
 )
+
+if(WIN32)
+    # advapi32 provides the registry apis used for system information
+    target_link_libraries(ionclaw-lib PUBLIC advapi32)
+endif()
+
+# the tz library backs cron zone conversions on desktop, so a missing fetch there is a hard error rather than a silent fallback
+if(IONCLAW_USE_TZ_LIB)
+    if(NOT TARGET date-tz)
+        message(FATAL_ERROR "IonClaw: the date tz library is required on this platform but was not fetched")
+    endif()
+
+    target_link_libraries(ionclaw-lib PRIVATE date-tz)
+    target_compile_definitions(ionclaw-lib PRIVATE IONCLAW_HAS_TZ_LIB)
+
+    if(IONCLAW_BUILD_SHARED)
+        target_link_libraries(ionclaw-shared PRIVATE date-tz)
+        target_compile_definitions(ionclaw-shared PRIVATE IONCLAW_HAS_TZ_LIB)
+    endif()
+endif()
 
 target_compile_definitions(ionclaw-lib PUBLIC IONCLAW_HAS_SSL)
 

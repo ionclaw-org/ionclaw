@@ -41,11 +41,6 @@ struct ToolLoopConfig
 class ToolLoopDetector
 {
 public:
-    static constexpr int HISTORY_SIZE = 30;
-    static constexpr int WARNING_THRESHOLD = 10;
-    static constexpr int CRITICAL_THRESHOLD = 20;
-    static constexpr int GLOBAL_CIRCUIT_BREAKER = 30;
-
     ToolLoopDetector() = default;
     explicit ToolLoopDetector(const ToolLoopConfig &cfg)
         : loopConfig(cfg)

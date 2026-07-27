@@ -49,10 +49,14 @@ public:
 
     static std::unique_ptr<Poco::Net::HTTPClientSession> createSession(const Poco::URI &uri, int timeoutSeconds, const std::string &proxy = "");
 
+    static std::string systemCaLocation();
+
 private:
     std::string baseUrl;
     int timeoutSeconds;
     std::map<std::string, std::string> defaultHeaders;
+    static bool hasHeaderControlChar(const std::string &text);
+    static void stripSensitiveHeaders(std::map<std::string, std::string> &headers);
     static void applyHeaders(Poco::Net::HTTPRequest &request, const std::map<std::string, std::string> &headers);
     static HttpResponse readResponse(Poco::Net::HTTPResponse &response, std::istream &responseStream);
 };

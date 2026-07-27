@@ -106,7 +106,8 @@ private fun WebPanel(url: String, onCreated: (WebView) -> Unit, onFinished: () -
                 // the panel may request the microphone for voice features served by the local server
                 webChromeClient = object : WebChromeClient() {
                     override fun onPermissionRequest(request: PermissionRequest) {
-                        request.grant(request.resources)
+                        val audio = request.resources.filter { it == PermissionRequest.RESOURCE_AUDIO_CAPTURE }
+                        if (audio.isNotEmpty()) request.grant(audio.toTypedArray()) else request.deny()
                     }
                 }
 
@@ -116,6 +117,8 @@ private fun WebPanel(url: String, onCreated: (WebView) -> Unit, onFinished: () -
                 // (vh/dvh) as zero and the whole app collapses to a blank height
                 doOnLayout { loadUrl(url) }
             }
-        }
+        },
+        // release native webview resources when the panel leaves composition
+        onRelease = { it.destroy() }
     )
 }

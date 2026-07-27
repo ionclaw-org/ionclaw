@@ -137,6 +137,14 @@ build: ## Build server executable (release)
 	cmake --build $(BUILD_DIR) -j$(NPROC)
 	@echo "==> Done: $(BUILD_DIR)/bin/ionclaw-server"
 
+.PHONY: test
+test: ## Build and run the unit test suite
+	@echo "==> Building tests..."
+	cmake -B $(BUILD_DIR) $(CMAKE_FLAGS) -DIONCLAW_BUILD_TESTS=ON
+	cmake --build $(BUILD_DIR) --target ionclaw-tests -j$(NPROC)
+	@echo "==> Running tests..."
+	ctest --test-dir $(BUILD_DIR) --output-on-failure
+
 .PHONY: build-debug
 build-debug: ## Build server executable (debug)
 	@echo "==> Building server (debug)..."

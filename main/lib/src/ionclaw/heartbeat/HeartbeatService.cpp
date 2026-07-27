@@ -29,11 +29,16 @@ HeartbeatService::HeartbeatService(std::shared_ptr<ionclaw::bus::MessageBus> bus
 {
 }
 
-void HeartbeatService::start()
+HeartbeatService::~HeartbeatService()
+{
+    stop();
+}
+
+void HeartbeatService::startLocked()
 {
     if (!enabled)
     {
-        spdlog::info("[HeartbeatService] disabled");
+        spdlog::info("[HeartbeatService] Disabled");
         return;
     }
 
@@ -43,10 +48,10 @@ void HeartbeatService::start()
     }
 
     loopThread = std::thread(&HeartbeatService::runLoop, this);
-    spdlog::info("[HeartbeatService] started (every {}s)", interval.load());
+    spdlog::info("[HeartbeatService] Started (every {}s)", interval.load());
 }
 
-void HeartbeatService::stop()
+void HeartbeatService::stopLocked()
 {
     if (!running.exchange(false))
     {
@@ -58,19 +63,35 @@ void HeartbeatService::stop()
         loopThread.join();
     }
 
-    spdlog::info("[HeartbeatService] stopped");
+    spdlog::info("[HeartbeatService] Stopped");
+}
+
+void HeartbeatService::start()
+{
+    std::lock_guard<std::mutex> lock(lifecycleMutex);
+    startLocked();
+}
+
+void HeartbeatService::stop()
+{
+    std::lock_guard<std::mutex> lock(lifecycleMutex);
+    stopLocked();
 }
 
 void HeartbeatService::restart(int newInterval, bool newEnabled, const std::string &newAgent)
 {
-    stop();
+    std::lock_guard<std::mutex> lock(lifecycleMutex);
+
+    stopLocked();
     interval = newInterval;
     enabled = newEnabled;
+
     {
-        std::lock_guard<std::mutex> lock(agentMutex);
+        std::lock_guard<std::mutex> agentLock(agentMutex);
         agent = newAgent;
     }
-    start();
+
+    startLocked();
 }
 
 void HeartbeatService::runLoop()
@@ -97,7 +118,7 @@ void HeartbeatService::runLoop()
         }
         catch (const std::exception &e)
         {
-            spdlog::error("[HeartbeatService] error: {}", e.what());
+            spdlog::error("[HeartbeatService] Error: {}", e.what());
         }
     }
 }
@@ -108,7 +129,7 @@ void HeartbeatService::tick()
 
     if (isHeartbeatEmpty(content))
     {
-        spdlog::debug("[HeartbeatService] no tasks");
+        spdlog::debug("[HeartbeatService] No tasks");
         return;
     }
 
@@ -122,7 +143,7 @@ void HeartbeatService::tick()
     sessionManager->clearSession(agentSessionKey);
 
     // publish inbound message to trigger agent processing
-    spdlog::info("[HeartbeatService] sending tasks to agent");
+    spdlog::info("[HeartbeatService] Sending tasks to agent");
 
     ionclaw::bus::InboundMessage msg;
     msg.channel = "heartbeat";

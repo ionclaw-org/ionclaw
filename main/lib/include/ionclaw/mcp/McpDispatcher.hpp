@@ -11,6 +11,7 @@
 #include "nlohmann/json.hpp"
 
 #include "ionclaw/config/Config.hpp"
+#include "ionclaw/config/ConfigStore.hpp"
 #include "ionclaw/mcp/McpTypes.hpp"
 
 namespace ionclaw
@@ -44,7 +45,7 @@ using SseCallback = std::function<bool(const nlohmann::json &event)>;
 class McpDispatcher
 {
 public:
-    McpDispatcher(std::shared_ptr<ionclaw::agent::Orchestrator> orchestrator, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, std::shared_ptr<ionclaw::config::Config> config);
+    McpDispatcher(std::shared_ptr<ionclaw::agent::Orchestrator> orchestrator, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, std::shared_ptr<ionclaw::config::ConfigStore> configStore);
 
     void enable();
     void disable();
@@ -89,7 +90,7 @@ private:
     std::shared_ptr<ionclaw::task::TaskManager> taskManager;
     std::shared_ptr<ionclaw::bus::MessageBus> bus;
     std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher;
-    std::shared_ptr<ionclaw::config::Config> config;
+    std::shared_ptr<ionclaw::config::ConfigStore> configStore;
 
     void reapIdleSessionsLocked();
 

@@ -4,10 +4,10 @@
 #include <regex>
 #include <stdexcept>
 
+#include "ionclaw/provider/ModelCapabilities.hpp"
 #include "ionclaw/provider/ProviderHelper.hpp"
 #include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/StringHelper.hpp"
-#include "ionclaw/util/UniqueId.hpp"
 #include "spdlog/spdlog.h"
 
 namespace ionclaw
@@ -165,13 +165,46 @@ std::string OpenAiProvider::name() const
     return "openai";
 }
 
+bool OpenAiProvider::isReasoningModel(const std::string &model)
+{
+    auto m = model;
+    ionclaw::util::StringHelper::toLowerInPlace(m);
+
+    // o1/o3/o4 families (o1, o1-mini, o3-mini, o4-mini) and the gpt-5 reasoning family
+    return m.starts_with("o1") || m.starts_with("o3") || m.starts_with("o4") || m.starts_with("gpt-5");
+}
+
+std::string OpenAiProvider::stringField(const nlohmann::json &obj, const std::string &key, const std::string &fallback)
+{
+    auto it = obj.find(key);
+
+    if (it == obj.end() || !it->is_string())
+    {
+        return fallback;
+    }
+
+    return it->get<std::string>();
+}
+
 nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &request) const
 {
     // set base request fields
     nlohmann::json body;
-    body["model"] = ProviderHelper::stripProviderPrefix(request.model);
-    body["temperature"] = request.temperature;
-    body["max_tokens"] = request.maxTokens;
+    auto modelName = ProviderHelper::stripProviderPrefix(request.model);
+    body["model"] = modelName;
+
+    // reasoning models use max_completion_tokens and reject a non-default temperature, so they omit both max_tokens and temperature
+    bool reasoningModel = isReasoningModel(modelName);
+
+    if (reasoningModel)
+    {
+        body["max_completion_tokens"] = request.maxTokens;
+    }
+    else
+    {
+        body["temperature"] = request.temperature;
+        body["max_tokens"] = request.maxTokens;
+    }
 
     // apply model params from config
     std::string thinkingLevel;
@@ -191,12 +224,19 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
                 continue; // handled separately below
             }
 
+            // reasoning models reject these, so they are not passed through from config
+            if (reasoningModel && (key == "temperature" || key == "max_tokens"))
+            {
+                continue;
+            }
+
             body[key] = value;
         }
     }
 
     // apply thinking/reasoning budget (for o1, o3, Claude with extended thinking via OpenAI-compat)
-    if (!thinkingLevel.empty() && thinkingLevel != "off")
+    // gated on the capability table so we never send a reasoning field to a model known not to support it (permissive when unknown)
+    if (!thinkingLevel.empty() && thinkingLevel != "off" && ModelCapabilities::supportsReasoning(request.model))
     {
         // openrouter: inject reasoning.effort instead of thinking block
         bool isOpenRouter = baseUrl.find("openrouter") != std::string::npos;
@@ -228,18 +268,20 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
                     body["reasoning"] = {{"effort", effort}};
                 }
 
-                // remove legacy flat reasoning_effort that conflicts with nested format
+                // remove the flat reasoning_effort field, which conflicts with the nested reasoning.effort format
                 body.erase("reasoning_effort");
             }
         }
         else
         {
-            std::map<std::string, int> budgets = {{"low", 2048}, {"medium", 8192}, {"high", 32768}};
-            auto it = budgets.find(thinkingLevel);
-            int budget = (it != budgets.end()) ? it->second : 8192;
+            // openai-compatible providers use the standard reasoning_effort field, not anthropic's thinking block which they reject
+            std::string effort = thinkingLevel == "adaptive" ? "medium" : thinkingLevel;
 
-            body["thinking"] = {{"type", "enabled"}, {"budget_tokens", budget}};
-            body["temperature"] = 1; // required for extended thinking
+            if (effort == "low" || effort == "medium" || effort == "high")
+            {
+                body["reasoning_effort"] = effort;
+                body["temperature"] = 1; // openai reasoning models only accept the default temperature
+            }
         }
     }
 
@@ -250,6 +292,9 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
     {
         nlohmann::json m;
         m["role"] = msg.role;
+
+        // openai rejects images inside a tool message, so any are carried in a user message pushed right after
+        nlohmann::json pendingImageMessage = nullptr;
 
         // convert assistant messages with tool calls
         if (msg.role == "assistant" && !msg.toolCalls.empty())
@@ -287,10 +332,11 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
                 m["name"] = msg.name;
             }
 
-            // use content blocks with image when available
+            // the tool message keeps only text; images are moved to a following user message so openai accepts the request
             if (msg.contentBlocks.is_array() && !msg.contentBlocks.empty())
             {
-                auto openaiBlocks = nlohmann::json::array();
+                std::string toolText;
+                auto imageBlocks = nlohmann::json::array();
 
                 for (const auto &block : msg.contentBlocks)
                 {
@@ -303,18 +349,28 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
                         nlohmann::json imageBlock;
                         imageBlock["type"] = "image_url";
                         imageBlock["image_url"]["url"] = "data:" + mediaType + ";base64," + data;
-                        openaiBlocks.push_back(imageBlock);
+                        imageBlocks.push_back(imageBlock);
                     }
                     else if (blockType == "text")
                     {
-                        nlohmann::json textBlock;
-                        textBlock["type"] = "text";
-                        textBlock["text"] = block.value("text", "");
-                        openaiBlocks.push_back(textBlock);
+                        if (!toolText.empty())
+                        {
+                            toolText += "\n";
+                        }
+
+                        toolText += block.value("text", "");
                     }
                 }
 
-                m["content"] = openaiBlocks;
+                if (!imageBlocks.empty())
+                {
+                    auto suffix = std::string("[image result included in the following message]");
+                    toolText = toolText.empty() ? suffix : toolText + "\n" + suffix;
+
+                    pendingImageMessage = {{"role", "user"}, {"content", imageBlocks}};
+                }
+
+                m["content"] = toolText;
             }
             else
             {
@@ -372,6 +428,11 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
         }
 
         messages.push_back(m);
+
+        if (!pendingImageMessage.is_null())
+        {
+            messages.push_back(pendingImageMessage);
+        }
     }
 
     // sanitize and validate message ordering
@@ -381,8 +442,13 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
 
     body["messages"] = messages;
 
+    // a model the capability table marks as non-function-calling rejects a tools payload, so drop it with a clear warning
+    if (!request.tools.empty() && !ModelCapabilities::supportsFunctionCalling(request.model))
+    {
+        spdlog::warn("[OpenAiProvider] Model '{}' does not support function calling, dropping {} tool(s) from the request", request.model, request.tools.size());
+    }
     // wrap tools in openai function format
-    if (!request.tools.empty())
+    else if (!request.tools.empty())
     {
         auto toolsJson = nlohmann::json::array();
 
@@ -427,16 +493,14 @@ ChatCompletionResponse OpenAiProvider::parseResponse(const nlohmann::json &respo
 
     const auto &message = choice["message"];
 
-    result.content = message.value("content", "");
+    // content is explicitly null on a tool-call response, so read it defensively instead of via value()
+    result.content = stringField(message, "content");
 
     // parse reasoning_content (o1, o3 models)
-    if (message.contains("reasoning_content") && !message["reasoning_content"].is_null())
-    {
-        result.reasoningContent = message.value("reasoning_content", "");
-    }
+    result.reasoningContent = stringField(message, "reasoning_content");
 
     // finish_reason with fallback to "stop"
-    auto fr = choice.value("finish_reason", "");
+    auto fr = stringField(choice, "finish_reason");
     result.finishReason = fr.empty() ? "stop" : fr;
 
     // parse tool calls from response
@@ -445,12 +509,12 @@ ChatCompletionResponse OpenAiProvider::parseResponse(const nlohmann::json &respo
         for (const auto &tc : message["tool_calls"])
         {
             ToolCall toolCall;
-            toolCall.id = ProviderHelper::sanitizeToolCallId(tc.value("id", ""));
+            toolCall.id = ProviderHelper::sanitizeToolCallId(stringField(tc, "id"));
 
             if (tc.contains("function"))
             {
-                toolCall.name = tc["function"].value("name", "");
-                auto argsStr = tc["function"].value("arguments", "");
+                toolCall.name = stringField(tc["function"], "name");
+                auto argsStr = stringField(tc["function"], "arguments");
                 toolCall.arguments = ProviderHelper::repairJsonArgs(argsStr);
             }
 
@@ -573,6 +637,14 @@ void OpenAiProvider::chatStream(const ChatCompletionRequest &request, StreamCall
 
             if (!json.contains("choices") || !json["choices"].is_array() || json["choices"].empty())
             {
+                // openai-compatible servers deliver in-band failures as data:{"error":...} over http 200, so surface them instead of ending as a clean stop
+                if (json.contains("error"))
+                {
+                    const auto &err = json["error"];
+                    auto errMsg = err.is_object() && err.contains("message") && err["message"].is_string() ? err["message"].get<std::string>() : err.dump();
+                    throw std::runtime_error("Provider stream error: " + errMsg);
+                }
+
                 // could be a usage-only message
                 if (json.contains("usage"))
                 {
@@ -623,7 +695,8 @@ void OpenAiProvider::chatStream(const ChatCompletionRequest &request, StreamCall
 
                 for (const auto &tc : delta["tool_calls"])
                 {
-                    auto index = tc.value("index", 0);
+                    auto indexIt = tc.find("index");
+                    int index = indexIt != tc.end() && indexIt->is_number_integer() ? indexIt->get<int>() : 0;
 
                     if (index < 0 || index >= MAX_TOOL_CALL_INDEX)
                     {
@@ -641,15 +714,12 @@ void OpenAiProvider::chatStream(const ChatCompletionRequest &request, StreamCall
                     if (tc.contains("function"))
                     {
                         // name arrives complete in the first delta, set once
-                        if (tc["function"].contains("name") && pendingToolCalls[index].name.empty())
+                        if (pendingToolCalls[index].name.empty())
                         {
-                            pendingToolCalls[index].name = tc["function"].value("name", "");
+                            pendingToolCalls[index].name = stringField(tc["function"], "name");
                         }
 
-                        if (tc["function"].contains("arguments"))
-                        {
-                            pendingToolCalls[index].arguments += tc["function"].value("arguments", "");
-                        }
+                        pendingToolCalls[index].arguments += stringField(tc["function"], "arguments");
                     }
                 }
             }
@@ -673,6 +743,32 @@ void OpenAiProvider::chatStream(const ChatCompletionRequest &request, StreamCall
         }
     }, isCancelled);
     // clang-format on
+
+    // some openai-compatible servers close the stream without a [DONE] sentinel, so flush any pending state on stream end
+    if (!doneEmitted)
+    {
+        if (!pendingToolCalls.empty() && actualFinishReason != "length")
+        {
+            for (auto &[index, ptc] : pendingToolCalls)
+            {
+                ToolCall tc;
+                tc.id = ProviderHelper::sanitizeToolCallId(ptc.id);
+                tc.name = ptc.name;
+                tc.arguments = ProviderHelper::repairJsonArgs(ptc.arguments);
+
+                StreamChunk chunk;
+                chunk.type = "tool_call";
+                chunk.toolCall = tc;
+                callback(chunk);
+            }
+        }
+
+        StreamChunk chunk;
+        chunk.type = "done";
+        chunk.finishReason = actualFinishReason.empty() ? "stop" : actualFinishReason;
+        callback(chunk);
+        doneEmitted = true;
+    }
 }
 
 } // namespace provider

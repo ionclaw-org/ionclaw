@@ -27,6 +27,8 @@ struct Message
     std::string name;
     nlohmann::json contentBlocks;
     std::string reasoningContent;
+    // provider-native reasoning blocks replayed verbatim, e.g. anthropic thinking blocks with their signature
+    nlohmann::json reasoningBlocks;
 };
 
 struct ChatCompletionRequest
@@ -36,7 +38,6 @@ struct ChatCompletionRequest
     double temperature = 0.7;
     int maxTokens = 4096;
     std::vector<nlohmann::json> tools;
-    bool stream = false;
     nlohmann::json modelParams;
 };
 
@@ -53,6 +54,8 @@ struct ChatCompletionResponse
 {
     std::string content;
     std::string reasoningContent;
+    // provider-native reasoning blocks to replay on the next tool-loop turn, e.g. anthropic thinking blocks with their signature
+    nlohmann::json reasoningBlocks;
     std::vector<ToolCall> toolCalls;
     std::string finishReason;
     nlohmann::json usage;

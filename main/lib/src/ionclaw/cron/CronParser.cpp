@@ -1,61 +1,22 @@
 #include "ionclaw/cron/CronParser.hpp"
 
 #include <chrono>
-#include <cstdlib>
 #include <ctime>
 #include <sstream>
 #include <stdexcept>
 
 #include "spdlog/spdlog.h"
 
+#include "ionclaw/cron/WindowsTimeZone.hpp"
+
+#if defined(IONCLAW_HAS_TZ_LIB)
+#include "date/tz.h"
+#endif
+
 namespace ionclaw
 {
 namespace cron
 {
-
-std::mutex CronParser::tzMutex;
-
-CronParser::TzGuard::TzGuard(const std::string &tz, std::mutex &mtx)
-    : lock(mtx)
-    , overridden(false)
-{
-    // always lock to prevent concurrent TZ mutation, since even an empty tz still reads the global TZ via mktime/localtime_r
-    if (tz.empty())
-    {
-        return;
-    }
-
-#if !defined(_WIN32)
-    const char *oldTz = getenv("TZ");
-    savedTz = oldTz ? oldTz : "";
-    overridden = true;
-
-    setenv("TZ", tz.c_str(), 1);
-    tzset();
-#endif
-}
-
-CronParser::TzGuard::~TzGuard()
-{
-    if (!overridden)
-    {
-        return;
-    }
-
-#if !defined(_WIN32)
-    if (savedTz.empty())
-    {
-        unsetenv("TZ");
-    }
-    else
-    {
-        setenv("TZ", savedTz.c_str(), 1);
-    }
-
-    tzset();
-    // lock is released automatically by unique_lock destructor
-#endif
-}
 
 int CronParser::safeStoi(const std::string &s, int fallback)
 {
@@ -168,24 +129,25 @@ bool CronParser::isValidTimezone(const std::string &tz)
         return true;
     }
 
-#if !defined(_WIN32)
-    TzGuard guard(tz, tzMutex);
-
-    auto now = std::time(nullptr);
-    std::tm tm1{};
-    localtime_r(&now, &tm1);
-
-    // valid IANA timezones yield a short abbreviation (e.g. EST/PST), while invalid ones echo the input back
-    std::string tzAbbrev = tm1.tm_zone ? tm1.tm_zone : "";
-
-    if (tz.find('/') != std::string::npos && tzAbbrev == tz)
+    // reject path traversal before touching the filesystem or the TZ environment
+    if (tz.find("..") != std::string::npos || tz.front() == '/')
     {
         return false;
     }
 
-    return tz.find('/') != std::string::npos;
+#if defined(IONCLAW_HAS_TZ_LIB)
+    // the iana database is authoritative, so a zone locate_zone accepts is valid
+    try
+    {
+        date::locate_zone(tz);
+        return true;
+    }
+    catch (const std::exception &)
+    {
+        return false;
+    }
 #else
-    // windows: accept common formats
+    // windows has no zoneinfo database, so accept the region/city shape and let WindowsTimeZone map it
     return tz.find('/') != std::string::npos;
 #endif
 }
@@ -201,14 +163,17 @@ bool CronParser::isValidExpression(const std::string &expr)
         fieldCount++;
     }
 
-    if (fieldCount != 5)
+    // reject anything that is not exactly five fields, including trailing extra tokens
+    std::string extra;
+
+    if (fieldCount != 5 || stream >> extra)
     {
         return false;
     }
 
-    // verify each field produces at least one valid value
+    // verify each field produces at least one valid value, day-of-week accepts 7 as sunday
     static const int mins[] = {0, 0, 1, 1, 0};
-    static const int maxs[] = {59, 23, 31, 12, 6};
+    static const int maxs[] = {59, 23, 31, 12, 7};
 
     for (int i = 0; i < 5; ++i)
     {
@@ -237,7 +202,7 @@ int64_t CronParser::nextRun(const std::string &expr, const std::string &tz)
 
     if (fieldCount != 5)
     {
-        spdlog::warn("[CronParser] invalid cron expression (need 5 fields): {}", expr);
+        spdlog::warn("[CronParser] Invalid cron expression (need 5 fields): {}", expr);
         auto now = std::chrono::system_clock::now();
         return std::chrono::duration_cast<std::chrono::milliseconds>((now + std::chrono::minutes(1)).time_since_epoch()).count();
     }
@@ -246,11 +211,108 @@ int64_t CronParser::nextRun(const std::string &expr, const std::string &tz)
     auto hours = expandField(fields[1], 0, 23);
     auto daysOfMonth = expandField(fields[2], 1, 31);
     auto months = expandField(fields[3], 1, 12);
-    auto daysOfWeek = expandField(fields[4], 0, 6);
 
-    // raii guard handles TZ set/restore and mutex lock/unlock
-    TzGuard guard(tz, tzMutex);
+    // day-of-week accepts 7 as sunday, normalized to 0 to match tm_wday
+    auto daysOfWeek = expandField(fields[4], 0, 7);
 
+    for (auto &dow : daysOfWeek)
+    {
+        if (dow == 7)
+        {
+            dow = 0;
+        }
+    }
+
+    // vixie cron matches on either day field when both are restricted, otherwise on both
+    bool domRestricted = fields[2] != "*" && !fields[2].starts_with("*/");
+    bool dowRestricted = fields[4] != "*" && !fields[4].starts_with("*/");
+    bool dayUnion = domRestricted && dowRestricted;
+
+    // search up to 366 days ahead
+    static constexpr int MAX_ITERATIONS = 366 * 24 * 60;
+
+#if defined(_WIN32)
+    // windows has no iana tz database, so resolve the zone to native rules for dst-correct scheduling
+    if (!tz.empty() && WindowsTimeZone::isSupported(tz))
+    {
+        auto nowEpoch = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        std::tm ltm{};
+
+        if (WindowsTimeZone::utcToLocal(tz, nowEpoch, ltm))
+        {
+            ltm.tm_sec = 0;
+            ltm.tm_min++;
+
+            for (int i = 0; i < MAX_ITERATIONS; i++)
+            {
+                // _mkgmtime normalizes the calendar fields and weekday without applying any timezone
+                std::time_t normalized = _mkgmtime(&ltm);
+                gmtime_s(&ltm, &normalized);
+
+                bool dayMatch = dayUnion ? (matchesField(ltm.tm_mday, daysOfMonth) || matchesField(ltm.tm_wday, daysOfWeek)) : (matchesField(ltm.tm_mday, daysOfMonth) && matchesField(ltm.tm_wday, daysOfWeek));
+
+                if (matchesField(ltm.tm_mon + 1, months) && dayMatch && matchesField(ltm.tm_hour, hours) && matchesField(ltm.tm_min, minutes))
+                {
+                    std::time_t utcResult = 0;
+
+                    if (WindowsTimeZone::localToUtc(tz, ltm, utcResult))
+                    {
+                        return static_cast<int64_t>(utcResult) * 1000;
+                    }
+
+                    break;
+                }
+
+                ltm.tm_min++;
+            }
+        }
+    }
+#endif
+
+#if defined(IONCLAW_HAS_TZ_LIB)
+    // resolve the zone from the system iana database, which is thread-safe and needs no global TZ mutation
+    const date::time_zone *zone = nullptr;
+
+    try
+    {
+        zone = tz.empty() ? date::current_zone() : date::locate_zone(tz);
+    }
+    catch (const std::exception &e)
+    {
+        spdlog::warn("[CronParser] Unknown timezone '{}', using system local: {}", tz, e.what());
+        zone = date::current_zone();
+    }
+
+    // the cron field vectors are named minutes/hours, so the chrono types are fully qualified to avoid shadowing
+    auto nowSys = std::chrono::floor<std::chrono::minutes>(std::chrono::system_clock::now());
+    auto candidate = date::make_zoned(zone, nowSys).get_local_time() + std::chrono::minutes(1);
+
+    for (int i = 0; i < MAX_ITERATIONS; i++)
+    {
+        auto localDay = std::chrono::floor<date::days>(candidate);
+        date::year_month_day ymd{localDay};
+        date::hh_mm_ss tod{candidate - localDay};
+        date::weekday wd{localDay};
+
+        int mon = static_cast<int>(unsigned(ymd.month()));
+        int mday = static_cast<int>(unsigned(ymd.day()));
+        int hour = static_cast<int>(tod.hours().count());
+        int minute = static_cast<int>(tod.minutes().count());
+        int dow = static_cast<int>(wd.c_encoding()); // 0=Sunday
+
+        bool dayMatch = dayUnion ? (matchesField(mday, daysOfMonth) || matchesField(dow, daysOfWeek)) : (matchesField(mday, daysOfMonth) && matchesField(dow, daysOfWeek));
+
+        if (matchesField(mon, months) && dayMatch && matchesField(hour, hours) && matchesField(minute, minutes))
+        {
+            // interpret the matched wall-clock in the zone, choosing the earliest instant across a dst fold
+            auto utc = date::make_zoned(zone, candidate, date::choose::earliest).get_sys_time();
+            return std::chrono::duration_cast<std::chrono::milliseconds>(utc.time_since_epoch()).count();
+        }
+
+        candidate += std::chrono::minutes(1);
+    }
+#else
+    // fallback in device-local time where the tz library is absent: windows zones its native resolver could not map, and apple mobile without a bundled zone database
     auto now = std::chrono::system_clock::now();
     auto nowTime = std::chrono::system_clock::to_time_t(now);
 
@@ -262,51 +324,30 @@ int64_t CronParser::nextRun(const std::string &expr, const std::string &tz)
     localtime_r(&nowTime, &tm);
 #endif
 
-    // advance one minute from now to find the next match
     tm.tm_sec = 0;
     tm.tm_min++;
 
-    if (tm.tm_min >= 60)
-    {
-        tm.tm_min = 0;
-        tm.tm_hour++;
-    }
-
-    // search up to 366 days ahead
-    static constexpr int MAX_ITERATIONS = 366 * 24 * 60;
-
     for (int i = 0; i < MAX_ITERATIONS; i++)
     {
-        // normalize the time struct
+        tm.tm_isdst = -1;
         std::mktime(&tm);
 
         int dow = tm.tm_wday; // 0=Sunday
+        bool dayMatch = dayUnion ? (matchesField(tm.tm_mday, daysOfMonth) || matchesField(dow, daysOfWeek)) : (matchesField(tm.tm_mday, daysOfMonth) && matchesField(dow, daysOfWeek));
 
-        if (matchesField(tm.tm_mon + 1, months) && matchesField(tm.tm_mday, daysOfMonth) && matchesField(dow, daysOfWeek) && matchesField(tm.tm_hour, hours) && matchesField(tm.tm_min, minutes))
+        if (matchesField(tm.tm_mon + 1, months) && dayMatch && matchesField(tm.tm_hour, hours) && matchesField(tm.tm_min, minutes))
         {
             tm.tm_sec = 0;
-            std::time_t result = std::mktime(&tm);
-            return static_cast<int64_t>(result) * 1000;
+            tm.tm_isdst = -1;
+            return static_cast<int64_t>(std::mktime(&tm)) * 1000;
         }
 
-        // advance one minute
         tm.tm_min++;
-
-        if (tm.tm_min >= 60)
-        {
-            tm.tm_min = 0;
-            tm.tm_hour++;
-
-            if (tm.tm_hour >= 24)
-            {
-                tm.tm_hour = 0;
-                tm.tm_mday++;
-            }
-        }
     }
+#endif
 
-    // no match found within a year, fallback to 1 hour from now
-    spdlog::warn("[CronParser] no match found for cron expression: {}", expr);
+    // no match found within a year, fall back to one hour from now
+    spdlog::warn("[CronParser] No match found for cron expression: {}", expr);
     auto fallback = std::chrono::system_clock::now() + std::chrono::hours(1);
     return std::chrono::duration_cast<std::chrono::milliseconds>(fallback.time_since_epoch()).count();
 }

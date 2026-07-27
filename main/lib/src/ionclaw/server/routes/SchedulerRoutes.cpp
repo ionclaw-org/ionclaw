@@ -60,6 +60,17 @@ void Routes::handleSchedulerCreate(Poco::Net::HTTPServerRequest &req, Poco::Net:
         auto channel = body.value("channel", "");
         auto to = body.value("to", "");
 
+        // a cron job without its own zone inherits the configured timezone so it matches the assistant's clock
+        if (timezone.empty() && !cronExpr.empty())
+        {
+            auto config = configStore->snapshot();
+
+            if (!config->timezone.empty())
+            {
+                timezone = config->timezone;
+            }
+        }
+
         if (message.empty())
         {
             sendError(resp, "message is required");
@@ -129,6 +140,8 @@ void Routes::handleSchedulerCreate(Poco::Net::HTTPServerRequest &req, Poco::Net:
                 return;
             }
 
+            // let mktime resolve dst for the local wall-clock time
+            tm.tm_isdst = -1;
             auto epochTime = std::mktime(&tm);
 
             if (epochTime <= std::time(nullptr))
@@ -147,7 +160,7 @@ void Routes::handleSchedulerCreate(Poco::Net::HTTPServerRequest &req, Poco::Net:
             return;
         }
 
-        auto job = cronService->addJob(name, schedule, message, true, channel, to, deleteAfterRun);
+        auto job = cronService->addJob(name, schedule, message, channel, to, deleteAfterRun);
 
         sendJson(resp, {{"status", "ok"}, {"id", job.id}});
     }
@@ -169,6 +182,17 @@ void Routes::handleSchedulerUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net:
         auto everySeconds = body.value("every_seconds", 0);
         auto at = body.value("at", "");
         auto timezone = body.value("timezone", "");
+
+        // a cron job without its own zone inherits the configured timezone so an edit does not silently drop it
+        if (timezone.empty() && !cronExpr.empty())
+        {
+            auto config = configStore->snapshot();
+
+            if (!config->timezone.empty())
+            {
+                timezone = config->timezone;
+            }
+        }
 
         if (!timezone.empty() && cronExpr.empty())
         {
@@ -224,6 +248,8 @@ void Routes::handleSchedulerUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net:
                 return;
             }
 
+            // let mktime resolve dst for the local wall-clock time
+            tm.tm_isdst = -1;
             auto epochTime = std::mktime(&tm);
 
             if (epochTime <= std::time(nullptr))

@@ -38,6 +38,7 @@ private:
 
     ChatCompletionRequest applyProfileParams(const ChatCompletionRequest &request, size_t profileIdx) const;
     static bool isFailoverableError(const std::string &errorCategory);
+    static bool isPermanentError(const std::string &errorCategory);
     static int computeBackoffMs(int consecutiveFailures, const std::string &errorCategory);
     int computeMaxRetries() const;
     void markGood(size_t idx);

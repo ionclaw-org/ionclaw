@@ -20,7 +20,7 @@ struct InteractView: View {
             statusSection
         }
         .scrollContentBackground(.hidden)
-        .background(Color(hex: 0x1A1A2E).ignoresSafeArea())
+        .background(Theme.header.ignoresSafeArea())
         .navigationTitle("Talk")
     }
 

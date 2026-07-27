@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import router from '../router'
 import * as storage from '../utils/storage'
+import { useWebSocketStore } from './websocket'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(storage.getItem('ionclaw_token') || '')
@@ -34,6 +35,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function logout() {
+    // close the event stream before dropping the token so it never reconnects with a stale credential
+    useWebSocketStore().disconnect()
     token.value = ''
     username.value = ''
     storage.removeItem('ionclaw_token')

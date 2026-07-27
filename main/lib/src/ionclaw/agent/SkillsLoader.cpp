@@ -323,45 +323,6 @@ std::vector<SkillInfo> SkillsLoader::listSkills() const
     return result;
 }
 
-std::string SkillsLoader::loadSkill(const std::string &name) const
-{
-    auto skills = discoverSkills();
-    auto it = skills.find(name);
-
-    if (it == skills.end())
-    {
-        return "";
-    }
-
-    try
-    {
-        auto content = readSkillContent(it->second);
-
-        if (content.empty())
-        {
-            return "";
-        }
-
-        auto [metadata, body] = parseFrontmatter(content);
-
-        // trim
-        auto start = body.find_first_not_of(" \t\n\r");
-        auto end = body.find_last_not_of(" \t\n\r");
-
-        if (start == std::string::npos)
-        {
-            return "";
-        }
-
-        return body.substr(start, end - start + 1);
-    }
-    catch (const std::exception &e)
-    {
-        spdlog::warn("[SkillsLoader] Failed to load skill {}: {}", name, e.what());
-        return "";
-    }
-}
-
 std::string SkillsLoader::loadSkillRaw(const std::string &name) const
 {
     auto skills = discoverSkills();

@@ -108,6 +108,11 @@ struct TranscriptionConfig
     std::string model;
 };
 
+struct EmbeddingsConfig
+{
+    std::string model;
+};
+
 struct ToolsConfig
 {
     bool restrictToWorkspace = true;
@@ -167,6 +172,7 @@ struct Config
 {
     std::string projectPath;
     std::string publicDir;
+    std::string timezone;
 
     BotConfig bot;
     ServerConfig server;
@@ -174,6 +180,7 @@ struct Config
     ClassifierConfig classifier;
     ImageConfig image;
     TranscriptionConfig transcription;
+    EmbeddingsConfig embeddings;
     ToolsConfig tools;
     StorageConfig storage;
     std::map<std::string, AgentConfig> agents;
@@ -187,6 +194,7 @@ struct Config
 
     std::string resolveApiKey(const std::string &providerName) const;
     std::string resolveBaseUrl(const std::string &providerName) const;
+    const ProviderConfig *findProvider(const std::string &model) const;
     ProviderConfig resolveProvider(const std::string &model) const;
 };
 

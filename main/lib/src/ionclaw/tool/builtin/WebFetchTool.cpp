@@ -130,7 +130,7 @@ ToolResult WebFetchTool::execute(const nlohmann::json &params, const ToolContext
     {
         auto response = ionclaw::util::HttpClient::request("GET", url, {{"User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_2) AppleWebKit/537.36"}}, "", 30, true, ionclaw::util::SsrfGuard::validateUrl);
 
-        auto finalUrl = response.headers.count("X-Final-URL") ? response.headers.at("X-Final-URL") : url;
+        auto finalUrl = response.headers.contains("X-Final-URL") ? response.headers.at("X-Final-URL") : url;
 
         if (response.statusCode < 200 || response.statusCode >= 400)
         {
@@ -139,7 +139,7 @@ ToolResult WebFetchTool::execute(const nlohmann::json &params, const ToolContext
 
         std::string text;
         std::string extractor;
-        auto contentType = response.headers.count("Content-Type") ? response.headers.at("Content-Type") : "";
+        auto contentType = response.headers.contains("Content-Type") ? response.headers.at("Content-Type") : "";
 
         if (contentType.find("application/json") != std::string::npos)
         {
@@ -158,8 +158,18 @@ ToolResult WebFetchTool::execute(const nlohmann::json &params, const ToolContext
         }
         else if (contentType.find("text/html") != std::string::npos)
         {
-            // html: strip tags to readable text
-            text = stripHtml(response.body);
+            // bound the html fed to the regex passes so adversarial input cannot drive deep backtracking
+            static constexpr size_t MAX_HTML_BYTES = 2 * 1000 * 1000;
+
+            if (response.body.size() > MAX_HTML_BYTES)
+            {
+                text = stripHtml(response.body.substr(0, MAX_HTML_BYTES));
+            }
+            else
+            {
+                text = stripHtml(response.body);
+            }
+
             extractor = "html";
         }
         else

@@ -305,8 +305,8 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
         // fill rectangle region
         int x1 = std::max(0, x);
         int y1 = std::max(0, y);
-        int x2 = std::min(w, x + rw);
-        int y2 = std::min(h, y + rh);
+        int x2 = static_cast<int>(std::min<int64_t>(w, static_cast<int64_t>(x) + rw));
+        int y2 = static_cast<int>(std::min<int64_t>(h, static_cast<int64_t>(y) + rh));
 
         for (int py = y1; py < y2; ++py)
         {
@@ -398,17 +398,21 @@ ToolResult ImageOpsTool::execute(const nlohmann::json &params, const ToolContext
 
             resizedOverlay.resize(static_cast<size_t>(overlayW) * static_cast<size_t>(overlayH) * 3);
 
-            if (stbir_resize_uint8_linear(over, ow, oh, 0, resizedOverlay.data(), overlayW, overlayH, 0, STBIR_RGB) != nullptr)
+            if (stbir_resize_uint8_linear(over, ow, oh, 0, resizedOverlay.data(), overlayW, overlayH, 0, STBIR_RGB) == nullptr)
             {
-                pasteW = overlayW;
-                pasteH = overlayH;
-                pasteSrc = resizedOverlay.data();
+                stbi_image_free(base);
+                stbi_image_free(over);
+                return "Error: failed to resize overlay to the requested dimensions.";
             }
+
+            pasteW = overlayW;
+            pasteH = overlayH;
+            pasteSrc = resizedOverlay.data();
         }
 
         // blend overlay onto base (clipping for negative x/y)
-        int srcOffX = std::max(0, -x);
-        int srcOffY = std::max(0, -y);
+        int srcOffX = static_cast<int>(std::max<int64_t>(0, -static_cast<int64_t>(x)));
+        int srcOffY = static_cast<int>(std::max<int64_t>(0, -static_cast<int64_t>(y)));
         int px = std::max(0, x);
         int py = std::max(0, y);
         int blendW = std::min(pasteW - srcOffX, w - px);

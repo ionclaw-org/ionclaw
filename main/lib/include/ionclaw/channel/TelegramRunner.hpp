@@ -25,7 +25,7 @@ namespace channel
 class TelegramRunner
 {
 public:
-    TelegramRunner(std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, std::string token, std::vector<std::string> allowedUsers, std::string proxy, bool replyToMessage, std::string publicDir);
+    TelegramRunner(std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, std::string token, std::vector<std::string> allowedUsers, std::string proxy, bool replyToMessage, std::string publicDir, std::string publicUrl);
 
     ~TelegramRunner();
 
@@ -53,6 +53,12 @@ private:
     void sendTextMessage(const std::string &chatId, const std::string &text, int replyToMessageId = 0);
     void sendChunkedMessage(const std::string &chatId, const std::string &text, int replyToMessageId = 0);
 
+    // sends a media attachment by public url; kind is image|audio|video|document
+    void sendMediaByUrl(const std::string &chatId, const std::string &kind, const std::string &url, const std::string &caption, int replyToMessageId = 0);
+
+    // turns a workspace media path into its public url, passing absolute urls through unchanged
+    std::string resolvePublicUrl(const std::string &path) const;
+
     static std::string markdownToTelegramHtml(const std::string &md);
     static std::string escapeHtml(const std::string &s);
     static size_t findClosing(const std::string &s, size_t pos, const std::string &marker);
@@ -66,6 +72,7 @@ private:
     std::string proxy;
     bool replyToMessage;
     std::string publicDir;
+    std::string publicUrl;
 
     std::atomic<bool> running{false};
     std::thread pollThread;

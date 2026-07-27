@@ -5,8 +5,10 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <set>
 #include <sstream>
 
+#include "ionclaw/util/FileHelper.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
 #include "nlohmann/json.hpp"
@@ -109,14 +111,17 @@ SessionManager::SessionManager(const std::string &sessionsDir, int64_t maxDiskBy
 
 std::shared_ptr<std::mutex> SessionManager::getSessionMutex(const std::string &key)
 {
+    // key the mutex on the on-disk filename so two session keys that sanitize to the same file share one lock and never tear it
+    auto fileKey = sanitizeFilename(key);
+
     std::lock_guard<std::mutex> lock(globalMutex);
 
-    auto it = sessionMutexes.find(key);
+    auto it = sessionMutexes.find(fileKey);
 
     if (it == sessionMutexes.end())
     {
         auto mtx = std::make_shared<std::mutex>();
-        sessionMutexes[key] = mtx;
+        sessionMutexes[fileKey] = mtx;
         return mtx;
     }
 
@@ -139,7 +144,10 @@ Session &SessionManager::getOrCreateLocked(const std::string &sessionKey)
     {
         loadFromDisk(sessionKey);
     }
-    else
+
+    // covers both a missing file and an existing file that failed to load; a bare cache[key] here would default-construct
+    // a session with an empty key and empty timestamps that masks the real file, so build a properly keyed session instead
+    if (cache.find(sessionKey) == cache.end())
     {
         Session session;
         session.key = sessionKey;
@@ -253,7 +261,6 @@ bool SessionManager::addMessage(const std::string &sessionKey, const SessionMess
 
     // hold globalMutex while accessing session to prevent use-after-free from concurrent eviction
     std::string filePath;
-    bool fileExists;
     std::string createdAt;
     std::string updatedAt;
     std::string displayName;
@@ -309,7 +316,6 @@ bool SessionManager::addMessage(const std::string &sessionKey, const SessionMess
         }
 
         filePath = sessionFilePath(sessionKey);
-        fileExists = fs::exists(filePath);
         createdAt = session.createdAt;
         updatedAt = session.updatedAt;
         displayName = session.displayName;
@@ -325,7 +331,8 @@ bool SessionManager::addMessage(const std::string &sessionKey, const SessionMess
         return false;
     }
 
-    if (!fileExists)
+    // write the metadata header when the file is empty, judged from the open handle so a concurrent sweep that removed it still gets a fresh header
+    if (ofs.tellp() == std::streampos(0))
     {
         nlohmann::json meta;
         meta["_type"] = "metadata";
@@ -535,6 +542,7 @@ void SessionManager::clearSession(const std::string &sessionKey)
     std::string createdAt;
     std::string updatedAt;
     std::string dispName;
+    bool cached = false;
 
     {
         std::lock_guard<std::mutex> glock(globalMutex);
@@ -545,63 +553,88 @@ void SessionManager::clearSession(const std::string &sessionKey)
             it->second.messages.clear();
             it->second.updatedAt = util::TimeHelper::now();
             it->second.liveState = nullptr;
-            it->second.displayName.clear();
 
             key = it->second.key;
             createdAt = it->second.createdAt;
             updatedAt = it->second.updatedAt;
             dispName = it->second.displayName;
-        }
-        else
-        {
-            // session not in cache, nothing to clear
-            return;
+            cached = true;
         }
 
         filePath = sessionFilePath(sessionKey);
     }
 
-    if (fs::exists(filePath))
+    if (!fs::exists(filePath))
     {
-        std::ofstream ofs(filePath, std::ios::trunc);
+        // nothing persisted to clear, the in-memory copy (if any) was already reset above
+        return;
+    }
 
-        if (ofs.is_open())
+    if (!cached)
+    {
+        // an evicted or never-loaded session must still be cleared on disk, preserving its metadata
+        std::ifstream ifs(filePath);
+        std::string firstLine;
+
+        if (ifs.is_open() && std::getline(ifs, firstLine))
         {
-            nlohmann::json meta;
-            meta["_type"] = "metadata";
-            meta["key"] = key;
-            meta["created_at"] = createdAt;
-            meta["updated_at"] = updatedAt;
-            if (!dispName.empty())
+            try
             {
-                meta["display_name"] = dispName;
-            }
-            ofs << meta.dump() << "\n";
-            ofs.flush();
+                auto meta = nlohmann::json::parse(firstLine);
 
-            if (!ofs.good())
+                if (meta.value("_type", std::string()) == "metadata")
+                {
+                    key = meta.value("key", sessionKey);
+                    createdAt = meta.value("created_at", std::string());
+                    dispName = meta.value("display_name", std::string());
+                }
+            }
+            catch (const std::exception &)
             {
-                spdlog::error("[SessionManager] Failed to flush cleared session file: {}", filePath);
             }
         }
-        else
+
+        if (key.empty())
         {
-            spdlog::error("[SessionManager] Failed to open session file for clear: {}", filePath);
+            key = sessionKey;
         }
+        if (createdAt.empty())
+        {
+            createdAt = util::TimeHelper::now();
+        }
+        updatedAt = util::TimeHelper::now();
+    }
+
+    std::ofstream ofs(filePath, std::ios::trunc);
+
+    if (ofs.is_open())
+    {
+        nlohmann::json meta;
+        meta["_type"] = "metadata";
+        meta["key"] = key;
+        meta["created_at"] = createdAt;
+        meta["updated_at"] = updatedAt;
+        if (!dispName.empty())
+        {
+            meta["display_name"] = dispName;
+        }
+        ofs << meta.dump() << "\n";
+        ofs.flush();
+
+        if (!ofs.good())
+        {
+            spdlog::error("[SessionManager] Failed to flush cleared session file: {}", filePath);
+        }
+    }
+    else
+    {
+        spdlog::error("[SessionManager] Failed to open session file for clear: {}", filePath);
     }
 }
 
 void SessionManager::writeSessionFile(const Session &session)
 {
     auto filePath = sessionFilePath(session.key);
-
-    std::ofstream ofs(filePath, std::ios::trunc);
-
-    if (!ofs.is_open())
-    {
-        spdlog::error("[SessionManager] Failed to open session file for save: {}", filePath);
-        return;
-    }
 
     // write metadata
     nlohmann::json meta;
@@ -624,22 +657,25 @@ void SessionManager::writeSessionFile(const Session &session)
     {
         meta["aborted_last_run"] = true;
         meta["abort_cutoff_index"] = session.abortCutoffMessageIndex;
-        meta["abort_cutoff_timestamp"] = session.abortCutoffTimestamp;
     }
 
-    ofs << meta.dump() << "\n";
+    if (session.stoppedByUser)
+    {
+        meta["stopped_by_user"] = true;
+    }
 
-    // write messages
+    std::string content = meta.dump() + "\n";
+
     for (const auto &msg : session.messages)
     {
-        ofs << msg.toJson().dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) << "\n";
+        content += msg.toJson().dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) + "\n";
     }
 
-    ofs.flush();
+    auto error = ionclaw::util::FileHelper::atomicWrite(filePath, content);
 
-    if (!ofs.good())
+    if (!error.empty())
     {
-        spdlog::error("[SessionManager] Failed to flush session file: {}", filePath);
+        spdlog::error("[SessionManager] {}", error);
     }
 }
 
@@ -679,8 +715,6 @@ void SessionManager::setAbortCutoffAll()
         }
     }
 
-    auto timestamp = util::TimeHelper::now();
-
     for (const auto &key : keys)
     {
         auto mtx = getSessionMutex(key);
@@ -698,7 +732,6 @@ void SessionManager::setAbortCutoffAll()
 
             it->second.abortedLastRun = true;
             it->second.abortCutoffMessageIndex = static_cast<int>(std::min(it->second.messages.size(), static_cast<size_t>(std::numeric_limits<int>::max())));
-            it->second.abortCutoffTimestamp = timestamp;
             snapshot = it->second;
         }
 
@@ -729,7 +762,6 @@ void SessionManager::clearAbortFlag(const std::string &sessionKey)
 
         it->second.abortedLastRun = false;
         it->second.abortCutoffMessageIndex = -1;
-        it->second.abortCutoffTimestamp.clear();
 
         snapshot = it->second;
     }
@@ -742,32 +774,45 @@ void SessionManager::markStoppedByUser(const std::string &sessionKey)
     // transient in-memory flag consumed on the next turn, so no file write is needed
     auto mtx = getSessionMutex(sessionKey);
     std::lock_guard<std::mutex> lock(*mtx);
-    std::lock_guard<std::mutex> glock(globalMutex);
 
-    auto it = cache.find(sessionKey);
-
-    if (it == cache.end())
+    // mutate and snapshot under globalMutex, persist outside so the flag survives eviction or restart
+    Session snapshot;
     {
-        return;
+        std::lock_guard<std::mutex> glock(globalMutex);
+        auto it = cache.find(sessionKey);
+
+        if (it == cache.end())
+        {
+            return;
+        }
+
+        it->second.stoppedByUser = true;
+        snapshot = it->second;
     }
 
-    it->second.stoppedByUser = true;
+    writeSessionFile(snapshot);
 }
 
 void SessionManager::clearStoppedByUser(const std::string &sessionKey)
 {
     auto mtx = getSessionMutex(sessionKey);
     std::lock_guard<std::mutex> lock(*mtx);
-    std::lock_guard<std::mutex> glock(globalMutex);
 
-    auto it = cache.find(sessionKey);
-
-    if (it == cache.end())
+    Session snapshot;
     {
-        return;
+        std::lock_guard<std::mutex> glock(globalMutex);
+        auto it = cache.find(sessionKey);
+
+        if (it == cache.end())
+        {
+            return;
+        }
+
+        it->second.stoppedByUser = false;
+        snapshot = it->second;
     }
 
-    it->second.stoppedByUser = false;
+    writeSessionFile(snapshot);
 }
 
 void SessionManager::updateLiveStateField(const std::string &sessionKey, const std::string &field, const nlohmann::json &value)
@@ -785,23 +830,6 @@ void SessionManager::updateLiveStateField(const std::string &sessionKey, const s
     }
 
     it->second.liveState[field] = value;
-}
-
-void SessionManager::updateLastMessageContent(const std::string &sessionKey, const std::string &content)
-{
-    auto mtx = getSessionMutex(sessionKey);
-    std::lock_guard<std::mutex> lock(*mtx);
-
-    std::lock_guard<std::mutex> glock(globalMutex);
-
-    auto it = cache.find(sessionKey);
-
-    if (it == cache.end() || it->second.messages.empty())
-    {
-        return;
-    }
-
-    it->second.messages.back().content = content;
 }
 
 void SessionManager::touch(Session &session)
@@ -859,6 +887,17 @@ void SessionManager::evictIfNeeded()
     {
         auto mtx = getSessionMutex(snapshot.key);
         std::lock_guard<std::mutex> lock(*mtx);
+
+        // skip if the session was recreated after eviction, since the live session owns the file and our stale snapshot would clobber it
+        {
+            std::lock_guard<std::mutex> glock(globalMutex);
+
+            if (cache.find(snapshot.key) != cache.end())
+            {
+                continue;
+            }
+        }
+
         writeSessionFile(snapshot);
     }
 
@@ -867,9 +906,17 @@ void SessionManager::evictIfNeeded()
     {
         std::lock_guard<std::mutex> glock(globalMutex);
 
+        // mutexes are keyed by sanitized filename, so compare against the sanitized filenames of cached sessions
+        std::set<std::string> cachedFileKeys;
+
+        for (const auto &[cachedKey, _] : cache)
+        {
+            cachedFileKeys.insert(sanitizeFilename(cachedKey));
+        }
+
         for (auto it = sessionMutexes.begin(); it != sessionMutexes.end();)
         {
-            if (cache.find(it->first) == cache.end() && it->second.use_count() == 1)
+            if (cachedFileKeys.find(it->first) == cachedFileKeys.end() && it->second.use_count() == 1)
             {
                 it = sessionMutexes.erase(it);
             }
@@ -994,20 +1041,21 @@ void SessionManager::loadFromDisk(const std::string &sessionKey)
         {
             auto j = nlohmann::json::parse(line);
 
-            if (firstLine && j.value("_type", "") == "metadata")
+            if (firstLine && j.is_object() && j.value("_type", "") == "metadata")
             {
-                session.createdAt = j.value("created_at", "");
-                session.updatedAt = j.value("updated_at", "");
-                session.displayName = j.value("display_name", "");
+                // read each field defensively so a single wrong-typed value never discards the whole metadata line
+                session.createdAt = j.contains("created_at") && j["created_at"].is_string() ? j["created_at"].get<std::string>() : "";
+                session.updatedAt = j.contains("updated_at") && j["updated_at"].is_string() ? j["updated_at"].get<std::string>() : "";
+                session.displayName = j.contains("display_name") && j["display_name"].is_string() ? j["display_name"].get<std::string>() : "";
 
                 if (j.contains("live_state"))
                 {
                     session.liveState = j["live_state"];
                 }
 
-                session.abortedLastRun = j.value("aborted_last_run", false);
-                session.abortCutoffMessageIndex = j.value("abort_cutoff_index", -1);
-                session.abortCutoffTimestamp = j.value("abort_cutoff_timestamp", "");
+                session.abortedLastRun = j.contains("aborted_last_run") && j["aborted_last_run"].is_boolean() ? j["aborted_last_run"].get<bool>() : false;
+                session.abortCutoffMessageIndex = j.contains("abort_cutoff_index") && j["abort_cutoff_index"].is_number_integer() ? j["abort_cutoff_index"].get<int>() : -1;
+                session.stoppedByUser = j.contains("stopped_by_user") && j["stopped_by_user"].is_boolean() ? j["stopped_by_user"].get<bool>() : false;
 
                 firstLine = false;
                 validLines.push_back(line);
@@ -1076,22 +1124,27 @@ std::string SessionManager::sessionFilePath(const std::string &sessionKey) const
 
 std::string SessionManager::sanitizeFilename(const std::string &key) const
 {
+    static const char *hex = "0123456789ABCDEF";
+
     std::string result;
     result.reserve(key.size());
 
-    for (char c : key)
+    for (unsigned char c : key)
     {
         if (c == ':')
         {
             result += '_';
         }
-        else if (c == '/' || c == '\\' || c == '\0' || c == '<' || c == '>' || c == '"' || c == '|' || c == '?' || c == '*')
+        else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '-')
         {
-            // skip dangerous characters
+            result += static_cast<char>(c);
         }
         else
         {
-            result += c;
+            // percent-escape every other byte, including _ / and %, so two distinct session keys never map to the same file
+            result += '%';
+            result += hex[c >> 4];
+            result += hex[c & 0x0F];
         }
     }
 

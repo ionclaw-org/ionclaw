@@ -102,8 +102,8 @@ main() ──► Application::cmdStart()
                ├── 6.  Create Config (shared_ptr)
                ├── 7.  Create EventDispatcher
                ├── 8.  Create MessageBus
-               ├── 9.  Create SessionManager (workspace/sessions)
-               ├── 10. Create TaskManager (workspace/tasks.jsonl)
+               ├── 9.  Create SessionManager (sessions/ at project root)
+               ├── 10. Create TaskManager (tasks.jsonl at project root)
                ├── 11. Create ToolRegistry
                ├── 12. Create WebSocketManager
                ├── 13. Create Auth (JWT)
@@ -785,7 +785,7 @@ The `ToolRegistry` manages all tools:
 File tools, HTTP client, and shell execution are restricted to:
 
 1. The agent's own workspace directory
-2. The shared `public/` directory at the project root
+2. The shared `public/` directory inside the workspace (`workspace/public`)
 
 Paths outside these boundaries raise an error. In multi-agent setups, agents cannot access each other's workspaces.
 
@@ -1170,7 +1170,7 @@ Todo ──► Doing ──► Done
 
 ### Persistence
 
-Tasks are stored in a JSONL file (`workspace/tasks.jsonl`). On startup, tasks left in DOING are recovered to ERROR.
+Tasks are stored in a JSONL file (`tasks.jsonl` at the project root). On startup, tasks left in DOING are recovered to ERROR.
 
 ### Event Broadcasting
 

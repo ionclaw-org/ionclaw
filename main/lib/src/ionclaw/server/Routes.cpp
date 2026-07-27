@@ -13,8 +13,8 @@ namespace server
 
 namespace fs = std::filesystem;
 
-Routes::Routes(std::shared_ptr<ionclaw::config::Config> config, std::shared_ptr<Auth> auth, std::shared_ptr<ionclaw::agent::Orchestrator> orchestrator, std::shared_ptr<ionclaw::channel::ChannelManager> channelManager, std::shared_ptr<ionclaw::heartbeat::HeartbeatService> heartbeatService, std::shared_ptr<ionclaw::cron::CronService> cronService, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, std::shared_ptr<WebSocketManager> wsManager, const std::string &webDir, const std::string &projectRoot, const std::string &publicDir, const std::string &workspaceDir)
-    : config(std::move(config))
+Routes::Routes(std::shared_ptr<ionclaw::config::ConfigStore> configStore, std::shared_ptr<Auth> auth, std::shared_ptr<ionclaw::agent::Orchestrator> orchestrator, std::shared_ptr<ionclaw::channel::ChannelManager> channelManager, std::shared_ptr<ionclaw::heartbeat::HeartbeatService> heartbeatService, std::shared_ptr<ionclaw::cron::CronService> cronService, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, std::shared_ptr<WebSocketManager> wsManager, const std::string &webDir, const std::string &projectRoot, const std::string &publicDir, const std::string &workspaceDir)
+    : configStore(std::move(configStore))
     , auth(std::move(auth))
     , orchestrator(std::move(orchestrator))
     , channelManager(std::move(channelManager))
@@ -155,12 +155,18 @@ nlohmann::json Routes::buildFileTreeImpl(const std::string &dirPath, const std::
     {
         auto name = entry.path().filename().string();
 
+        // symlinks are skipped so a link back to an ancestor cannot drive the recursion into a stack overflow
+        if (entry.is_symlink())
+        {
+            continue;
+        }
+
         if (isSystemFile(name) || isProtectedFile(name))
         {
             continue;
         }
 
-        if (skipNonEssential && entry.is_directory() && SKIP_DIR_NAMES.count(name) != 0)
+        if (skipNonEssential && entry.is_directory() && SKIP_DIR_NAMES.contains(name))
         {
             continue;
         }

@@ -9,6 +9,7 @@
 #include "ionclaw/bus/MessageBus.hpp"
 #include "ionclaw/channel/ChannelManager.hpp"
 #include "ionclaw/config/Config.hpp"
+#include "ionclaw/config/ConfigStore.hpp"
 #include "ionclaw/cron/CronService.hpp"
 #include "ionclaw/heartbeat/HeartbeatService.hpp"
 #include "ionclaw/mcp/McpDispatcher.hpp"
@@ -40,7 +41,7 @@ public:
     static ServerResult stop();
 
 private:
-    static std::shared_ptr<ionclaw::config::Config> config;
+    static std::shared_ptr<ionclaw::config::ConfigStore> configStore;
     static std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher;
     static std::shared_ptr<ionclaw::bus::MessageBus> bus;
     static std::shared_ptr<ionclaw::session::SessionManager> sessionManager;
@@ -58,6 +59,7 @@ private:
     static std::mutex mutex;
 
     static void resetComponents();
+    static void warnInsecureConfig(const ionclaw::config::Config &cfg);
 };
 
 } // namespace server

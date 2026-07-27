@@ -15,6 +15,7 @@
 #include "ionclaw/session/SessionKeyUtils.hpp"
 #include "ionclaw/session/SessionManager.hpp"
 #include "ionclaw/task/TaskManager.hpp"
+#include "ionclaw/util/RandomHelper.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
 #include "ionclaw/util/UniqueId.hpp"
@@ -43,13 +44,13 @@ struct ChatStream
 
 } // namespace
 
-McpDispatcher::McpDispatcher(std::shared_ptr<ionclaw::agent::Orchestrator> orchestrator, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, std::shared_ptr<ionclaw::config::Config> config)
+McpDispatcher::McpDispatcher(std::shared_ptr<ionclaw::agent::Orchestrator> orchestrator, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, std::shared_ptr<ionclaw::config::ConfigStore> configStore)
     : orchestrator(std::move(orchestrator))
     , sessionManager(std::move(sessionManager))
     , taskManager(std::move(taskManager))
     , bus(std::move(bus))
     , dispatcher(std::move(dispatcher))
-    , config(std::move(config))
+    , configStore(std::move(configStore))
 {
 }
 
@@ -108,6 +109,7 @@ bool McpDispatcher::isAllowedOrigin(const std::string &origin) const
 
 bool McpDispatcher::requiresAuth() const
 {
+    auto config = configStore->snapshot();
     auto it = config->channels.find(MCP_CHANNEL);
     if (it == config->channels.end())
     {
@@ -128,6 +130,7 @@ bool McpDispatcher::verifyToken(const std::string &token) const
         return false;
     }
 
+    auto config = configStore->snapshot();
     auto chanIt = config->channels.find(MCP_CHANNEL);
     if (chanIt == config->channels.end())
     {
@@ -140,7 +143,7 @@ bool McpDispatcher::verifyToken(const std::string &token) const
         auto credIt = config->credentials.find(credName);
         if (credIt != config->credentials.end() && !credIt->second.key.empty())
         {
-            return token == credIt->second.key;
+            return ionclaw::util::RandomHelper::constantTimeEquals(token, credIt->second.key);
         }
     }
 
@@ -428,7 +431,7 @@ nlohmann::json McpDispatcher::toolChat(const std::string &sessionId, const nlohm
 
     auto sessionKey = std::string(MCP_CHANNEL) + ":" + chatId;
 
-    spdlog::info("[McpDispatcher] chat tool called (session: {}, streaming: {})", sessionKey, sseCallback ? "yes" : "no");
+    spdlog::info("[McpDispatcher] Chat tool called (session: {}, streaming: {})", sessionKey, sseCallback ? "yes" : "no");
 
     // create task for tracking
     auto taskTitle = ionclaw::util::StringHelper::utf8SafeTruncate(message, 100);
@@ -921,6 +924,7 @@ nlohmann::json McpDispatcher::resourceAgents()
 {
     auto result = nlohmann::json::array();
 
+    auto config = configStore->snapshot();
     for (const auto &[name, agent] : config->agents)
     {
         result.push_back({{"name", name},

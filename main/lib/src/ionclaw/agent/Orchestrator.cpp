@@ -2,9 +2,9 @@
 
 #include <algorithm>
 
+#include "ionclaw/agent/SkillsLoader.hpp"
 #include "ionclaw/provider/ProviderFactory.hpp"
 #include "ionclaw/session/SessionKeyUtils.hpp"
-#include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
 #include "ionclaw/util/UniqueId.hpp"
 #include "spdlog/spdlog.h"
@@ -90,17 +90,22 @@ void Orchestrator::start()
     // create hook runner
     hookRunner = std::make_shared<HookRunner>();
 
-    // create subagent registry and announce queue
-    subagentRegistry = std::make_shared<SubagentRegistry>(config.projectPath);
-    subagentRegistry->load();
-    subagentRegistry->recoverStaleRuns();
-    announceQueue = std::make_shared<AnnounceQueue>();
+    // create subagent registry and announce queue; orchestrator state lives at the project root, outside the agent's workspace
+    auto newSubagentRegistry = std::make_shared<SubagentRegistry>(config.projectPath);
+    newSubagentRegistry->load();
+    newSubagentRegistry->recoverStaleRuns();
+    auto newAnnounceQueue = std::make_shared<AnnounceQueue>();
 
     // create session queue for queue mode routing
-    sessionQueue = std::make_shared<ionclaw::bus::SessionQueue>();
+    auto newSessionQueue = std::make_shared<ionclaw::bus::SessionQueue>();
 
-    // mark sessions that were active during previous crash as aborted
-    sessionManager->setAbortCutoffAll();
+    // publish the service pointers atomically so http-thread readers never observe a half-built set
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        subagentRegistry = newSubagentRegistry;
+        announceQueue = newAnnounceQueue;
+        sessionQueue = newSessionQueue;
+    }
 
     // create LLM providers and agent loops for each agent
     std::shared_ptr<ionclaw::provider::LlmProvider> firstProvider;
@@ -136,12 +141,13 @@ void Orchestrator::start()
 
             // merge provider-level model_params as defaults under agent-level model_params
             auto resolvedAgentConfig = agentConfig;
-            auto providerConfig = config.resolveProvider(agentConfig.model);
+            const auto *providerConfig = config.findProvider(agentConfig.model);
 
-            if (providerConfig.modelParams.is_object() && !providerConfig.modelParams.empty())
+            // prefix-based providers (e.g. claude-cli) have no config entry and no provider-level params
+            if (providerConfig && providerConfig->modelParams.is_object() && !providerConfig->modelParams.empty())
             {
                 // provider params are the base; agent params override
-                auto merged = providerConfig.modelParams;
+                auto merged = providerConfig->modelParams;
                 if (resolvedAgentConfig.modelParams.is_object())
                 {
                     merged.merge_patch(resolvedAgentConfig.modelParams);
@@ -153,7 +159,6 @@ void Orchestrator::start()
             auto workspacePath = resolvedAgentConfig.workspace;
             auto memory = std::make_shared<MemoryStore>(workspacePath);
             auto skills = std::make_shared<SkillsLoader>(config.projectPath, workspacePath);
-            skillsLoaders[name] = skills;
 
             // create context builder with full context
             auto builder = std::make_unique<ContextBuilder>(config, workspacePath, memory, skills);
@@ -216,7 +221,7 @@ void Orchestrator::start()
     }
 
     // create classifier (prefer "main" agent provider, fallback to first)
-    auto defaultProvider = providers.count("main") ? providers["main"] : firstProvider;
+    auto defaultProvider = providers.contains("main") ? providers["main"] : firstProvider;
 
     if (defaultProvider)
     {
@@ -322,11 +327,11 @@ void Orchestrator::run()
                             endData["task_id"] = taskIdStr;
                         dispatcher->broadcast("chat:stream_end", endData);
 
-                        // publish to outbound bus so the originating channel receives the error
-                        if (bus)
+                        // the web ui receives errors over its websocket, so only a messaging channel gets an outbound delivery
+                        if (bus && !message.channel.empty() && message.channel != "web")
                         {
                             ionclaw::bus::OutboundMessage outbound;
-                            outbound.channel = message.channel.empty() ? "web" : message.channel;
+                            outbound.channel = message.channel;
                             outbound.chatId = message.chatId;
                             outbound.content = errorText;
                             outbound.metadata = {};
@@ -408,11 +413,15 @@ void Orchestrator::handleMessage(const ionclaw::bus::InboundMessage &message)
         break;
 
     case ionclaw::bus::QueueMode::SteerBacklog:
-        // try steer; also enqueue as followup backup
-        sessionQueue->enqueue(sessionKey, message, ionclaw::bus::QueueMode::Steer, settings);
-        sessionQueue->enqueue(sessionKey, message, ionclaw::bus::QueueMode::Followup, settings);
+    {
+        // steer now, and keep a followup backup tagged with a shared id so it is dropped if the steer copy is consumed
+        auto tagged = message;
+        tagged.metadata["backlog_id"] = ionclaw::util::UniqueId::shortId();
+        sessionQueue->enqueue(sessionKey, tagged, ionclaw::bus::QueueMode::Steer, settings);
+        sessionQueue->enqueue(sessionKey, tagged, ionclaw::bus::QueueMode::Followup, settings);
         spdlog::info("[Orchestrator] SteerBacklog: steer + followup queued for {}", sessionKey);
         break;
+    }
 
     case ionclaw::bus::QueueMode::Followup:
         sessionQueue->enqueue(sessionKey, message, ionclaw::bus::QueueMode::Followup, settings);
@@ -512,7 +521,8 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
     // get session history for classifier context from agent-scoped session
     std::vector<ionclaw::session::SessionMessage> history;
     {
-        auto historyAgent = !previousAffinity.empty() ? previousAffinity : !targetAgent.empty() ? targetAgent : (agentLoops.count("main") ? "main" : agentLoops.begin()->first);
+        auto historyAgent = !previousAffinity.empty() ? previousAffinity : !targetAgent.empty() ? targetAgent
+                                                                                                : (agentLoops.contains("main") ? "main" : agentLoops.begin()->first);
         auto historyKey = ionclaw::session::SessionKeyUtils::build(historyAgent, channel, message.chatId);
         history = sessionManager->getHistory(historyKey, 20);
     }
@@ -532,7 +542,7 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
 
     if (targetAgent.empty() || agentLoops.find(targetAgent) == agentLoops.end())
     {
-        targetAgent = agentLoops.count("main") ? "main" : agentLoops.begin()->first;
+        targetAgent = agentLoops.contains("main") ? "main" : agentLoops.begin()->first;
         spdlog::debug("[Orchestrator] Falling back to default agent: {}", targetAgent);
     }
 
@@ -572,11 +582,11 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
         maxConcurrent = std::max(1, agentIt2->second.agentParams.maxConcurrent);
     }
 
-    int activeTurns = getAgentActiveTurnCount(targetAgent);
+    int activeTurnCount = getAgentActiveTurnCount(targetAgent);
 
-    if (activeTurns >= maxConcurrent)
+    if (activeTurnCount >= maxConcurrent)
     {
-        spdlog::warn("[Orchestrator] Agent '{}' at concurrency limit ({}/{}), queueing as followup", targetAgent, activeTurns, maxConcurrent);
+        spdlog::warn("[Orchestrator] Agent '{}' at concurrency limit ({}/{}), queueing as followup", targetAgent, activeTurnCount, maxConcurrent);
         sessionQueue->enqueue(baseKey, message, ionclaw::bus::QueueMode::Followup, ionclaw::bus::SessionQueue::resolveQueueSettings(config, channel));
         return;
     }
@@ -584,7 +594,6 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
     // create active turn handle (keyed by base key for queue coordination)
     auto turnHandle = std::make_shared<ActiveTurnHandle>();
     turnHandle->agentName = targetAgent;
-    turnHandle->startedAt = std::chrono::steady_clock::now();
 
     if (message.metadata.contains("task_id") && message.metadata["task_id"].is_string())
     {
@@ -776,8 +785,8 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
                                                          {"task_id", turnHandle->taskId},
                                                      });
 
-            // publish to outbound bus so the originating channel receives the error
-            if (bus)
+            // the web ui receives errors over its websocket, so only a messaging channel gets an outbound delivery
+            if (bus && channel != "web")
             {
                 ionclaw::bus::OutboundMessage outbound;
                 outbound.channel = channel;
@@ -842,8 +851,8 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
                                                          {"task_id", turnHandle->taskId},
                                                      });
 
-            // publish to outbound bus so the originating channel receives the error
-            if (bus)
+            // the web ui receives errors over its websocket, so only a messaging channel gets an outbound delivery
+            if (bus && channel != "web")
             {
                 ionclaw::bus::OutboundMessage outbound;
                 outbound.channel = channel;
@@ -938,6 +947,15 @@ bool Orchestrator::stopSession(const std::string &sessionKey, const std::string 
 {
     spdlog::info("[Orchestrator] Stop requested for session {} ({})", sessionKey, reason);
 
+    // snapshot the service pointers so a concurrent stop/restart cannot free them mid-call
+    std::shared_ptr<ionclaw::bus::SessionQueue> queue;
+    std::shared_ptr<SubagentRegistry> registry;
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        queue = sessionQueue;
+        registry = subagentRegistry;
+    }
+
     // abort the target turn and drop its queued work without re-queuing, so it does not resume
     bool stoppedAny = false;
 
@@ -947,12 +965,15 @@ bool Orchestrator::stopSession(const std::string &sessionKey, const std::string 
         stoppedAny = true;
     }
 
-    sessionQueue->clear(sessionKey);
+    if (queue)
+    {
+        queue->clear(sessionKey);
+    }
 
     // cascade: abort every running descendant subagent turn so nothing keeps executing
-    if (subagentRegistry)
+    if (registry)
     {
-        for (const auto &childSessionKey : subagentRegistry->getDescendantSessionKeys(sessionKey))
+        for (const auto &childSessionKey : registry->getDescendantSessionKeys(sessionKey))
         {
             if (auto childTurn = getActiveTurn(childSessionKey))
             {
@@ -960,13 +981,16 @@ bool Orchestrator::stopSession(const std::string &sessionKey, const std::string 
                 stoppedAny = true;
             }
 
-            sessionQueue->clear(childSessionKey);
+            if (queue)
+            {
+                queue->clear(childSessionKey);
+            }
         }
 
         // mark the subagent runs killed, cascading through the whole subtree
-        for (const auto &child : subagentRegistry->getChildren(sessionKey))
+        for (const auto &child : registry->getChildren(sessionKey))
         {
-            subagentRegistry->killRun(child.runId, true);
+            registry->killRun(child.runId, true);
         }
     }
 
@@ -1250,12 +1274,16 @@ void Orchestrator::stop()
     agentLoops.clear();
     providers.clear();
     contextBuilders.clear();
-    skillsLoaders.clear();
     classifier.reset();
     hookRunner.reset();
-    subagentRegistry.reset();
-    announceQueue.reset();
-    sessionQueue.reset();
+
+    // reset the http-visible service pointers under the lifecycle lock so a concurrent reader sees a clean null
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        subagentRegistry.reset();
+        announceQueue.reset();
+        sessionQueue.reset();
+    }
 
     spdlog::info("[Orchestrator] Stopped");
 }
@@ -1266,16 +1294,14 @@ void Orchestrator::restart(const ionclaw::config::Config &newConfig)
 
     stop();
 
-    config = newConfig;
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        config = newConfig;
+    }
 
     start();
 
     spdlog::info("[Orchestrator] Restart complete");
-}
-
-std::vector<nlohmann::json> Orchestrator::getToolDefinitions() const
-{
-    return toolRegistry->getOpenAiDefinitions();
 }
 
 std::vector<nlohmann::json> Orchestrator::getFlatToolDefinitions() const
@@ -1283,17 +1309,10 @@ std::vector<nlohmann::json> Orchestrator::getFlatToolDefinitions() const
     return toolRegistry->getFlatDefinitions();
 }
 
-std::vector<std::string> Orchestrator::getAgentNames() const
+std::shared_ptr<ionclaw::bus::SessionQueue> Orchestrator::getSessionQueue() const
 {
-    std::vector<std::string> names;
-    names.reserve(config.agents.size());
-
-    for (const auto &[name, agentConfig] : config.agents)
-    {
-        names.push_back(name);
-    }
-
-    return names;
+    std::lock_guard<std::mutex> lock(lifecycleMutex);
+    return sessionQueue;
 }
 
 } // namespace agent

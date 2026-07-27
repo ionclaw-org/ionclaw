@@ -61,12 +61,14 @@ std::string ProviderHelper::sanitizeToolCallId(const std::string &id, const std:
 
 std::string ProviderHelper::sanitizeErrorMessage(const std::string &msg)
 {
-    // replace known key patterns with redacted placeholder
-    thread_local static const std::regex reApiKey("sk-[a-zA-Z0-9]{10,}");
+    // replace known key patterns with redacted placeholder, allowing hyphens for keys like sk-ant-api03- and sk-proj-
+    thread_local static const std::regex reApiKey("sk-[a-zA-Z0-9_-]{10,}");
     thread_local static const std::regex reKeyPrefix("key-[a-zA-Z0-9]{10,}");
     thread_local static const std::regex reBearer("Bearer\\s+[a-zA-Z0-9_\\-\\.]{10,}");
+    thread_local static const std::regex reKeyHeader("(x-api-key|api-key|authorization)(\\s*[:=]\\s*)[a-zA-Z0-9_\\-\\.]{10,}", std::regex::icase);
 
     std::string safe = msg;
+    safe = std::regex_replace(safe, reKeyHeader, "$1$2[REDACTED]");
     safe = std::regex_replace(safe, reApiKey, "[REDACTED]");
     safe = std::regex_replace(safe, reKeyPrefix, "[REDACTED]");
     safe = std::regex_replace(safe, reBearer, "Bearer [REDACTED]");
@@ -231,7 +233,7 @@ nlohmann::json ProviderHelper::repairJsonArgs(const std::string &args)
         }
     }
 
-    spdlog::warn("[ProviderHelper] failed to repair JSON args: {}", ionclaw::util::StringHelper::utf8SafeTruncate(args, 200));
+    spdlog::warn("[ProviderHelper] Failed to repair JSON args: {}", ionclaw::util::StringHelper::utf8SafeTruncate(args, 200));
     return nlohmann::json::object();
 }
 

@@ -32,11 +32,12 @@ agent::SkillsLoader Routes::createSkillsLoader(const config::Config &cfg, const 
 
 std::string Routes::resolveWorkspaceForSkill(const std::string &skillName) const
 {
+    auto config = configStore->snapshot();
     // try project-level first (no workspace)
     auto rootLoader = createSkillsLoader(*config, "");
     auto rootSkills = rootLoader.discoverSkills();
 
-    if (rootSkills.count(skillName))
+    if (rootSkills.contains(skillName))
     {
         return "";
     }
@@ -54,7 +55,7 @@ std::string Routes::resolveWorkspaceForSkill(const std::string &skillName) const
         auto loader = createSkillsLoader(*config, agentCfg.workspace);
         auto skills = loader.discoverSkills();
 
-        if (skills.count(skillName))
+        if (skills.contains(skillName))
         {
             return agentCfg.workspace;
         }
@@ -65,6 +66,7 @@ std::string Routes::resolveWorkspaceForSkill(const std::string &skillName) const
 
 void Routes::handleSkillsList(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp)
 {
+    auto config = configStore->snapshot();
     auto [hasAgent, agentName] = extractAgentParam(req);
 
     nlohmann::json result = nlohmann::json::array();
@@ -185,6 +187,7 @@ void Routes::handleSkillsList(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
 
 void Routes::handleSkillGet(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &name)
 {
+    auto config = configStore->snapshot();
     auto [hasAgent, agentName] = extractAgentParam(req);
     std::string workspace;
 
@@ -221,6 +224,7 @@ void Routes::handleSkillUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTT
 {
     try
     {
+        auto config = configStore->snapshot();
         auto [hasAgent, agentName] = extractAgentParam(req);
         std::string workspace;
 
@@ -263,6 +267,7 @@ void Routes::handleSkillUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HTT
 
 void Routes::handleSkillDelete(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &name)
 {
+    auto config = configStore->snapshot();
     auto [hasAgent, agentName] = extractAgentParam(req);
     std::string workspace;
 

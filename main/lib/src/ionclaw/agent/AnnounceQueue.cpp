@@ -71,33 +71,6 @@ std::vector<AnnounceEntry> AnnounceQueue::drain(const std::string &sessionKey)
     return result;
 }
 
-void AnnounceQueue::markRetry(const std::string &runId)
-{
-    std::lock_guard<std::mutex> lock(mutex);
-
-    for (auto it = entries.begin(); it != entries.end(); ++it)
-    {
-        if (it->runId == runId)
-        {
-            it->retries++;
-
-            if (it->retries > MAX_RETRIES)
-            {
-                spdlog::warn("[AnnounceQueue] Announce for run {} exceeded max retries, removing", runId);
-                entries.erase(it);
-                return;
-            }
-
-            // exponential backoff: 1s, 2s, 4s, 8s
-            auto delaySeconds = std::min(8, 1 << std::min(it->retries, 3));
-            it->nextRetryAt = std::chrono::steady_clock::now() + std::chrono::seconds(delaySeconds);
-
-            spdlog::debug("[AnnounceQueue] Retry {} for run {}, next in {}s", it->retries, runId, delaySeconds);
-            return;
-        }
-    }
-}
-
 void AnnounceQueue::processExpired()
 {
     std::lock_guard<std::mutex> lock(mutex);

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:ionclaw/ionclaw.dart';
 import 'package:ionclaw_runner/screen/home_screen.dart';
+import 'package:ionclaw_runner/theme/app_colors.dart';
 
 void main() {
   IonClaw.instance.initialize();
@@ -11,7 +12,7 @@ void main() {
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
     statusBarBrightness: Brightness.dark,
-    systemNavigationBarColor: Color(0xFF1A1A2E),
+    systemNavigationBarColor: AppColors.header,
     systemNavigationBarIconBrightness: Brightness.light,
   ));
 
@@ -21,9 +22,6 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  static const _primary = Color(0xFF0A8DCF);
-  static const _headerBg = Color(0xFF1A1A2E);
-
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
@@ -32,20 +30,20 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
-        primaryColor: _primary,
+        primaryColor: AppColors.primary,
         colorScheme: ColorScheme.light(
-          primary: _primary,
-          secondary: _primary,
+          primary: AppColors.primary,
+          secondary: AppColors.primary,
           onPrimary: Colors.white,
           surface: Colors.white,
-          onSurface: const Color(0xFF1A1A2E),
+          onSurface: AppColors.header,
           outline: Colors.grey.shade300,
         ),
-        scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+        scaffoldBackgroundColor: AppColors.screenBg,
         appBarTheme: const AppBarTheme(
           elevation: 0,
           centerTitle: true,
-          backgroundColor: _headerBg,
+          backgroundColor: AppColors.header,
           foregroundColor: Colors.white,
           iconTheme: IconThemeData(color: Colors.white70),
           titleTextStyle: TextStyle(
@@ -65,7 +63,7 @@ class MyApp extends StatelessWidget {
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: _primary,
+            backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
             elevation: 0,
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
@@ -80,8 +78,8 @@ class MyApp extends StatelessWidget {
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
-            foregroundColor: _primary,
-            side: const BorderSide(color: _primary, width: 1.5),
+            foregroundColor: AppColors.primary,
+            side: const BorderSide(color: AppColors.primary, width: 1.5),
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -94,7 +92,7 @@ class MyApp extends StatelessWidget {
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: const Color(0xFFF8F9FA),
+          fillColor: AppColors.screenBg,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(color: Colors.grey.shade300),
@@ -105,7 +103,7 @@ class MyApp extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: _primary, width: 1.5),
+            borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
           ),
           disabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
@@ -121,7 +119,7 @@ class MyApp extends StatelessWidget {
           thickness: 1,
         ),
         listTileTheme: const ListTileThemeData(
-          iconColor: _primary,
+          iconColor: AppColors.primary,
         ),
       ),
       themeMode: ThemeMode.light,

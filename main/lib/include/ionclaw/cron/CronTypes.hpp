@@ -20,7 +20,6 @@ struct CronSchedule
 struct CronPayload
 {
     std::string message;
-    bool deliver = true;
     std::string channel;
     std::string to;
 };

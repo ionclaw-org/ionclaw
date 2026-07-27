@@ -28,7 +28,6 @@ public:
     void incrementIteration(const std::string &taskId);
     void incrementToolCount(const std::string &taskId);
     void setUsage(const std::string &taskId, const nlohmann::json &usage);
-    void setLiveState(const std::string &taskId, const nlohmann::json &liveState);
     void setError(const std::string &taskId, const std::string &error);
 
     Task getTask(const std::string &taskId) const;
@@ -44,6 +43,10 @@ private:
     mutable std::mutex mutex;
     std::mutex fileMutex;
     std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher;
+
+    // rewrite the append log after this many appends so it does not grow without bound at runtime
+    static constexpr int COMPACTION_APPEND_THRESHOLD = 500;
+    int appendsSinceCompaction = 0;
 
     static std::chrono::system_clock::time_point parseTimestamp(const std::string &str);
 

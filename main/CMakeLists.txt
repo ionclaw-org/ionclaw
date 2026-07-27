@@ -3,8 +3,10 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/config/Config.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/config/ConfigLoader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/config/ConfigStore.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/TimeHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/UniqueId.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/RandomHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/JwtHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/Base64.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/StbImageWrite.cpp
@@ -16,13 +18,16 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/SsrfGuard.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/StringHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/EnvironmentHelper.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/FileHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/util/EmbeddedResources.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/bus/Events.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/bus/MessageBus.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/bus/EventDispatcher.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/AnthropicProvider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/ClaudeCliProvider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/OpenAiProvider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/ProviderFactory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/ModelCapabilities.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/provider/ProviderHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/session/SessionManager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/session/SessionKeyUtils.cpp
@@ -40,10 +45,13 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/image/GeminiImageGenerator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/image/GrokImageGenerator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/image/OpenAIImageGenerator.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/image/LocalImageGenerator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/transcription/TranscriptionProviderRegistry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/transcription/OpenAITranscriptionProvider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/transcription/LocalTranscriptionProvider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/embedding/EmbeddingProviderRegistry.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/embedding/OpenAiEmbeddingProvider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/embedding/TextChunker.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/embedding/VectorStore.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/ToolHelper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/ReadFileTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/tool/builtin/WriteFileTool.cpp
@@ -74,6 +82,7 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/Orchestrator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/Classifier.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/MemoryStore.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/SemanticMemory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/SkillsLoader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/ContextWindow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/agent/Compaction.cpp
@@ -93,11 +102,13 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/handler/ApiHandler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/handler/WebSocketHandler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/handler/WebAppHandler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/handler/WebhookHandler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/handler/PublicFileHandler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/handler/RedirectHandler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/handler/RequestHandlerFactory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/AuthRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/ChatRoutes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/WhatsAppWebhookRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/TaskRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/AgentRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/ConfigRoutes.cpp
@@ -109,8 +120,14 @@ set(IONCLAW_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/heartbeat/HeartbeatService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/cron/CronService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/cron/CronParser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/cron/WindowsTimeZone.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/channel/ChannelManager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/channel/TelegramRunner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/channel/WhatsAppWebhook.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/channel/WebhookDedup.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/channel/WhatsAppSender.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/channel/WhatsAppRunner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/channel/DeliveryParser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/ChannelRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/FormRoutes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/src/ionclaw/server/routes/SchedulerRoutes.cpp
@@ -164,10 +181,26 @@ add_custom_command(
     COMMENT "Embedding template resources..."
 )
 
+# model capability table (litellm-equivalent model_prices data)
+file(GLOB_RECURSE IONCLAW_MODELS_FILES "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/*")
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/embedded_models.cpp
+           ${CMAKE_CURRENT_BINARY_DIR}/embedded_models.hpp
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/resources/models
+        -DOUTPUT_CPP=${CMAKE_CURRENT_BINARY_DIR}/embedded_models.cpp
+        -DOUTPUT_HPP=${CMAKE_CURRENT_BINARY_DIR}/embedded_models.hpp
+        -DNAMESPACE=ionclaw_embedded_models
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/../cmake/embed-resources.cmake
+    DEPENDS ${IONCLAW_MODELS_FILES}
+    COMMENT "Embedding model capability table..."
+)
+
 add_custom_target(ionclaw-embedded-resources DEPENDS
     ${CMAKE_CURRENT_BINARY_DIR}/embedded_web.hpp
     ${CMAKE_CURRENT_BINARY_DIR}/embedded_skills.hpp
     ${CMAKE_CURRENT_BINARY_DIR}/embedded_template.hpp
+    ${CMAKE_CURRENT_BINARY_DIR}/embedded_models.hpp
 )
 
 # static library (includes embedded resources)
@@ -176,6 +209,7 @@ add_library(ionclaw-lib STATIC
     ${CMAKE_CURRENT_BINARY_DIR}/embedded_web.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/embedded_skills.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/embedded_template.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/embedded_models.cpp
 )
 
 target_include_directories(ionclaw-lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lib/include)
@@ -192,6 +226,7 @@ if(IONCLAW_BUILD_SHARED)
         ${CMAKE_CURRENT_BINARY_DIR}/embedded_web.cpp
         ${CMAKE_CURRENT_BINARY_DIR}/embedded_skills.cpp
         ${CMAKE_CURRENT_BINARY_DIR}/embedded_template.cpp
+        ${CMAKE_CURRENT_BINARY_DIR}/embedded_models.cpp
     )
 
     set_target_properties(ionclaw-shared PROPERTIES
@@ -221,7 +256,15 @@ if(IONCLAW_BUILD_SHARED)
     add_dependencies(ionclaw-shared ionclaw-embedded-resources)
 else()
     # desktop executable
-    add_executable(ionclaw-server ${CMAKE_CURRENT_SOURCE_DIR}/app/src/main.cpp)
+    set(IONCLAW_SERVER_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/app/src/main.cpp)
+
+    if(WIN32)
+        # embed a version resource so explorer and powershell report the real version
+        configure_file(${CMAKE_SOURCE_DIR}/cmake/version.rc.in ${CMAKE_CURRENT_BINARY_DIR}/version.rc @ONLY)
+        list(APPEND IONCLAW_SERVER_SOURCES ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+    endif()
+
+    add_executable(ionclaw-server ${IONCLAW_SERVER_SOURCES})
     target_include_directories(ionclaw-server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib/include)
-    install(TARGETS ionclaw-server RUNTIME DESTINATION bin)
+    install(TARGETS ionclaw-server RUNTIME DESTINATION bin COMPONENT runtime)
 endif()

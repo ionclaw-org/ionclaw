@@ -52,8 +52,10 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
     try
     {
         auto body = nlohmann::json::parse(readBody(req));
-        auto message = body.value("message", "");
-        auto sessionId = body.value("session_id", std::string("direct"));
+
+        // read defensively: value() throws type_error.302 when a field is present but null, which would 500 instead of the intended validation error
+        auto message = body.contains("message") && body["message"].is_string() ? body["message"].get<std::string>() : "";
+        auto sessionId = body.contains("session_id") && body["session_id"].is_string() ? body["session_id"].get<std::string>() : "direct";
 
         // extract media paths from request
         std::vector<std::string> media;
@@ -96,7 +98,8 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
         // before the async agent loop picks it up (page refresh always shows it)
         sessionManager->ensureSession(sessionKey);
 
-        auto task = taskManager->createTask(taskTitle, message, "web", chatId);
+        // the session may belong to another channel (e.g. replying to a telegram thread from the web ui), so operate on its real channel
+        auto task = taskManager->createTask(taskTitle, message, channel, chatId);
 
         ionclaw::session::SessionMessage userMsg;
         userMsg.role = "user";
@@ -113,7 +116,7 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
 
         // build inbound message
         ionclaw::bus::InboundMessage inbound;
-        inbound.channel = "web";
+        inbound.channel = channel;
         inbound.senderId = "web_user";
         inbound.chatId = chatId;
         inbound.content = message;
@@ -139,17 +142,25 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
 
         // steer bypass: if session has an active turn and mode is steer_compatible,
         // inject directly into SessionQueue (bypasses MessageBus which blocks during turns)
+        auto config = configStore->snapshot();
         if (inbound.queueMode.has_value() && orchestrator && config && orchestrator->isSessionActive(sessionKey))
         {
             auto mode = inbound.queueMode.value();
 
             if (mode == ionclaw::bus::QueueMode::Steer || mode == ionclaw::bus::QueueMode::SteerBacklog)
             {
-                auto *sq = orchestrator->getSessionQueue();
+                auto sq = orchestrator->getSessionQueue();
 
                 if (sq)
                 {
-                    auto settings = ionclaw::bus::SessionQueue::resolveQueueSettings(*config, "web", inbound.queueMode);
+                    auto settings = ionclaw::bus::SessionQueue::resolveQueueSettings(*config, channel, inbound.queueMode);
+
+                    // tag both copies with a shared id so the followup backup is dropped if the steer copy is consumed
+                    if (mode == ionclaw::bus::QueueMode::SteerBacklog)
+                    {
+                        inbound.metadata["backlog_id"] = ionclaw::util::UniqueId::shortId();
+                    }
+
                     sq->enqueue(sessionKey, inbound, ionclaw::bus::QueueMode::Steer, settings);
 
                     // also enqueue followup backup for steer_backlog
@@ -165,9 +176,24 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
         }
 
         // publish to message bus for async processing
-        bus->publishInbound(inbound);
+        auto publishResult = bus->publishInbound(inbound);
 
-        sendJson(resp, {{"task_id", task.id}, {"session_id", "web:" + chatId}});
+        // a rejected message must resolve its task, never leave it pending forever
+        if (publishResult == ionclaw::bus::PublishResult::QueueFull)
+        {
+            taskManager->updateState(task.id, ionclaw::task::TaskState::Error, "Server is busy: too many pending messages. Please retry shortly.");
+            sendError(resp, "Server is busy: too many pending messages. Please retry shortly.", 429);
+            return;
+        }
+
+        if (publishResult == ionclaw::bus::PublishResult::Duplicate)
+        {
+            taskManager->updateState(task.id, ionclaw::task::TaskState::Done, "Duplicate of a recent message, ignored.");
+            sendJson(resp, {{"task_id", task.id}, {"session_id", sessionKey}, {"duplicate", true}});
+            return;
+        }
+
+        sendJson(resp, {{"task_id", task.id}, {"session_id", sessionKey}});
     }
     catch (const std::exception &e)
     {
@@ -220,11 +246,13 @@ void Routes::handleChatUpload(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
                     if (end != std::string::npos)
                     {
                         auto origName = disp.substr(start, end - start);
-                        auto dotPos = origName.rfind('.');
 
-                        if (dotPos != std::string::npos)
+                        // derive the extension from the basename only, so a crafted filename cannot inject path separators or traversal
+                        auto safeExt = std::filesystem::path(origName).filename().extension().string();
+
+                        if (!safeExt.empty())
                         {
-                            ext = origName.substr(dotPos);
+                            ext = safeExt;
                         }
                     }
                 }

@@ -4,6 +4,7 @@
 #include <climits>
 #include <cstdint>
 
+#include "ionclaw/provider/ModelCapabilities.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 
 namespace ionclaw
@@ -33,7 +34,8 @@ const std::map<std::string, int> ContextWindow::MODEL_CONTEXT_LIMITS = {
     {"claude-opus-4", 200000},
     {"claude-sonnet-4", 200000},
     {"claude-haiku-4", 200000},
-    {"claude-3.5", 200000},
+    {"claude-3-5", 200000},
+    {"claude-3-7", 200000},
     {"claude-3-opus", 200000},
     {"claude-3-sonnet", 200000},
     {"claude-3-haiku", 200000},
@@ -78,6 +80,17 @@ int ContextWindow::getModelLimit(const std::string &model, const nlohmann::json 
                 limit = modelLimit;
             }
         }
+
+        // no curated key matched, so fall back to the embedded model table before the generic default
+        if (bestLen == 0)
+        {
+            auto tableLimit = ionclaw::provider::ModelCapabilities::contextWindow(model);
+
+            if (tableLimit > 0)
+            {
+                limit = static_cast<int>(std::min<int64_t>(tableLimit, INT32_MAX));
+            }
+        }
     }
 
     // apply global context tokens cap if set and lower
@@ -98,10 +111,10 @@ int ContextWindow::estimateTokens(const std::vector<ionclaw::provider::Message> 
         // count main content
         totalChars += static_cast<int64_t>(msg.content.size());
 
-        // count tool call arguments
+        // count tool call arguments plus the call id and name that also ship in the request
         for (const auto &tc : msg.toolCalls)
         {
-            totalChars += static_cast<int64_t>(tc.arguments.dump().size());
+            totalChars += static_cast<int64_t>(tc.arguments.dump().size() + tc.id.size() + tc.name.size());
         }
 
         // count reasoning content
@@ -110,11 +123,20 @@ int ContextWindow::estimateTokens(const std::vector<ionclaw::provider::Message> 
         // count content blocks
         if (msg.contentBlocks.is_array())
         {
+            // approximate per-image vision cost so image-heavy turns are not estimated as near-zero and skip compaction
+            static constexpr int64_t IMAGE_TOKEN_ESTIMATE = 1200;
+
             for (const auto &block : msg.contentBlocks)
             {
+                auto blockType = block.is_object() && block.contains("type") && block["type"].is_string() ? block["type"].get<std::string>() : "";
+
                 if (block.contains("text") && block["text"].is_string())
                 {
                     totalChars += static_cast<int64_t>(block["text"].get<std::string>().size());
+                }
+                else if (blockType == "image" || blockType == "image_url")
+                {
+                    totalChars += IMAGE_TOKEN_ESTIMATE * 4;
                 }
             }
         }

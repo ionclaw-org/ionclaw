@@ -2,9 +2,11 @@
 
 #include <filesystem>
 #include <fstream>
+#include <set>
 
 #include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
+#include "ionclaw/util/FileHelper.hpp"
 #include "ionclaw/util/UniqueId.hpp"
 #include "spdlog/spdlog.h"
 
@@ -96,12 +98,11 @@ SubagentRunRecord SubagentRunRecord::fromJson(const nlohmann::json &j)
 
 // subagent registry
 
-SubagentRegistry::SubagentRegistry(const std::string &workspacePath)
+SubagentRegistry::SubagentRegistry(const std::string &stateDir)
 {
-    auto dir = workspacePath + "/.ionclaw";
     std::error_code ec;
-    fs::create_directories(dir, ec);
-    filePath = dir + "/subagent-runs.json";
+    fs::create_directories(stateDir, ec);
+    filePath = stateDir + "/subagent-runs.json";
 }
 
 SubagentRunRecord SubagentRegistry::spawn(const std::string &requesterSessionKey, const std::string &task, const std::string &childSessionKey, const std::string &model, const std::string &thinkingLevel, int parentDepth, int timeoutSeconds)
@@ -233,8 +234,9 @@ std::vector<std::string> SubagentRegistry::getDescendantSessionKeys(const std::s
 
     std::vector<std::string> descendants;
 
-    // walk the run tree breadth-first, expanding only live runs so the walk stays bounded
+    // walk the run tree breadth-first, expanding only live runs and tracking visited keys so a cyclic or corrupted state file cannot loop forever
     std::vector<std::string> frontier = {sessionKey};
+    std::set<std::string> visited = {sessionKey};
 
     while (!frontier.empty())
     {
@@ -249,6 +251,11 @@ std::vector<std::string> SubagentRegistry::getDescendantSessionKeys(const std::s
             }
 
             if (record.status != SubagentStatus::Pending && record.status != SubagentStatus::Active)
+            {
+                continue;
+            }
+
+            if (!visited.insert(record.childSessionKey).second)
             {
                 continue;
             }
@@ -420,6 +427,7 @@ void SubagentRegistry::load()
     }
 }
 
+// the caller must hold mutex, as this iterates records without taking its own lock
 void SubagentRegistry::save()
 {
     nlohmann::json arr = nlohmann::json::array();
@@ -429,20 +437,11 @@ void SubagentRegistry::save()
         arr.push_back(record.toJson());
     }
 
-    std::ofstream ofs(filePath, std::ios::trunc);
+    auto error = ionclaw::util::FileHelper::atomicWrite(filePath, arr.dump(2, ' ', false, nlohmann::json::error_handler_t::replace));
 
-    if (!ofs.is_open())
+    if (!error.empty())
     {
-        spdlog::error("[SubagentRegistry] Failed to open {} for writing", filePath);
-        return;
-    }
-
-    ofs << arr.dump(2, ' ', false, nlohmann::json::error_handler_t::replace);
-    ofs.flush();
-
-    if (!ofs.good())
-    {
-        spdlog::error("[SubagentRegistry] Failed to flush {}", filePath);
+        spdlog::error("[SubagentRegistry] {}", error);
     }
 }
 

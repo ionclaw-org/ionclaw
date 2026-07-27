@@ -1,5 +1,6 @@
 #include "ionclaw/channel/TelegramRunner.hpp"
 
+#include "ionclaw/channel/DeliveryParser.hpp"
 #include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
@@ -45,7 +46,7 @@ std::string TelegramRunner::telegramPost(const std::string &token, const std::st
     return resp.body;
 }
 
-TelegramRunner::TelegramRunner(std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, std::string token, std::vector<std::string> allowedUsers, std::string proxy, bool replyToMessage, std::string publicDir)
+TelegramRunner::TelegramRunner(std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, std::string token, std::vector<std::string> allowedUsers, std::string proxy, bool replyToMessage, std::string publicDir, std::string publicUrl)
     : bus(std::move(bus))
     , sessionManager(std::move(sessionManager))
     , taskManager(std::move(taskManager))
@@ -55,6 +56,7 @@ TelegramRunner::TelegramRunner(std::shared_ptr<ionclaw::bus::MessageBus> bus, st
     , proxy(std::move(proxy))
     , replyToMessage(replyToMessage)
     , publicDir(std::move(publicDir))
+    , publicUrl(std::move(publicUrl))
 {
 }
 
@@ -65,23 +67,40 @@ TelegramRunner::~TelegramRunner()
 
 void TelegramRunner::startTypingTicker(const std::string &chatId)
 {
+    std::thread previous;
+    {
+        std::lock_guard<std::mutex> lock(typingMutex);
+
+        // already ticking for this chat
+        if (typingActive.contains(chatId) && typingActive[chatId])
+        {
+            return;
+        }
+
+        // take ownership of any lingering stopped ticker to join it outside the lock
+        auto it = typingTickers.find(chatId);
+        if (it != typingTickers.end())
+        {
+            previous = std::move(it->second);
+            typingTickers.erase(it);
+        }
+    }
+
+    // join with the chat still inactive so the old ticker's predicate lets it exit
+    if (previous.joinable())
+    {
+        previous.join();
+    }
+
     std::lock_guard<std::mutex> lock(typingMutex);
 
-    // already ticking for this chat
-    if (typingActive.count(chatId) && typingActive[chatId])
+    // a concurrent start may have reactivated this chat while we joined
+    if (typingActive.contains(chatId) && typingActive[chatId])
     {
         return;
     }
 
     typingActive[chatId] = true;
-
-    // clean up previous thread if joinable
-    auto it = typingTickers.find(chatId);
-    if (it != typingTickers.end() && it->second.joinable())
-    {
-        it->second.join();
-        typingTickers.erase(it);
-    }
 
     // clang-format off
     typingTickers.emplace(chatId, std::thread([this, chatId]() {
@@ -110,8 +129,9 @@ void TelegramRunner::stopTypingTicker(const std::string &chatId)
 {
     std::thread t;
     {
+        // erasing both signals the ticker to stop (its predicate sees a missing entry) and keeps the map from growing per chat
         std::lock_guard<std::mutex> lock(typingMutex);
-        typingActive[chatId] = false;
+        typingActive.erase(chatId);
     }
     typingCv.notify_all();
 
@@ -213,7 +233,7 @@ void TelegramRunner::start()
     }
     catch (const std::exception &e)
     {
-        spdlog::warn("[TelegramRunner] deleteWebhook failed: {}", e.what());
+        spdlog::warn("[TelegramRunner] DeleteWebhook failed: {}", e.what());
     }
 
     // validate bot token on startup
@@ -266,7 +286,10 @@ bool TelegramRunner::isAllowed(const std::string &userId, const std::string &use
     }
     for (const auto &allowed : allowedUsers)
     {
-        if (allowed == userId || allowed == username)
+        // usernames may be listed with a leading @ in config while telegram reports them without it
+        auto normalized = (!allowed.empty() && allowed[0] == '@') ? allowed.substr(1) : allowed;
+
+        if (allowed == userId || normalized == username)
         {
             return true;
         }
@@ -374,7 +397,7 @@ void TelegramRunner::sendTypingAction(const std::string &chatId)
     }
     catch (const std::exception &e)
     {
-        spdlog::debug("[TelegramRunner] sendChatAction failed: {}", e.what());
+        spdlog::debug("[TelegramRunner] SendChatAction failed: {}", e.what());
     }
 }
 
@@ -598,7 +621,7 @@ void TelegramRunner::sendTextMessage(const std::string &chatId, const std::strin
     catch (const std::exception &firstErr)
     {
         std::string err = firstErr.what();
-        spdlog::error("[TelegramRunner] sendMessage failed for chatId={}: {}", chatId, err);
+        spdlog::error("[TelegramRunner] SendMessage failed for chatId={}: {}", chatId, err);
 
         // chat not found = user never sent /start to the bot
         if (err.find("chat not found") != std::string::npos)
@@ -657,32 +680,130 @@ void TelegramRunner::sendChunkedMessage(const std::string &chatId, const std::st
     }
 }
 
-void TelegramRunner::processUpdate(const nlohmann::json &update)
+std::string TelegramRunner::resolvePublicUrl(const std::string &path) const
 {
-    int64_t updateId = update.value("update_id", 0);
-    if (updateId > lastUpdateId)
+    // an absolute url is already reachable and passes through unchanged
+    if (path.rfind("http://", 0) == 0 || path.rfind("https://", 0) == 0)
     {
-        lastUpdateId = updateId;
+        return path;
     }
 
-    if (!update.contains("message"))
+    if (publicUrl.empty())
+    {
+        return "";
+    }
+
+    // normalize the marker path to a location under public/
+    std::string rel = path;
+
+    if (rel.rfind("public/", 0) == 0)
+    {
+        rel = rel.substr(std::string("public/").size());
+    }
+
+    while (!rel.empty() && rel.front() == '/')
+    {
+        rel = rel.substr(1);
+    }
+
+    std::string base = publicUrl;
+
+    while (!base.empty() && base.back() == '/')
+    {
+        base.pop_back();
+    }
+
+    return base + "/public/" + rel;
+}
+
+void TelegramRunner::sendMediaByUrl(const std::string &chatId, const std::string &kind, const std::string &url, const std::string &caption, int replyToMessageId)
+{
+    // telegram fetches the media from the url, each kind having its own endpoint and field name
+    std::string endpoint;
+    std::string field;
+
+    if (kind == "image")
+    {
+        endpoint = "/sendPhoto";
+        field = "photo";
+    }
+    else if (kind == "audio")
+    {
+        endpoint = "/sendAudio";
+        field = "audio";
+    }
+    else if (kind == "video")
+    {
+        endpoint = "/sendVideo";
+        field = "video";
+    }
+    else
+    {
+        endpoint = "/sendDocument";
+        field = "document";
+    }
+
+    nlohmann::json body;
+    body["chat_id"] = chatId;
+    body[field] = url;
+
+    if (!caption.empty())
+    {
+        body["caption"] = caption;
+    }
+
+    if (replyToMessageId != 0)
+    {
+        body["reply_to_message_id"] = replyToMessageId;
+    }
+
+    try
+    {
+        telegramPost(token, endpoint, body.dump(), proxy);
+    }
+    catch (const std::exception &e)
+    {
+        spdlog::error("[TelegramRunner] {} to {} failed: {}", endpoint, chatId, e.what());
+    }
+}
+
+void TelegramRunner::processUpdate(const nlohmann::json &update)
+{
+    if (!update.is_object())
+    {
+        return;
+    }
+
+    if (update.contains("update_id") && update["update_id"].is_number_integer())
+    {
+        int64_t updateId = update["update_id"].get<int64_t>();
+
+        if (updateId > lastUpdateId)
+        {
+            lastUpdateId = updateId;
+        }
+    }
+
+    if (!update.contains("message") || !update["message"].is_object())
     {
         return;
     }
 
     const auto &msg = update["message"];
-    if (!msg.contains("from") || !msg.contains("chat"))
+
+    if (!msg.contains("from") || !msg["from"].is_object() || !msg.contains("chat") || !msg["chat"].is_object())
     {
         return;
     }
 
     // determine content: text, caption, or media-only
     std::string text;
-    if (msg.contains("text"))
+
+    if (msg.contains("text") && msg["text"].is_string())
     {
         text = msg["text"].get<std::string>();
     }
-    else if (msg.contains("caption"))
+    else if (msg.contains("caption") && msg["caption"].is_string())
     {
         text = msg["caption"].get<std::string>();
     }
@@ -762,10 +883,12 @@ void TelegramRunner::processUpdate(const nlohmann::json &update)
     }
 
     const auto &from = msg["from"];
-    int64_t fromId = from.value("id", int64_t(0));
-    std::string username = from.value("username", "");
-    int64_t chatId = msg["chat"].value("id", int64_t(0));
-    int messageId = msg.value("message_id", 0);
+    const auto &chat = msg["chat"];
+
+    int64_t fromId = from.contains("id") && from["id"].is_number_integer() ? from["id"].get<int64_t>() : 0;
+    std::string username = from.contains("username") && from["username"].is_string() ? from["username"].get<std::string>() : "";
+    int64_t chatId = chat.contains("id") && chat["id"].is_number_integer() ? chat["id"].get<int64_t>() : 0;
+    int messageId = msg.contains("message_id") && msg["message_id"].is_number_integer() ? msg["message_id"].get<int>() : 0;
 
     std::string userIdStr = std::to_string(fromId);
     if (!isAllowed(userIdStr, username))
@@ -869,6 +992,8 @@ void TelegramRunner::processUpdate(const nlohmann::json &update)
 
 void TelegramRunner::pollLoop()
 {
+    int backoffMs = 0;
+
     while (running.load())
     {
         try
@@ -880,10 +1005,14 @@ void TelegramRunner::pollLoop()
             }
             std::string body = telegramGet(token, path, proxy, POLL_TIMEOUT_SEC + 2);
             auto j = nlohmann::json::parse(body);
-            if (!j.value("ok", false) || !j.contains("result"))
+
+            backoffMs = 0;
+
+            if (!j.is_object() || !j["ok"].is_boolean() || !j["ok"].get<bool>() || !j["result"].is_array())
             {
                 continue;
             }
+
             for (const auto &update : j["result"])
             {
                 processUpdate(update);
@@ -891,18 +1020,26 @@ void TelegramRunner::pollLoop()
         }
         catch (const std::exception &e)
         {
-            if (running.load())
+            if (!running.load())
             {
-                std::string msg = e.what();
+                break;
+            }
 
-                if (msg.find("Timeout") != std::string::npos || msg.find("timeout") != std::string::npos)
-                {
-                    spdlog::debug("[TelegramRunner] Poll timeout (normal)");
-                }
-                else
-                {
-                    spdlog::warn("[TelegramRunner] Poll error: {}", msg);
-                }
+            std::string msg = e.what();
+
+            if (msg.find("Timeout") != std::string::npos || msg.find("timeout") != std::string::npos)
+            {
+                spdlog::debug("[TelegramRunner] Poll timeout (normal)");
+                continue;
+            }
+
+            // back off on persistent errors (bad token, conflict, connectivity) so the loop does not busy-spin
+            spdlog::warn("[TelegramRunner] Poll error: {}", msg);
+            backoffMs = backoffMs == 0 ? 1000 : std::min(backoffMs * 2, 30000);
+
+            for (int slept = 0; slept < backoffMs && running.load(); slept += 200)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(200));
             }
         }
     }
@@ -915,14 +1052,8 @@ void TelegramRunner::outboundLoop()
         try
         {
             ionclaw::bus::OutboundMessage outbound;
-            if (!bus->consumeOutbound(outbound, OUTBOUND_POLL_MS))
+            if (!bus->consumeOutbound("telegram", outbound, OUTBOUND_POLL_MS))
             {
-                continue;
-            }
-            if (outbound.channel != "telegram")
-            {
-                // drop messages not targeted at this channel to avoid infinite re-publish loop
-                spdlog::debug("[TelegramRunner] Dropping non-telegram outbound (channel={})", outbound.channel);
                 continue;
             }
 
@@ -947,7 +1078,31 @@ void TelegramRunner::outboundLoop()
                 replyToMessageId = outbound.metadata["reply_to_message_id"].get<int>();
             }
 
-            sendChunkedMessage(chatId, outbound.content, replyToMessageId);
+            // the reply is split into deliverable parts: text messages and media attachments with optional captions
+            bool firstPart = true;
+
+            for (const auto &part : ionclaw::channel::DeliveryParser::parse(outbound.content))
+            {
+                // only the first message keeps the reply-to reference so the thread is not repeated
+                int replyId = firstPart ? replyToMessageId : 0;
+                firstPart = false;
+
+                if (part.mediaPath.empty())
+                {
+                    sendChunkedMessage(chatId, part.text, replyId);
+                    continue;
+                }
+
+                auto url = resolvePublicUrl(part.mediaPath);
+
+                if (url.empty())
+                {
+                    spdlog::error("[TelegramRunner] Cannot send media '{}' to {}: server.public_url is not configured", part.mediaPath, chatId);
+                    continue;
+                }
+
+                sendMediaByUrl(chatId, part.mediaKind, url, part.text, replyId);
+            }
         }
         catch (const std::exception &e)
         {

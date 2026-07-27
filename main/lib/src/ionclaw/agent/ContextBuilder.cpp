@@ -73,9 +73,9 @@ std::string ContextBuilder::contentToText(const nlohmann::json &content)
 
         for (const auto &block : content)
         {
-            if (block.is_object() && block.value("type", "") == "text")
+            if (block.is_object() && block.contains("type") && block["type"].is_string() && block["type"].get<std::string>() == "text")
             {
-                auto text = block.value("text", "");
+                auto text = block.contains("text") && block["text"].is_string() ? block["text"].get<std::string>() : "";
 
                 if (!text.empty())
                 {
@@ -104,27 +104,20 @@ std::string ContextBuilder::buildDirectoryContext() const
 {
     std::ostringstream lines;
 
-    lines << "You have access to your workspace and the public directory (at the project root, not inside the workspace). Always use paths relative to the project root (e.g. public/media/image.png, not /public/media/image.png).\n\n";
+    lines << "You work inside your workspace. Use paths relative to it (e.g. public/media/image.png).\n\n";
 
     // agent workspace (sanitize paths for prompt safety)
     auto safePath = ionclaw::util::StringHelper::sanitizeForPrompt(workspacePath);
     lines << "Workspace: " << safePath << "\n";
     lines << "  Internal files: reports, data, drafts.\n";
     lines << "  - " << safePath << "/skills"
-          << " - your skills (each is a directory with a SKILL.md, override project-level skills)\n\n";
-
-    // public directory paths
-    auto publicDir = ionclaw::util::StringHelper::sanitizeForPrompt(config.publicDir);
-
-    if (!publicDir.empty())
-    {
-        lines << "Public: " << publicDir << "\n";
-        lines << "  Web-accessible at /public/ URL. Use for anything the user needs to access.\n";
-        lines << "  Organize files by type and date (YYYY/MM/DD) to avoid cluttering a single folder:\n";
-        lines << "  - " << publicDir << "/media" << " - images, audio, video\n";
-        lines << "  - " << publicDir << "/documents" << " - PDFs, spreadsheets, exports\n";
-        lines << "  - " << publicDir << "/sites" << " - HTML pages, static sites\n";
-    }
+          << " - your skills (each is a directory with a SKILL.md, override project-level skills)\n";
+    lines << "  - " << safePath << "/public"
+          << " - files published on the web (see the public delivery rules in the system prompt)\n";
+    lines << "    Organize by type and date (YYYY/MM/DD) to avoid cluttering a single folder:\n";
+    lines << "    - " << safePath << "/public/media" << " - images, audio, video\n";
+    lines << "    - " << safePath << "/public/documents" << " - PDFs, spreadsheets, exports\n";
+    lines << "    - " << safePath << "/public/sites" << " - HTML pages, static sites\n";
 
     return lines.str();
 }
@@ -157,7 +150,14 @@ std::string ContextBuilder::buildSystemPrompt(const std::string &agentName, cons
     }
 
     // 4. current date/time and user language
-    prompt << "\n\nCurrent date and time: " << ionclaw::util::TimeHelper::nowLocal() << ".";
+    prompt << "\n\nCurrent date and time: " << ionclaw::util::TimeHelper::nowInZone(config.timezone);
+
+    if (!config.timezone.empty())
+    {
+        prompt << " (" << ionclaw::util::StringHelper::sanitizeForPrompt(config.timezone) << ")";
+    }
+
+    prompt << ".";
 
     if (!userLanguage.empty())
     {
@@ -207,17 +207,42 @@ std::string ContextBuilder::buildSystemPrompt(const std::string &agentName, cons
     prompt << "\n\n"
            << getChannelGuidance(channel);
 
-    // 7. public url
-    std::string effectiveUrl = config.server.publicUrl;
+    // 7. public files and delivery
+    std::string baseUrl = config.server.publicUrl;
 
-    if (effectiveUrl.empty())
+    if (baseUrl.empty())
     {
-        effectiveUrl = "http://localhost:" + std::to_string(config.server.port);
+        baseUrl = "http://localhost:" + std::to_string(config.server.port);
     }
 
-    prompt << "\n\nPublic URL: " << ionclaw::util::StringHelper::sanitizeForPrompt(effectiveUrl)
-           << "\nWhen sharing public files with the user, always provide the full URL "
-           << "by prepending the public URL to the file path.";
+    if (baseUrl.back() == '/')
+    {
+        baseUrl.pop_back();
+    }
+
+    // public files are served under the /public path, so the public url is the base url plus /public
+    auto publicUrl = ionclaw::util::StringHelper::sanitizeForPrompt(baseUrl + "/public");
+    auto safeChannel = ionclaw::util::StringHelper::sanitizeForPrompt(channel);
+
+    prompt << "\n\n# Public Files and Delivery\n"
+           << "- You are responding on the \"" << safeChannel << "\" channel.\n"
+           << "- Files you save under public/ in your workspace are published on the web: a file's url is " << publicUrl << " plus its path below public/. For example, saving public/media/chart.png publishes it at " << publicUrl << "/media/chart.png.\n"
+           << "- When you create something the user should open or download (an image, a report, a QR code), save it under public/.\n";
+
+    // whatsapp and telegram deliver real attachments via inline markers, other non-terminal channels only carry the public url
+    if (channel == "whatsapp" || channel == "telegram")
+    {
+        prompt << "- To attach a file to your reply, put a marker where you want it sent: [[image:public/media/chart.png]], [[audio:public/media/reply.ogg]], [[video:public/media/clip.mp4]] or [[document:public/reports/report.pdf]]. Use [[media:PATH]] to let the file extension pick the type. The text around the marker becomes the caption.\n"
+               << "- Use [[break]] to split your reply into separate messages.\n"
+               << "- Prefer sending a generated file as an attachment with a marker over pasting its raw url.\n";
+    }
+    else
+    {
+        prompt << "- On channels other than the terminal you cannot attach files, so this url is the only way to deliver a file you generated.\n"
+               << "- Whenever you save a file under public/ during this turn, your reply to the user MUST include its full public url.\n";
+    }
+
+    prompt << "- Never publish secrets, personal data, or private files.";
 
     // 8. directory context
     prompt << "\n\n# Project Structure\n"
@@ -471,11 +496,11 @@ std::string ContextBuilder::buildMediaAnnotation(const std::vector<nlohmann::jso
                 mime = "application/pdf";
         }
 
-        if (mime.rfind("audio/", 0) == 0)
+        if (mime.starts_with("audio/"))
         {
-            annotation += "\n[media attached: " + path + " (" + mime + ") — audio already transcribed above]";
+            annotation += "\n[audio attached: " + path + " (" + mime + ") — any transcription or failure note is included above]";
         }
-        else if (mime.rfind("image/", 0) == 0)
+        else if (mime.starts_with("image/"))
         {
             annotation += "\n[image attached: " + path + " — use vision tool with path=\"" + path + "\" to analyze]";
         }
@@ -521,12 +546,13 @@ std::vector<ionclaw::provider::Message> ContextBuilder::buildMessages(const std:
             for (const auto &tc : msg.raw["tool_calls"])
             {
                 ionclaw::provider::ToolCall toolCall;
-                toolCall.id = tc.value("id", "");
+                toolCall.id = tc.contains("id") && tc["id"].is_string() ? tc["id"].get<std::string>() : "";
 
-                if (tc.contains("function"))
+                if (tc.contains("function") && tc["function"].is_object())
                 {
-                    toolCall.name = tc["function"].value("name", "");
-                    auto argsStr = tc["function"].value("arguments", "");
+                    const auto &fn = tc["function"];
+                    toolCall.name = fn.contains("name") && fn["name"].is_string() ? fn["name"].get<std::string>() : "";
+                    auto argsStr = fn.contains("arguments") && fn["arguments"].is_string() ? fn["arguments"].get<std::string>() : "";
 
                     if (!argsStr.empty())
                     {
@@ -647,13 +673,14 @@ void ContextBuilder::addToolResult(std::vector<ionclaw::provider::Message> &mess
     messages.push_back(msg);
 }
 
-void ContextBuilder::addAssistantMessage(std::vector<ionclaw::provider::Message> &messages, const std::string &content, const std::vector<ionclaw::provider::ToolCall> &toolCalls, const std::string &reasoningContent)
+void ContextBuilder::addAssistantMessage(std::vector<ionclaw::provider::Message> &messages, const std::string &content, const std::vector<ionclaw::provider::ToolCall> &toolCalls, const std::string &reasoningContent, const nlohmann::json &reasoningBlocks)
 {
     ionclaw::provider::Message msg;
     msg.role = "assistant";
     msg.content = content;
     msg.toolCalls = toolCalls;
     msg.reasoningContent = reasoningContent;
+    msg.reasoningBlocks = reasoningBlocks;
     messages.push_back(msg);
 }
 
@@ -699,11 +726,8 @@ std::string ContextBuilder::buildSubagentContext(int depth, int maxDepth)
     return ctx.str();
 }
 
-namespace
-{
-
 // detect error/diagnostic content in the tail of a tool result
-bool hasImportantTail(const std::string &content, size_t scanBytes = 2000)
+bool ContextBuilder::hasImportantTail(const std::string &content, size_t scanBytes)
 {
     static const std::vector<std::string> patterns = {
         "error",
@@ -745,8 +769,6 @@ bool hasImportantTail(const std::string &content, size_t scanBytes = 2000)
 
     return false;
 }
-
-} // anonymous namespace
 
 void ContextBuilder::enforceToolResultBudget(std::vector<ionclaw::provider::Message> &messages, int maxTotalChars)
 {
@@ -846,8 +868,14 @@ void ContextBuilder::enforceToolResultBudget(std::vector<ionclaw::provider::Mess
 
             auto tail = msg.content.substr(tailStart);
 
-            msg.content = head + "\n[... tool output compacted ...]\n" + tail;
-            excess -= (currentSize - static_cast<int>(msg.content.size()));
+            auto compacted = head + "\n[... tool output compacted ...]\n" + tail;
+
+            // only apply when it actually shrinks the message, otherwise a near-minimum result would grow and inflate the remaining excess
+            if (static_cast<int>(compacted.size()) < currentSize)
+            {
+                excess -= (currentSize - static_cast<int>(compacted.size()));
+                msg.content = std::move(compacted);
+            }
         }
     }
 
@@ -909,7 +937,7 @@ void ContextBuilder::pruneHistoryImages(std::vector<ionclaw::provider::Message> 
 
         for (const auto &block : messages[i].contentBlocks)
         {
-            auto type = block.value("type", "");
+            auto type = block.is_object() && block.contains("type") && block["type"].is_string() ? block["type"].get<std::string>() : "";
 
             if (type == "image" || type == "image_url")
             {
@@ -968,7 +996,7 @@ void ContextBuilder::repairToolUseResultPairing(std::vector<ionclaw::provider::M
             }
 
             // drop duplicate tool results
-            if (seenResultIds.count(msg.toolCallId) > 0)
+            if (seenResultIds.contains(msg.toolCallId))
             {
                 spdlog::debug("[ContextBuilder] Dropping duplicate tool result (id={})", msg.toolCallId);
                 continue;

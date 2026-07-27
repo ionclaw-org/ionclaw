@@ -1,11 +1,13 @@
 #include "ionclaw/server/Routes.hpp"
 
 #include <filesystem>
+#include <stdexcept>
 
 #include "spdlog/spdlog.h"
 
 #include "ionclaw/config/ConfigLoader.hpp"
 #include "ionclaw/tool/builtin/ToolHelper.hpp"
+#include "ionclaw/util/StringHelper.hpp"
 
 namespace ionclaw
 {
@@ -14,9 +16,28 @@ namespace server
 
 namespace fs = std::filesystem;
 
+// a raw credential field is treated as secret when its name hints at a key, token, password, or secret
+bool Routes::looksLikeSecretField(const std::string &name)
+{
+    auto lower = name;
+    ionclaw::util::StringHelper::toLowerInPlace(lower);
+
+    static const std::vector<std::string> markers = {"key", "secret", "token", "password", "passwd", "credential", "private"};
+
+    for (const auto &marker : markers)
+    {
+        if (lower.find(marker) != std::string::npos)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp)
 {
-    std::lock_guard<std::mutex> lock(configMutex);
+    auto config = configStore->snapshot();
     nlohmann::json result;
 
     // basic sections
@@ -88,21 +109,19 @@ void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
             item["token"] = "****";
         }
 
-        // include additional fields from raw, masking secret values
+        // include additional fields from raw, masking any that look like secrets
         static const std::set<std::string> knownFields = {"type", "key", "username", "password", "token"};
-        static const std::set<std::string> secretFields = {
-            "consumer_key", "consumer_secret", "access_token", "access_token_secret", "value"};
 
         if (cred.raw.is_object())
         {
             for (auto &[fieldName, fieldValue] : cred.raw.items())
             {
-                if (knownFields.count(fieldName) > 0)
+                if (knownFields.contains(fieldName))
                 {
                     continue;
                 }
 
-                if (secretFields.count(fieldName) > 0 && fieldValue.is_string() && !fieldValue.get<std::string>().empty())
+                if (looksLikeSecretField(fieldName) && fieldValue.is_string() && !fieldValue.get<std::string>().empty())
                 {
                     item[fieldName] = "****";
                 }
@@ -120,6 +139,7 @@ void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
     result["web_client"] = {{"credential", config->webClient.credential}};
     result["image"] = {{"model", config->image.model}, {"aspect_ratio", config->image.aspectRatio}, {"size", config->image.size}};
     result["transcription"] = {{"model", config->transcription.model}};
+    result["embeddings"] = {{"model", config->embeddings.model}};
     result["classifier"] = {{"model", config->classifier.model}};
     result["heartbeat"] = {{"enabled", config->heartbeat.enabled}, {"interval", config->heartbeat.interval}, {"agent", config->heartbeat.agent}};
 
@@ -169,7 +189,7 @@ void Routes::handleConfigGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServ
 
 void Routes::handleConfigYaml(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPServerResponse &resp)
 {
-    std::lock_guard<std::mutex> lock(configMutex);
+    auto config = configStore->snapshot();
     // mask sensitive values before serializing to yaml
     auto maskedConfig = *config;
 
@@ -190,17 +210,14 @@ void Routes::handleConfigYaml(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
             cred.token = "****";
         }
 
-        // mask additional secret fields in raw
-        static const std::set<std::string> secretRawFields = {
-            "consumer_key", "consumer_secret", "access_token", "access_token_secret", "value"};
-
+        // mask any raw field that looks like a secret
         if (cred.raw.is_object())
         {
-            for (const auto &field : secretRawFields)
+            for (auto &[fieldName, fieldValue] : cred.raw.items())
             {
-                if (cred.raw.contains(field) && cred.raw[field].is_string() && !cred.raw[field].get<std::string>().empty())
+                if (looksLikeSecretField(fieldName) && fieldValue.is_string() && !fieldValue.get<std::string>().empty())
                 {
-                    cred.raw[field] = "****";
+                    fieldValue = "****";
                 }
             }
         }
@@ -214,31 +231,34 @@ void Routes::handleConfigUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::HT
 {
     try
     {
-        std::lock_guard<std::mutex> lock(configMutex);
         auto body = nlohmann::json::parse(readBody(req));
 
-        if (body.contains("sections"))
-        {
-            auto &sections = body["sections"];
-
-            if (sections.contains("bot"))
+        // clang-format off
+        configStore->update([&](ionclaw::config::Config &config) {
+            if (body.contains("sections"))
             {
-                auto &bot = sections["bot"];
+                auto &sections = body["sections"];
 
-                if (bot.contains("name"))
+                if (sections.contains("bot"))
                 {
-                    config->bot.name = bot["name"].get<std::string>();
-                }
+                    auto &bot = sections["bot"];
 
-                if (bot.contains("description"))
-                {
-                    config->bot.description = bot["description"].get<std::string>();
+                    if (bot.contains("name"))
+                    {
+                        config.bot.name = bot["name"].get<std::string>();
+                    }
+
+                    if (bot.contains("description"))
+                    {
+                        config.bot.description = bot["description"].get<std::string>();
+                    }
                 }
             }
-        }
 
-        auto configPath = config->projectPath + "/config.yml";
-        ionclaw::config::ConfigLoader::save(*config, configPath);
+            auto configPath = config.projectPath + "/config.yml";
+            ionclaw::config::ConfigLoader::save(config, configPath);
+        });
+        // clang-format on
 
         sendJson(resp, {{"status", "ok"}});
     }
@@ -252,27 +272,28 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
 {
     try
     {
-        std::lock_guard<std::mutex> lock(configMutex);
         auto body = nlohmann::json::parse(readBody(req));
         auto data = body.value("data", nlohmann::json::object());
 
+        // clang-format off
+        configStore->update([&](ionclaw::config::Config &config) {
         if (section == "bot")
         {
             if (data.contains("name"))
             {
-                config->bot.name = data["name"].get<std::string>();
+                config.bot.name = data["name"].get<std::string>();
             }
 
             if (data.contains("description"))
             {
-                config->bot.description = data["description"].get<std::string>();
+                config.bot.description = data["description"].get<std::string>();
             }
         }
         else if (section == "server")
         {
             if (data.contains("host"))
             {
-                config->server.host = data["host"].get<std::string>();
+                config.server.host = data["host"].get<std::string>();
             }
 
             if (data.contains("port"))
@@ -281,52 +302,58 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
 
                 if (port < 1 || port > 65535)
                 {
-                    sendError(resp, "Port must be between 1 and 65535");
-                    return;
+                    throw std::invalid_argument("Port must be between 1 and 65535");
                 }
 
-                config->server.port = port;
+                config.server.port = port;
             }
 
             if (data.contains("public_url"))
             {
-                config->server.publicUrl = data["public_url"].get<std::string>();
+                config.server.publicUrl = data["public_url"].get<std::string>();
             }
 
             if (data.contains("credential"))
             {
-                config->server.credential = data["credential"].get<std::string>();
+                config.server.credential = data["credential"].get<std::string>();
             }
         }
         else if (section == "image")
         {
             if (data.contains("model"))
             {
-                config->image.model = data["model"].get<std::string>();
+                config.image.model = data["model"].get<std::string>();
             }
 
             if (data.contains("aspect_ratio"))
             {
-                config->image.aspectRatio = data["aspect_ratio"].get<std::string>();
+                config.image.aspectRatio = data["aspect_ratio"].get<std::string>();
             }
 
             if (data.contains("size"))
             {
-                config->image.size = data["size"].get<std::string>();
+                config.image.size = data["size"].get<std::string>();
             }
         }
         else if (section == "transcription")
         {
             if (data.contains("model"))
             {
-                config->transcription.model = data["model"].get<std::string>();
+                config.transcription.model = data["model"].get<std::string>();
+            }
+        }
+        else if (section == "embeddings")
+        {
+            if (data.contains("model"))
+            {
+                config.embeddings.model = data["model"].get<std::string>();
             }
         }
         else if (section == "tools")
         {
             if (data.contains("restrict_to_workspace"))
             {
-                config->tools.restrictToWorkspace = data["restrict_to_workspace"].get<bool>();
+                config.tools.restrictToWorkspace = data["restrict_to_workspace"].get<bool>();
             }
 
             if (data.contains("exec") && data["exec"].is_object())
@@ -339,7 +366,7 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
 
                     if (timeout > 0)
                     {
-                        config->tools.execTimeout = timeout;
+                        config.tools.execTimeout = timeout;
                     }
                 }
             }
@@ -350,12 +377,12 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
 
                 if (ws.contains("provider"))
                 {
-                    config->tools.webSearchProvider = ws["provider"].get<std::string>();
+                    config.tools.webSearchProvider = ws["provider"].get<std::string>();
                 }
 
                 if (ws.contains("credential"))
                 {
-                    config->tools.webSearchCredential = ws["credential"].get<std::string>();
+                    config.tools.webSearchCredential = ws["credential"].get<std::string>();
                 }
 
                 if (ws.contains("max_results"))
@@ -364,7 +391,7 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
 
                     if (maxResults >= 1 && maxResults <= 20)
                     {
-                        config->tools.webSearchMaxResults = maxResults;
+                        config.tools.webSearchMaxResults = maxResults;
                     }
                 }
             }
@@ -373,7 +400,7 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
         {
             for (auto &[agentName, agentData] : data.items())
             {
-                auto &agent = config->agents[agentName];
+                auto &agent = config.agents[agentName];
 
                 if (agentData.contains("model"))
                 {
@@ -395,9 +422,9 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
                     auto ws = agentData["workspace"].get<std::string>();
 
                     // strip projectPath prefix to keep it relative
-                    if (!config->projectPath.empty() && ws.rfind(config->projectPath, 0) == 0)
+                    if (!config.projectPath.empty() && ws.starts_with(config.projectPath))
                     {
-                        ws = ws.substr(config->projectPath.size());
+                        ws = ws.substr(config.projectPath.size());
 
                         if (!ws.empty() && ws.front() == '/')
                         {
@@ -408,7 +435,7 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
                     // store absolute in memory for runtime use
                     if (fs::path(ws).is_relative())
                     {
-                        agent.workspace = config->projectPath + "/" + ws;
+                        agent.workspace = config.projectPath + "/" + ws;
                     }
                     else
                     {
@@ -451,7 +478,7 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
         {
             for (auto &[credName, credData] : data.items())
             {
-                auto &cred = config->credentials[credName];
+                auto &cred = config.credentials[credName];
 
                 if (credData.contains("type"))
                 {
@@ -493,22 +520,14 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
                     }
                 }
 
-                // restore masked secret values from current raw before overwriting
-                static const std::set<std::string> secretRawFields = {
-                    "consumer_key", "consumer_secret", "access_token", "access_token_secret", "value"};
-
+                // restore any masked secret field from the current raw so a "****" submission keeps the real value
                 if (cred.raw.is_object())
                 {
-                    for (const auto &field : secretRawFields)
+                    for (auto &[fieldName, fieldValue] : credData.items())
                     {
-                        if (credData.contains(field) && credData[field].is_string())
+                        if (looksLikeSecretField(fieldName) && fieldValue.is_string() && fieldValue.get<std::string>() == "****" && cred.raw.contains(fieldName))
                         {
-                            auto val = credData[field].get<std::string>();
-
-                            if ((val.empty() || val == "****") && cred.raw.contains(field))
-                            {
-                                credData[field] = cred.raw[field];
-                            }
+                            fieldValue = cred.raw[fieldName];
                         }
                     }
                 }
@@ -520,7 +539,7 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
         {
             for (auto &[provName, provData] : data.items())
             {
-                auto &prov = config->providers[provName];
+                auto &prov = config.providers[provName];
 
                 if (provData.contains("credential"))
                 {
@@ -542,7 +561,7 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
         {
             for (auto &[chName, chData] : data.items())
             {
-                auto &ch = config->channels[chName];
+                auto &ch = config.channels[chName];
 
                 if (chData.contains("enabled"))
                 {
@@ -571,38 +590,38 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
         {
             if (data.contains("credential"))
             {
-                config->webClient.credential = data["credential"].get<std::string>();
+                config.webClient.credential = data["credential"].get<std::string>();
             }
         }
         else if (section == "storage")
         {
             if (data.contains("type"))
             {
-                config->storage.type = data["type"].get<std::string>();
+                config.storage.type = data["type"].get<std::string>();
             }
         }
         else if (section == "classifier")
         {
             if (data.contains("model"))
             {
-                config->classifier.model = data["model"].get<std::string>();
+                config.classifier.model = data["model"].get<std::string>();
             }
         }
         else if (section == "heartbeat")
         {
             if (data.contains("enabled"))
             {
-                config->heartbeat.enabled = data["enabled"].get<bool>();
+                config.heartbeat.enabled = data["enabled"].get<bool>();
             }
 
             if (data.contains("interval"))
             {
-                config->heartbeat.interval = data["interval"].get<int>();
+                config.heartbeat.interval = data["interval"].get<int>();
             }
 
             if (data.contains("agent"))
             {
-                config->heartbeat.agent = data["agent"].get<std::string>();
+                config.heartbeat.agent = data["agent"].get<std::string>();
             }
         }
         else if (section == "advanced")
@@ -613,17 +632,14 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
 
                 // validate yaml before writing to disk to prevent file corruption
                 auto newConfig = ionclaw::config::ConfigLoader::loadFromString(yamlStr);
-                newConfig.projectPath = config->projectPath;
+                newConfig.projectPath = config.projectPath;
 
                 // restore masked credential values from current config
-                static const std::set<std::string> secretRawFields = {
-                    "consumer_key", "consumer_secret", "access_token", "access_token_secret", "value"};
-
                 for (auto &[name, cred] : newConfig.credentials)
                 {
-                    auto it = config->credentials.find(name);
+                    auto it = config.credentials.find(name);
 
-                    if (it == config->credentials.end())
+                    if (it == config.credentials.end())
                     {
                         continue;
                     }
@@ -643,39 +659,48 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
                         cred.token = it->second.token;
                     }
 
-                    // restore masked raw fields (oauth1, header, etc.)
+                    // restore any masked raw field (oauth1, header, etc.) from the existing credential
                     if (cred.raw.is_object() && it->second.raw.is_object())
                     {
-                        for (const auto &field : secretRawFields)
+                        for (auto &[fieldName, fieldValue] : cred.raw.items())
                         {
-                            if (cred.raw.contains(field) && cred.raw[field].is_string() && cred.raw[field].get<std::string>() == "****" && it->second.raw.contains(field))
+                            if (looksLikeSecretField(fieldName) && fieldValue.is_string() && fieldValue.get<std::string>() == "****" && it->second.raw.contains(fieldName))
                             {
-                                cred.raw[field] = it->second.raw[field];
+                                fieldValue = it->second.raw[fieldName];
                             }
                         }
                     }
                 }
 
                 // save with restored credential values (validated config only)
-                auto configPath = config->projectPath + "/config.yml";
+                auto configPath = config.projectPath + "/config.yml";
                 ionclaw::config::ConfigLoader::save(newConfig, configPath);
-                *config = newConfig;
 
-                sendJson(resp, {{"status", "ok"}});
+                // resolve relative agent workspaces to absolute so skill and file paths stay correct
+                ionclaw::config::ConfigLoader::resolveWorkspaces(newConfig, config.projectPath);
+                config = newConfig;
+
                 return;
             }
         }
         else
         {
-            sendError(resp, "Invalid section: " + section);
-            return;
+            throw std::invalid_argument("Invalid section: " + section);
         }
 
         // persist changes to disk
-        auto configPath = config->projectPath + "/config.yml";
-        ionclaw::config::ConfigLoader::save(*config, configPath);
+        auto configPath = config.projectPath + "/config.yml";
+        ionclaw::config::ConfigLoader::save(config, configPath);
+        });
+        // clang-format on
 
         sendJson(resp, {{"status", "ok"}});
+    }
+    catch (const std::invalid_argument &e)
+    {
+        // a rejected edit throws out of the mutator, so ConfigStore discards the copy and nothing is partially applied
+        sendError(resp, e.what());
+        return;
     }
     catch (const std::exception &e)
     {
@@ -718,7 +743,7 @@ void Routes::handleConfigRestart(Poco::Net::HTTPServerRequest &, Poco::Net::HTTP
 {
     try
     {
-        std::lock_guard<std::mutex> lock(configMutex);
+        auto config = configStore->snapshot();
         auto configPath = config->projectPath + "/config.yml";
 
         if (!fs::exists(configPath))
@@ -743,17 +768,17 @@ void Routes::handleConfigRestart(Poco::Net::HTTPServerRequest &, Poco::Net::HTTP
         // resolve agent workspaces
         ionclaw::config::ConfigLoader::resolveWorkspaces(newConfig, projectPath);
 
-        // update shared config
-        *config = newConfig;
+        // publish the reloaded config before restarting services
+        configStore->replace(newConfig);
 
         // reload auth credentials
-        auth->reload(*config);
+        auth->reload(newConfig);
 
         // restart orchestrator (stops agents/providers, recreates with new config)
-        orchestrator->restart(*config);
+        orchestrator->restart(newConfig);
 
         // restart heartbeat service with updated config
-        heartbeatService->restart(config->heartbeat.interval, config->heartbeat.enabled, config->heartbeat.agent);
+        heartbeatService->restart(newConfig.heartbeat.interval, newConfig.heartbeat.enabled, newConfig.heartbeat.agent);
 
         // restart cron service (jobs persist to cron_jobs.json, independent of config)
         cronService->stop();
@@ -762,26 +787,40 @@ void Routes::handleConfigRestart(Poco::Net::HTTPServerRequest &, Poco::Net::HTTP
         // restart channels with updated config
         channelManager->stopAll();
 
-        for (auto &[chName, ch] : config->channels)
+        std::vector<std::string> startedChannels;
+        for (const auto &[chName, ch] : newConfig.channels)
         {
             if (ch.enabled)
             {
                 try
                 {
                     channelManager->startChannel(chName);
-                    ch.running = true;
+                    startedChannels.push_back(chName);
                 }
                 catch (const std::exception &chErr)
                 {
                     spdlog::warn("[Routes] Failed to restart channel '{}': {}", chName, chErr.what());
-                    ch.running = false;
                 }
             }
-            else
+        }
+
+        // publish the running state of the channels that started successfully
+        // clang-format off
+        configStore->update([&](ionclaw::config::Config &config) {
+            for (auto &[chName, ch] : config.channels)
             {
                 ch.running = false;
             }
-        }
+            for (const auto &chName : startedChannels)
+            {
+                auto it = config.channels.find(chName);
+                if (it != config.channels.end())
+                {
+                    it->second.running = true;
+                }
+            }
+        });
+        // clang-format on
 
         spdlog::info("[Routes] All services restarted successfully");
 
@@ -798,31 +837,36 @@ void Routes::handleConfigDeleteItem(Poco::Net::HTTPServerRequest &, Poco::Net::H
 {
     try
     {
-        std::lock_guard<std::mutex> lock(configMutex);
-
         bool found = false;
 
-        if (section == "agents")
-        {
-            found = config->agents.erase(name) > 0;
-        }
-        else if (section == "credentials")
-        {
-            found = config->credentials.erase(name) > 0;
-        }
-        else if (section == "providers")
-        {
-            found = config->providers.erase(name) > 0;
-        }
+        // clang-format off
+        configStore->update([&](ionclaw::config::Config &config) {
+            if (section == "agents")
+            {
+                found = config.agents.erase(name) > 0;
+            }
+            else if (section == "credentials")
+            {
+                found = config.credentials.erase(name) > 0;
+            }
+            else if (section == "providers")
+            {
+                found = config.providers.erase(name) > 0;
+            }
+
+            if (found)
+            {
+                auto configPath = config.projectPath + "/config.yml";
+                ionclaw::config::ConfigLoader::save(config, configPath);
+            }
+        });
+        // clang-format on
 
         if (!found)
         {
             sendError(resp, "Not found: " + name, 404);
             return;
         }
-
-        auto configPath = config->projectPath + "/config.yml";
-        ionclaw::config::ConfigLoader::save(*config, configPath);
 
         sendJson(resp, {{"status", "deleted"}, {"section", section}, {"name", name}});
     }

@@ -9,6 +9,7 @@
 #include "ionclaw/server/handler/RedirectHandler.hpp"
 #include "ionclaw/server/handler/WebAppHandler.hpp"
 #include "ionclaw/server/handler/WebSocketHandler.hpp"
+#include "ionclaw/server/handler/WebhookHandler.hpp"
 
 namespace ionclaw
 {
@@ -27,7 +28,7 @@ RequestHandlerFactory::RequestHandlerFactory(std::shared_ptr<Routes> routes, std
 {
 }
 
-// poco framework requires raw pointer ownership transfer from createRequestHandler;
+// poco takes ownership of the raw handler pointer returned from createRequestHandler
 Poco::Net::HTTPRequestHandler *RequestHandlerFactory::createRequestHandler(const Poco::Net::HTTPServerRequest &req)
 {
     auto path = Poco::URI(req.getURI()).getPath();
@@ -35,7 +36,7 @@ Poco::Net::HTTPRequestHandler *RequestHandlerFactory::createRequestHandler(const
     // websocket upgrade
     if (path == "/ws")
     {
-        return new WebSocketHandler(auth, wsManager, routes);
+        return new WebSocketHandler(auth, wsManager);
     }
 
     // mcp server endpoint
@@ -54,6 +55,12 @@ Poco::Net::HTTPRequestHandler *RequestHandlerFactory::createRequestHandler(const
     if (path == "/app" || path.substr(0, 5) == "/app/")
     {
         return new WebAppHandler(webDir);
+    }
+
+    // inbound channel webhooks (whatsapp z-api / meta)
+    if (path.substr(0, 9) == "/webhook/")
+    {
+        return new WebhookHandler(routes);
     }
 
     // public file serving

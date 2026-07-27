@@ -4,7 +4,6 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
-#include <random>
 #include <sstream>
 
 #include "Poco/HMACEngine.h"
@@ -28,6 +27,8 @@
 #include "ionclaw/util/EnvironmentHelper.hpp"
 #include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/MimeType.hpp"
+#include "ionclaw/util/FileHelper.hpp"
+#include "ionclaw/util/RandomHelper.hpp"
 #include "ionclaw/util/SsrfGuard.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 
@@ -64,20 +65,7 @@ std::string HttpClientTool::percentEncode(const std::string &value)
 
 std::string HttpClientTool::generateNonce()
 {
-    static const char chars[] = "abcdefghijklmnopqrstuvwxyz0123456789";
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dist(0, sizeof(chars) - 2);
-
-    std::string nonce;
-    nonce.reserve(32);
-
-    for (int i = 0; i < 32; ++i)
-    {
-        nonce += chars[dist(gen)];
-    }
-
-    return nonce;
+    return ionclaw::util::RandomHelper::secureHex(16);
 }
 
 std::string HttpClientTool::buildOAuth1Header(const std::string &method, const std::string &url, const std::string &consumerKey, const std::string &consumerSecret, const std::string &accessToken, const std::string &tokenSecret, const std::vector<std::pair<std::string, std::string>> &bodyParams)
@@ -278,6 +266,15 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
         }
     }
 
+    // reject header injection: a control character in a name or value could split the request
+    for (const auto &[key, value] : headers)
+    {
+        if (key.find_first_of("\r\n") != std::string::npos || value.find_first_of("\r\n") != std::string::npos)
+        {
+            return "Error: request headers must not contain control characters";
+        }
+    }
+
     // body and content type (extracted before auth for oauth1 signature)
     std::string body;
     std::string contentTypeParam = "json";
@@ -360,24 +357,13 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
                 return "Error: HTTP " + std::to_string(response.statusCode);
             }
 
-            // ensure parent directory exists
-            std::error_code ec;
-            std::filesystem::create_directories(std::filesystem::path(resolvedPath).parent_path(), ec);
+            // write atomically so a mid-write failure leaves no partial file and the error is surfaced instead of a false success
+            auto writeError = ionclaw::util::FileHelper::atomicWrite(resolvedPath, response.body);
 
-            if (ec)
+            if (!writeError.empty())
             {
-                return "Error: failed to create directory for download: " + ec.message();
+                return "Error: failed to save download: " + writeError;
             }
-
-            std::ofstream outFile(resolvedPath, std::ios::binary);
-
-            if (!outFile.is_open())
-            {
-                return "Error: cannot write to: " + downloadPath;
-            }
-
-            outFile << response.body;
-            outFile.close();
 
             nlohmann::json result = {
                 {"status", response.statusCode},
@@ -438,7 +424,8 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
 #ifdef _WIN32
                 Poco::Net::Context::Ptr context = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "");
 #else
-                Poco::Net::Context::Ptr context = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "", "", "", Poco::Net::Context::VERIFY_NONE, 9, true, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
+                auto caLocation = ionclaw::util::HttpClient::systemCaLocation();
+                Poco::Net::Context::Ptr context = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "", "", caLocation, Poco::Net::Context::VERIFY_RELAXED, 9, true, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
 #endif
                 session = std::make_unique<Poco::Net::HTTPSClientSession>(host, port, context);
             }
@@ -466,7 +453,10 @@ ToolResult HttpClientTool::execute(const nlohmann::json &params, const ToolConte
             form.addPart(fieldName, new Poco::Net::FilePartSource(resolvedUpload, mimeType));
             form.prepareSubmit(request);
 
-            form.write(session->sendRequest(request));
+            // establish the connection, then revalidate the connected peer to close the dns-rebinding window before streaming the file
+            auto &requestStream = session->sendRequest(request);
+            ionclaw::util::SsrfGuard::validatePeerAddress(session->socket().peerAddress().host());
+            form.write(requestStream);
 
             Poco::Net::HTTPResponse httpResp;
             auto &rs = session->receiveResponse(httpResp);

@@ -4,6 +4,7 @@
 
 #include <chrono>
 #include <condition_variable>
+#include <deque>
 #include <map>
 #include <mutex>
 #include <queue>
@@ -14,30 +15,53 @@ namespace ionclaw
 namespace bus
 {
 
+// outcome of an inbound publish so callers can react instead of silently stranding work
+enum class PublishResult
+{
+    Accepted,
+    Duplicate,
+    QueueFull
+};
+
 class MessageBus
 {
 public:
-    void publishInbound(const InboundMessage &msg);
+    PublishResult publishInbound(const InboundMessage &msg);
     void publishOutbound(const OutboundMessage &msg);
 
     bool consumeInbound(InboundMessage &msg, int timeoutMs = 1000);
-    bool consumeOutbound(OutboundMessage &msg, int timeoutMs = 1000);
 
-    size_t inboundSize() const;
-    size_t outboundSize() const;
+    // outbound is routed per channel so each channel runner only receives its own messages and never drops another's
+    bool consumeOutbound(const std::string &channel, OutboundMessage &msg, int timeoutMs = 1000);
+
 
 private:
     std::queue<InboundMessage> inboundQueue;
-    std::queue<OutboundMessage> outboundQueue;
+    std::map<std::string, std::queue<OutboundMessage>> outboundQueues;
     mutable std::mutex inboundMutex;
     mutable std::mutex outboundMutex;
     std::condition_variable inboundCv;
     std::condition_variable outboundCv;
 
+    // bounds inbound memory under a flood; a burst beyond this is rejected with a clear error rather than buffered without limit
+    static constexpr size_t MAX_INBOUND_QUEUE = 1000;
+
+    // bounds each channel's outbound backlog so a stalled runner cannot grow it without limit
+    static constexpr size_t MAX_OUTBOUND_QUEUE = 1000;
     static constexpr int DEDUP_TTL_SECONDS = 5;
     std::map<std::string, std::chrono::steady_clock::time_point> recentInbound;
+    static std::string dedupKey(const InboundMessage &msg);
     bool isDuplicate(const InboundMessage &msg);
     void purgeExpiredDedup();
+
+    // per-session sliding-window rate limit so one session cannot monopolize the shared inbound queue
+    static constexpr int RATE_WINDOW_SECONDS = 10;
+    static constexpr size_t MAX_PER_SESSION_IN_WINDOW = 30;
+    std::map<std::string, std::deque<std::chrono::steady_clock::time_point>> sessionSendTimes;
+    bool exceedsSessionRate(const InboundMessage &msg);
+
+    // records dedup and rate-limit state for a message only once it is accepted into the queue
+    void recordAccepted(const InboundMessage &msg);
 };
 
 } // namespace bus

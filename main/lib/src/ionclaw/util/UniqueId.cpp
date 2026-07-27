@@ -1,23 +1,19 @@
 #include "ionclaw/util/UniqueId.hpp"
 
 #include <iomanip>
-#include <random>
 #include <sstream>
+
+#include "ionclaw/util/RandomHelper.hpp"
 
 namespace ionclaw
 {
 namespace util
 {
 
-std::atomic<uint64_t> UniqueId::counter{0};
-
 std::string UniqueId::uuid()
 {
-    static thread_local std::mt19937_64 gen(std::random_device{}());
-    std::uniform_int_distribution<uint64_t> dist;
-
-    auto hi = dist(gen);
-    auto lo = dist(gen);
+    auto hi = RandomHelper::secureUint64();
+    auto lo = RandomHelper::secureUint64();
 
     // set version 4: bits 12-15 of time_hi_and_version
     hi = (hi & 0xFFFFFFFFFFFF0FFFULL) | 0x0000000000004000ULL;
@@ -42,22 +38,13 @@ std::string UniqueId::uuid()
 
 std::string UniqueId::shortId()
 {
-    static thread_local std::mt19937_64 gen(std::random_device{}());
-    std::uniform_int_distribution<uint64_t> dist;
-
-    auto value = dist(gen);
+    auto value = RandomHelper::secureUint64();
 
     std::ostringstream oss;
     oss << std::hex << std::setfill('0');
     oss << std::setw(12) << (value & 0xFFFFFFFFFFFFULL);
 
     return oss.str();
-}
-
-std::string UniqueId::sequential(const std::string &prefix)
-{
-    auto id = counter.fetch_add(1, std::memory_order_relaxed);
-    return prefix + "-" + std::to_string(id);
 }
 
 } // namespace util

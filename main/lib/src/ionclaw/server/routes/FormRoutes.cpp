@@ -64,6 +64,25 @@ nlohmann::json Routes::buildFormSchemas()
         {{"name", "credential"}, {"type", "credential"}, {"label", "Token Credential"}, {"visible_when", {{"require_auth", true}}}},
     });
 
+    schemas["channels_whatsapp_zapi"] = json::array({
+        {{"name", "enabled"}, {"type", "bool"}, {"label", "Enabled"}},
+        {{"name", "allowed_users"}, {"type", "text"}, {"label", "Allowed Numbers (comma-separated, empty = any)"}},
+        {{"name", "instance_id"}, {"type", "text"}, {"label", "Instance ID"}},
+        {{"name", "instance_token"}, {"type", "secret"}, {"label", "Instance Token"}},
+        {{"name", "client_token"}, {"type", "secret"}, {"label", "Account Client-Token"}},
+        {{"name", "webhook_token"}, {"type", "secret"}, {"label", "Webhook Token (append ?token= to the webhook url)"}},
+    });
+
+    schemas["channels_whatsapp_meta"] = json::array({
+        {{"name", "enabled"}, {"type", "bool"}, {"label", "Enabled"}},
+        {{"name", "allowed_users"}, {"type", "text"}, {"label", "Allowed Numbers (comma-separated, empty = any)"}},
+        {{"name", "phone_number_id"}, {"type", "text"}, {"label", "Phone Number ID"}},
+        {{"name", "access_token"}, {"type", "secret"}, {"label", "Access Token"}},
+        {{"name", "verify_token"}, {"type", "secret"}, {"label", "Verify Token"}},
+        {{"name", "app_secret"}, {"type", "secret"}, {"label", "App Secret"}},
+        {{"name", "graph_version"}, {"type", "text"}, {"label", "Graph API Version"}},
+    });
+
     schemas["image"] = json::array({
         {{"name", "model"}, {"type", "text"}, {"label", "Model"}, {"placeholder", "openai/dall-e-3"}},
         {{"name", "aspect_ratio"}, {"type", "text"}, {"label", "Aspect Ratio"}, {"placeholder", "16:9"}},
@@ -72,6 +91,10 @@ nlohmann::json Routes::buildFormSchemas()
 
     schemas["transcription"] = json::array({
         {{"name", "model"}, {"type", "text"}, {"label", "Model"}, {"placeholder", "openai/whisper-1"}},
+    });
+
+    schemas["embeddings"] = json::array({
+        {{"name", "model"}, {"type", "text"}, {"label", "Model"}, {"placeholder", "openai/text-embedding-3-small"}},
     });
 
     schemas["agent"] = json::array({

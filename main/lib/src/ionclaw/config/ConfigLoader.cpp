@@ -8,6 +8,7 @@
 #include "spdlog/spdlog.h"
 
 #include "ionclaw/util/EnvironmentHelper.hpp"
+#include "ionclaw/util/FileHelper.hpp"
 
 namespace ionclaw
 {
@@ -107,29 +108,33 @@ nlohmann::json ConfigLoader::yamlToJson(const YAML::Node &node)
 
     if (node.IsScalar())
     {
-        // try bool before int because yaml-cpp accepts "true"/"false" as both and int-first would turn booleans into 0/1
-        try
+        // a quoted scalar keeps its string type so numeric-looking identifiers like phone_number_id survive the round-trip
+        if (node.Tag() != "!")
         {
-            return node.as<bool>();
-        }
-        catch (const YAML::BadConversion &)
-        {
-        }
+            // try bool before int because yaml-cpp accepts "true"/"false" as both and int-first would turn booleans into 0/1
+            try
+            {
+                return node.as<bool>();
+            }
+            catch (const YAML::BadConversion &)
+            {
+            }
 
-        try
-        {
-            return node.as<int>();
-        }
-        catch (const YAML::BadConversion &)
-        {
-        }
+            try
+            {
+                return node.as<int>();
+            }
+            catch (const YAML::BadConversion &)
+            {
+            }
 
-        try
-        {
-            return node.as<double>();
-        }
-        catch (const YAML::BadConversion &)
-        {
+            try
+            {
+                return node.as<double>();
+            }
+            catch (const YAML::BadConversion &)
+            {
+            }
         }
 
         return util::EnvironmentHelper::expandEnvVars(node.as<std::string>());
@@ -245,6 +250,9 @@ Config ConfigLoader::loadFromNode(const YAML::Node &root)
 {
     Config config;
 
+    // iana timezone for the assistant's clock and the cron default, empty means the server's local zone
+    config.timezone = expandStr(root["timezone"]);
+
     // bot
     if (auto bot = root["bot"])
     {
@@ -290,6 +298,12 @@ Config ConfigLoader::loadFromNode(const YAML::Node &root)
     if (auto transcription = root["transcription"])
     {
         config.transcription.model = expandStr(transcription["model"]);
+    }
+
+    // embeddings
+    if (auto embeddings = root["embeddings"])
+    {
+        config.embeddings.model = expandStr(embeddings["model"]);
     }
 
     // tools
@@ -533,9 +547,6 @@ Config ConfigLoader::loadFromNode(const YAML::Node &root)
         }
     }
 
-    // forms
-    config.forms = yamlToJson(root["forms"]);
-
     return config;
 }
 
@@ -602,6 +613,14 @@ std::string ConfigLoader::toYaml(const Config &config)
         out << YAML::EndMap;
     }
 
+    // embeddings
+    if (!config.embeddings.model.empty())
+    {
+        out << YAML::Key << "embeddings" << YAML::Value << YAML::BeginMap;
+        out << YAML::Key << "model" << YAML::Value << config.embeddings.model;
+        out << YAML::EndMap;
+    }
+
     // heartbeat
     out << YAML::Key << "heartbeat" << YAML::Value << YAML::BeginMap;
     out << YAML::Key << "enabled" << YAML::Value << config.heartbeat.enabled;
@@ -661,7 +680,7 @@ std::string ConfigLoader::toYaml(const Config &config)
             // save workspace as relative path to avoid absolute paths in config
             auto ws = agent.workspace;
 
-            if (!config.projectPath.empty() && ws.rfind(config.projectPath, 0) == 0)
+            if (!config.projectPath.empty() && ws.starts_with(config.projectPath))
             {
                 ws = ws.substr(config.projectPath.size());
 
@@ -850,7 +869,7 @@ std::string ConfigLoader::toYaml(const Config &config)
             {
                 for (auto &[fieldName, fieldValue] : cred.raw.items())
                 {
-                    if (knownFields.count(fieldName) > 0)
+                    if (knownFields.contains(fieldName))
                     {
                         continue;
                     }
@@ -960,6 +979,26 @@ std::string ConfigLoader::toYaml(const Config &config)
                 out << YAML::Key << "require_auth" << YAML::Value << channel.raw["require_auth"].get<bool>();
             }
 
+            // whatsapp string fields (z-api and meta credentials/settings)
+            static const char *whatsAppKeys[] = {"instance_id", "instance_token", "client_token", "access_token", "phone_number_id", "verify_token", "app_secret", "graph_version"};
+
+            for (const auto *key : whatsAppKeys)
+            {
+                if (!channel.raw.contains(key))
+                {
+                    continue;
+                }
+
+                // these ids are often long digit strings, so quote them to keep yaml from reloading them as numbers
+                const auto &value = channel.raw[key];
+                std::string text = value.is_string() ? value.get<std::string>() : (value.is_number_integer() ? std::to_string(value.get<int64_t>()) : "");
+
+                if (!text.empty())
+                {
+                    out << YAML::Key << key << YAML::Value << YAML::DoubleQuoted << text;
+                }
+            }
+
             out << YAML::EndMap;
         }
 
@@ -988,20 +1027,11 @@ std::string ConfigLoader::toYaml(const Config &config)
 void ConfigLoader::save(const Config &config, const std::string &path)
 {
     auto yaml = toYaml(config);
+    auto error = ionclaw::util::FileHelper::atomicWrite(path, yaml);
 
-    std::ofstream fout(path);
-
-    if (!fout.is_open())
+    if (!error.empty())
     {
-        throw std::runtime_error("[ConfigLoader] Failed to open file for writing: " + path);
-    }
-
-    fout << yaml;
-    fout.flush();
-
-    if (!fout.good())
-    {
-        throw std::runtime_error("[ConfigLoader] Failed to write config file: " + path);
+        throw std::runtime_error("[ConfigLoader] " + error);
     }
 }
 

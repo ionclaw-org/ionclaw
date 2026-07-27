@@ -66,7 +66,7 @@ struct ServerView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Color(hex: 0x1A1A2E).ignoresSafeArea())
+            .background(Theme.header.ignoresSafeArea())
         }
         .tint(Theme.primary)
     }

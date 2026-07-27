@@ -21,12 +21,12 @@ namespace cron
 class CronService
 {
 public:
-    CronService(std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::task::TaskManager> taskManager, const std::string &workspacePath);
+    CronService(std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::task::TaskManager> taskManager, const std::string &stateDir);
 
     void start();
     void stop();
 
-    CronJob addJob(const std::string &name, const CronSchedule &schedule, const std::string &message, bool deliver, const std::string &channel, const std::string &to, bool deleteAfterRun);
+    CronJob addJob(const std::string &name, const CronSchedule &schedule, const std::string &message, const std::string &channel, const std::string &to, bool deleteAfterRun);
 
     bool removeJob(const std::string &jobId);
     bool updateJob(const std::string &jobId, const CronJob &patch);

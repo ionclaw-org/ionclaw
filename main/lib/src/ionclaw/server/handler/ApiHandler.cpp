@@ -35,6 +35,16 @@ void ApiHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTT
     Poco::URI uri(req.getURI());
     auto path = uri.getPath();
 
+    // reject traversal and null bytes before any authorization or routing decision
+    if (path.find('\0') != std::string::npos || HttpHelper::hasTraversalSegment(path))
+    {
+        resp.setStatus(Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
+        resp.setContentType("application/json");
+        auto &out = resp.send();
+        out << R"({"error":"Invalid path"})";
+        return;
+    }
+
     // check authorization for non-public paths
     if (!Auth::isPublicPath(path, req.getMethod()))
     {
@@ -58,6 +68,7 @@ void ApiHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTT
     }
     catch (const std::exception &e)
     {
+        // log the detail server-side but return a generic body so internal paths and state are not disclosed
         spdlog::error("[ApiHandler] API error on {}: {}", path, e.what());
         resp.setStatus(Poco::Net::HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
         resp.setContentType("application/json");
@@ -65,8 +76,7 @@ void ApiHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTT
         if (!resp.sent())
         {
             auto &out = resp.send();
-            nlohmann::json err = {{"error", e.what()}};
-            out << err.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+            out << R"({"error":"Internal server error"})";
         }
     }
 }
@@ -82,7 +92,7 @@ void ApiHandler::routeRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
         return;
     }
 
-    // version (public)
+    // version
     if (path == "/api/version" && method == "GET")
     {
         routes->handleVersion(req, resp);
@@ -327,11 +337,8 @@ void ApiHandler::routeRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
         std::string name = (slash != std::string::npos) ? checkSuffix.substr(slash + 1) : "";
         if (!name.empty())
         {
-            // decode URL-encoded parameters (e.g. names with special characters)
-            std::string decodedSource, decodedName;
-            Poco::URI::decode(source, decodedSource);
-            Poco::URI::decode(name, decodedName);
-            routes->handleMarketplaceCheck(req, resp, decodedSource, decodedName);
+            // path already comes url-decoded from Poco::URI::getPath, so a second decode would let %252e bypass the traversal guard
+            routes->handleMarketplaceCheck(req, resp, source, name);
             return;
         }
     }

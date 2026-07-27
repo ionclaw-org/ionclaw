@@ -46,6 +46,9 @@ function renderMarkdown(text) {
   return DOMPurify.sanitize(marked(stripFrontmatter(text), { breaks: true, renderer }))
 }
 
+// md-editor-v3 does not sanitize its preview by default, so route it through dompurify
+const sanitizeHtml = (html) => DOMPurify.sanitize(html)
+
 const search = ref('')
 
 const filteredSkills = computed(() => {
@@ -58,6 +61,8 @@ async function loadSkills() {
   loading.value = true
   try {
     skills.value = await api.get('/skills')
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
   } finally {
     loading.value = false
   }
@@ -244,6 +249,7 @@ function deleteLocation(skill) {
         :code-style-reverse="false"
         language="en-US"
         :preview="false"
+        :sanitize="sanitizeHtml"
         :toolbars="[
           'bold',
           'underline',

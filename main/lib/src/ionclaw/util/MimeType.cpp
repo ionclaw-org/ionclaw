@@ -1,12 +1,22 @@
 #include "ionclaw/util/MimeType.hpp"
 
+#include <cctype>
+
 namespace ionclaw
 {
 namespace util
 {
 
-std::string MimeType::forPath(const std::string &path)
+std::string MimeType::forPath(const std::string &rawPath)
 {
+    // lowercase the path so extensions match regardless of case, for example .PNG or .Jpg
+    std::string path = rawPath;
+
+    for (auto &c : path)
+    {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+
     // check 5-char extensions first
     if (path.size() >= 5)
     {

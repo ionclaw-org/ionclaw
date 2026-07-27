@@ -5,10 +5,25 @@
 #include <iomanip>
 #include <sstream>
 
+#if defined(IONCLAW_HAS_TZ_LIB)
+#include "date/tz.h"
+#elif defined(_WIN32)
+#include "ionclaw/cron/WindowsTimeZone.hpp"
+#endif
+
 namespace ionclaw
 {
 namespace util
 {
+
+std::time_t TimeHelper::timegmUtc(std::tm &tm)
+{
+#if defined(_WIN32)
+    return _mkgmtime(&tm);
+#else
+    return timegm(&tm);
+#endif
+}
 
 std::string TimeHelper::now()
 {
@@ -46,6 +61,41 @@ std::string TimeHelper::nowLocal()
     return oss.str();
 }
 
+std::string TimeHelper::nowInZone(const std::string &timezone)
+{
+    // an empty or unresolvable zone falls back to the server's local clock
+    if (timezone.empty())
+    {
+        return nowLocal();
+    }
+
+#if defined(IONCLAW_HAS_TZ_LIB)
+    try
+    {
+        auto now = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now());
+        return date::format("%Y-%m-%dT%H:%M:%S", date::make_zoned(date::locate_zone(timezone), now));
+    }
+    catch (const std::exception &)
+    {
+        return nowLocal();
+    }
+#elif defined(_WIN32)
+    auto time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    std::tm local{};
+
+    if (cron::WindowsTimeZone::isSupported(timezone) && cron::WindowsTimeZone::utcToLocal(timezone, time, local))
+    {
+        std::ostringstream oss;
+        oss << std::put_time(&local, "%Y-%m-%dT%H:%M:%S");
+        return oss.str();
+    }
+
+    return nowLocal();
+#else
+    return nowLocal();
+#endif
+}
+
 int64_t TimeHelper::epochMs()
 {
     auto tp = std::chrono::system_clock::now();
@@ -64,7 +114,7 @@ int64_t TimeHelper::diffSeconds(const std::string &from, const std::string &to)
 
         if (iss.fail())
         {
-            return 0;
+            return static_cast<std::time_t>(-1);
         }
 
 #if defined(_WIN32)
@@ -76,6 +126,13 @@ int64_t TimeHelper::diffSeconds(const std::string &from, const std::string &to)
 
     auto fromTime = parse(from);
     auto toTime = parse(to);
+
+    // a malformed timestamp would otherwise diff against 1970 and return a decades-off value
+    if (fromTime == static_cast<std::time_t>(-1) || toTime == static_cast<std::time_t>(-1))
+    {
+        return 0;
+    }
+
     return static_cast<int64_t>(std::difftime(toTime, fromTime));
 }
 

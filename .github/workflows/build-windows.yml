@@ -2,6 +2,11 @@ name: Build Windows
 
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Also build the MSI installer"
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       release:
@@ -49,15 +54,42 @@ jobs:
           restore-keys: cpm-${{ runner.os }}-${{ matrix.arch }}-
 
       - name: Configure
-        run: cmake -B build/release -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+        run: cmake -B build/release -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_TESTS=ON
       - name: Build
         run: cmake --build build/release --config ${{ env.BUILD_TYPE }} --parallel
+
+      - name: Run tests
+        run: ctest --test-dir build/release -C ${{ env.BUILD_TYPE }} --output-on-failure
 
       - name: Verify binary
         run: build/release/bin/ionclaw-server.exe --help
 
+      - name: Smoke test (server + system info + version resource)
+        shell: pwsh
+        run: |
+          $bin = "build/release/bin/ionclaw-server.exe"
+          & $bin init ./smoke
+          $srv = Start-Process $bin -ArgumentList 'start','--project','./smoke','--host','127.0.0.1','--port','8123' -PassThru
+          for ($i = 0; $i -lt 30; $i++) { try { Invoke-RestMethod http://127.0.0.1:8123/api/health | Out-Null; break } catch { Start-Sleep 1 } }
+          $tok = (Invoke-RestMethod -Method Post http://127.0.0.1:8123/api/auth/login -Body '{"username":"admin","password":"admin"}' -ContentType 'application/json').token
+          $info = Invoke-RestMethod http://127.0.0.1:8123/api/system/info -Headers @{ Authorization = "Bearer $tok" }
+          $info | ConvertTo-Json
+          $fileVersion = (Get-Item $bin).VersionInfo.FileVersion
+          Write-Host "exe file version: $fileVersion"
+          Invoke-RestMethod -Method Post http://127.0.0.1:8123/api/scheduler/jobs -Headers @{ Authorization = "Bearer $tok" } -Body '{"name":"tz","message":"x","cron_expr":"30 12 * * *","timezone":"America/New_York"}' -ContentType 'application/json' | Out-Null
+          $jobs = Invoke-RestMethod http://127.0.0.1:8123/api/scheduler/jobs -Headers @{ Authorization = "Bearer $tok" }
+          $job = $jobs | Where-Object { $_.schedule.tz -eq 'America/New_York' } | Select-Object -First 1
+          $dt = [DateTimeOffset]::FromUnixTimeMilliseconds([int64]$job.state.next_run_ms).UtcDateTime
+          Write-Host "cron 12:30 America/New_York -> $($dt.ToString('HH:mm')) UTC"
+          Stop-Process -Id $srv.Id -Force
+          if ($info.os.system -eq 'Unknown' -or -not $info.os.system) { throw 'os.system empty' }
+          if (-not $info.os.machine) { throw 'os.machine empty' }
+          if ($info.cpu.processor -eq 'unknown' -or -not $info.cpu.processor) { throw 'cpu.processor empty' }
+          if ($fileVersion -notlike '1.0.6*') { throw "exe version resource wrong: $fileVersion" }
+          if ($dt.Minute -ne 30 -or ($dt.Hour -ne 16 -and $dt.Hour -ne 17)) { throw "cron tz wrong: $($dt.ToString('HH:mm')) UTC (expected 16:30 or 17:30)" }
+          Write-Host "SMOKE OK $($info.os.system) $($info.os.machine)"
+
       - name: Package server
-        if: ${{ inputs.release }}
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist/${{ matrix.artifact }}
@@ -66,9 +98,27 @@ jobs:
           Copy-Item LICENSE.md dist/${{ matrix.artifact }}/
           Compress-Archive -Path dist/${{ matrix.artifact }} -DestinationPath ${{ matrix.artifact }}.zip
 
-      - name: Upload artifacts
+      - name: Install WiX Toolset
         if: ${{ inputs.release }}
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip" -OutFile wix314.zip
+          Expand-Archive -Path wix314.zip -DestinationPath "$env:RUNNER_TEMP\wix" -Force
+          "$env:RUNNER_TEMP\wix" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      - name: Build MSI installer
+        if: ${{ inputs.release }}
+        shell: pwsh
+        run: |
+          cpack --config build/release/CPackConfig.cmake -C ${{ env.BUILD_TYPE }} -G WIX -B dist/wix
+          $msi = Get-ChildItem -Path dist/wix -Recurse -Filter "*.msi" | Select-Object -First 1
+          Copy-Item $msi.FullName "${{ matrix.artifact }}.msi"
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}.zip
+          if-no-files-found: ignore
+          path: |
+            ${{ matrix.artifact }}.zip
+            ${{ matrix.artifact }}.msi

@@ -26,9 +26,7 @@ public:
     void registerBuiltinTools();
 
     ToolResult executeTool(const std::string &name, const nlohmann::json &params, const ToolContext &context);
-    bool hasTool(const std::string &name) const;
 
-    std::vector<ToolSchema> getSchemas() const;
     std::vector<std::string> getToolNames() const;
     std::vector<std::string> getToolNames(const std::vector<std::string> &allowed) const;
     std::vector<nlohmann::json> getOpenAiDefinitions() const;

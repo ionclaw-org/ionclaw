@@ -27,11 +27,57 @@ To update:
 brew upgrade ionclaw
 ```
 
+Alternatively, download `ionclaw-macos-<arch>.pkg` from the [latest release](https://github.com/ionclaw-org/ionclaw/releases) and open it. It installs `ionclaw-server` to `/usr/local/bin` (already on `PATH`), so a new terminal can run it directly.
+
+---
+
+## Linux (.deb)
+
+On Debian and Ubuntu, download `ionclaw_<version>_amd64.deb` from the [latest release](https://github.com/ionclaw-org/ionclaw/releases) and install it:
+
+```bash
+sudo dpkg -i ionclaw_*_amd64.deb
+```
+
+The server is installed to `/usr/bin/ionclaw-server` (on `PATH`). Initialize and start a project:
+
+```bash
+ionclaw-server init /path/to/your/project
+ionclaw-server start --project /path/to/your/project
+```
+
+---
+
+## Windows (MSI Installer)
+
+Download `ionclaw-windows-x86_64.msi` from the [latest release](https://github.com/ionclaw-org/ionclaw/releases).
+
+Because the file was downloaded from the internet, Windows tags it with the "mark of the web" and may block it. Before running, **right-click the `.msi` → Properties → check "Unblock" → Apply**. Then run the installer, or install it silently:
+
+```powershell
+# unblock from a terminal instead of the properties dialog
+Unblock-File .\ionclaw-windows-x86_64.msi
+msiexec /i ionclaw-windows-x86_64.msi /qn
+```
+
+The installer adds `ionclaw-server` to the system `PATH`, so open a new terminal and run it directly (installed under `C:\Program Files\IonClaw\bin`):
+
+```powershell
+ionclaw-server init C:\path\to\project
+ionclaw-server start --project C:\path\to\project
+```
+
+Uninstall from **Settings → Apps → Installed apps**, or silently:
+
+```powershell
+msiexec /x ionclaw-windows-x86_64.msi /qn
+```
+
 ---
 
 ## Build from Source
 
-**Requirements:** CMake 3.20+, C++17 compiler, Node.js 18+ (for web client).
+**Requirements:** CMake 3.20+, C++20 compiler, Node.js 18+ (for web client).
 
 ### Linux / macOS / Windows
 

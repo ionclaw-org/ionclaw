@@ -350,7 +350,7 @@ static const std::set<std::string> STOP_WORDS_AR = {
 
 bool MemoryStore::isStopWord(const std::string &token)
 {
-    return STOP_WORDS.count(token) > 0 || STOP_WORDS_PT.count(token) > 0 || STOP_WORDS_ES.count(token) > 0 || STOP_WORDS_ZH.count(token) > 0 || STOP_WORDS_JA.count(token) > 0 || STOP_WORDS_KO.count(token) > 0 || STOP_WORDS_AR.count(token) > 0;
+    return STOP_WORDS.contains(token) || STOP_WORDS_PT.contains(token) || STOP_WORDS_ES.contains(token) || STOP_WORDS_ZH.contains(token) || STOP_WORDS_JA.contains(token) || STOP_WORDS_KO.contains(token) || STOP_WORDS_AR.contains(token);
 }
 
 std::vector<uint32_t> MemoryStore::toCodepoints(const std::string &utf8)

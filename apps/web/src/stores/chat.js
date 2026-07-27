@@ -264,8 +264,9 @@ export const useChatStore = defineStore('chat', () => {
 
   function onStreamEnd(data) {
     const chatId = _chatId(data)
-    if (!_isCurrent(chatId)) return
-    toolRunning.value = false
+    const state = _ensureLive(data)
+    state.toolRunning = false
+    _syncLive(chatId)
   }
 
   function onToolUse(data) {

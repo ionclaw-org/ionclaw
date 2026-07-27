@@ -3,10 +3,10 @@
 #include <regex>
 #include <stdexcept>
 
+#include "ionclaw/provider/ModelCapabilities.hpp"
 #include "ionclaw/provider/ProviderHelper.hpp"
 #include "ionclaw/util/HttpClient.hpp"
 #include "ionclaw/util/StringHelper.hpp"
-#include "ionclaw/util/UniqueId.hpp"
 #include "spdlog/spdlog.h"
 
 namespace ionclaw
@@ -237,6 +237,10 @@ nlohmann::json AnthropicProvider::buildRequestBody(const ChatCompletionRequest &
         auto it = budgets.find(thinkingLevel);
         int budget = (it != budgets.end()) ? it->second : 8192;
 
+        // anthropic requires max_tokens to exceed budget_tokens, so reserve output room on top of the thinking budget
+        int outputAllowance = std::max(request.maxTokens, 4096);
+        body["max_tokens"] = budget + outputAllowance;
+
         body["thinking"] = {{"type", "enabled"}, {"budget_tokens", budget}};
         body["temperature"] = 1; // required for Anthropic extended thinking
     }
@@ -326,6 +330,15 @@ nlohmann::json AnthropicProvider::buildRequestBody(const ChatCompletionRequest &
 
             auto contentBlocks = nlohmann::json::array();
 
+            // extended thinking requires the original thinking blocks (with their signature) to precede the tool_use blocks
+            if (msg.reasoningBlocks.is_array())
+            {
+                for (const auto &reasoningBlock : msg.reasoningBlocks)
+                {
+                    contentBlocks.push_back(reasoningBlock);
+                }
+            }
+
             if (!msg.content.empty())
             {
                 nlohmann::json textBlock;
@@ -398,38 +411,6 @@ nlohmann::json AnthropicProvider::buildRequestBody(const ChatCompletionRequest &
                         anthropicBlocks.push_back(imageBlock);
                     }
                 }
-                else if (blockType == "audio")
-                {
-                    // anthropic audio input: base64-encoded audio data
-                    auto data = block.value("data", "");
-                    auto format = block.value("format", "wav");
-
-                    if (!data.empty())
-                    {
-                        // map format to MIME type
-                        std::string mediaType = "audio/wav";
-
-                        if (format == "mp3")
-                        {
-                            mediaType = "audio/mpeg";
-                        }
-                        else if (format == "ogg")
-                        {
-                            mediaType = "audio/ogg";
-                        }
-                        else if (format == "webm")
-                        {
-                            mediaType = "audio/webm";
-                        }
-
-                        nlohmann::json audioBlock;
-                        audioBlock["type"] = "document";
-                        audioBlock["source"]["type"] = "base64";
-                        audioBlock["source"]["media_type"] = mediaType;
-                        audioBlock["source"]["data"] = data;
-                        anthropicBlocks.push_back(audioBlock);
-                    }
-                }
             }
 
             m["content"] = anthropicBlocks;
@@ -449,16 +430,27 @@ nlohmann::json AnthropicProvider::buildRequestBody(const ChatCompletionRequest &
     ProviderHelper::sanitizeToolCallInputs(messages);
     messages = validateTranscript(messages);
 
-    // set system prompt if present, with cache_control for prompt caching
+    // set system prompt if present, adding a cache_control breakpoint only when the model supports prompt caching
     if (!systemPrompt.empty())
     {
-        body["system"] = nlohmann::json::array({{{"type", "text"}, {"text", systemPrompt}, {"cache_control", {{"type", "ephemeral"}}}}});
+        nlohmann::json systemBlock = {{"type", "text"}, {"text", systemPrompt}};
+
+        if (ModelCapabilities::supportsPromptCaching(request.model, false))
+        {
+            systemBlock["cache_control"] = {{"type", "ephemeral"}};
+        }
+
+        body["system"] = nlohmann::json::array({systemBlock});
     }
 
     body["messages"] = messages;
 
-    // attach tools if provided
-    if (!request.tools.empty())
+    // attach tools unless the capability table marks the model as non-function-calling, which would make the request fail
+    if (!request.tools.empty() && !ModelCapabilities::supportsFunctionCalling(request.model))
+    {
+        spdlog::warn("[AnthropicProvider] Model '{}' does not support function calling, dropping {} tool(s) from the request", request.model, request.tools.size());
+    }
+    else if (!request.tools.empty())
     {
         body["tools"] = convertToolsToAnthropicFormat(request.tools);
     }
@@ -495,6 +487,24 @@ ChatCompletionResponse AnthropicProvider::parseResponse(const nlohmann::json &re
                 }
 
                 result.reasoningContent += block.value("thinking", "");
+
+                // keep the block verbatim (thinking text plus signature) so it can be replayed before the tool_use blocks
+                if (!result.reasoningBlocks.is_array())
+                {
+                    result.reasoningBlocks = nlohmann::json::array();
+                }
+
+                result.reasoningBlocks.push_back(block);
+            }
+            else if (blockType == "redacted_thinking")
+            {
+                // encrypted thinking block that must be replayed verbatim
+                if (!result.reasoningBlocks.is_array())
+                {
+                    result.reasoningBlocks = nlohmann::json::array();
+                }
+
+                result.reasoningBlocks.push_back(block);
             }
             else if (blockType == "tool_use")
             {
@@ -535,6 +545,14 @@ void AnthropicProvider::parseStreamEvent(const std::string &eventType, const nlo
                 currentToolCallName = data["content_block"].value("name", "");
                 currentToolCallArgs.clear();
             }
+            else if (blockType == "redacted_thinking")
+            {
+                // encrypted thinking arrives whole in the start event and must be replayed verbatim
+                StreamChunk chunk;
+                chunk.type = "redacted_thinking";
+                chunk.content = data["content_block"].value("data", "");
+                callback(chunk);
+            }
         }
     }
     // handle content delta (text, thinking, or tool args)
@@ -556,6 +574,14 @@ void AnthropicProvider::parseStreamEvent(const std::string &eventType, const nlo
                 StreamChunk chunk;
                 chunk.type = "thinking";
                 chunk.content = data["delta"].value("thinking", "");
+                callback(chunk);
+            }
+            else if (deltaType == "signature_delta")
+            {
+                // signature closes the thinking block and is required when replaying it alongside tool_use
+                StreamChunk chunk;
+                chunk.type = "thinking_signature";
+                chunk.content = data["delta"].value("signature", "");
                 callback(chunk);
             }
             else if (deltaType == "input_json_delta")

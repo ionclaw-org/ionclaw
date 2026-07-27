@@ -16,13 +16,14 @@
 #include "ionclaw/agent/HookRunner.hpp"
 #include "ionclaw/agent/Orchestrator.hpp"
 #include "ionclaw/agent/ToolLoopDetector.hpp"
+#include "ionclaw/provider/ModelCapabilities.hpp"
 #include "ionclaw/provider/ProviderHelper.hpp"
 #include "ionclaw/session/SessionKeyUtils.hpp"
 #include "ionclaw/tool/builtin/MemorySaveTool.hpp"
+#include "ionclaw/tool/builtin/ToolHelper.hpp"
 #include "ionclaw/transcription/TranscriptionProviderRegistry.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
-#include "ionclaw/util/UniqueId.hpp"
 #include "spdlog/spdlog.h"
 
 namespace ionclaw
@@ -32,11 +33,13 @@ namespace agent
 
 std::string AgentLoop::pickFallbackThinkingLevel(const std::string &current)
 {
-    if (current == "high") {
+    if (current == "high")
+    {
         return "medium";
     }
 
-    if (current == "medium") {
+    if (current == "medium")
+    {
         return "low";
     }
 
@@ -73,12 +76,12 @@ void AgentLoop::sendCommandResponse(const ionclaw::bus::InboundMessage &message,
         }
         catch (const std::exception &e)
         {
-            spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
+            spdlog::warn("[AgentLoop] TaskManager update failed: {}", e.what());
         }
     }
 
-    // publish to outbound bus so channels (telegram, etc.) receive the response
-    if (busPtr)
+    // the web ui receives replies over its websocket, so only the messaging channels get an outbound delivery
+    if (busPtr && message.channel != "web")
     {
         ionclaw::bus::OutboundMessage outbound;
         outbound.channel = message.channel;
@@ -145,6 +148,12 @@ size_t AgentLoop::estimatePromptBytes(const std::vector<ionclaw::provider::Messa
     {
         total += msg.content.size();
         total += msg.reasoningContent.size();
+
+        // reasoning blocks are replayed verbatim to the provider, so they count toward the prompt
+        if (msg.reasoningBlocks.is_array())
+        {
+            total += msg.reasoningBlocks.dump().size();
+        }
 
         for (const auto &tc : msg.toolCalls)
         {
@@ -291,16 +300,24 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
         auto ext = fs::path(path).extension().string();
         ionclaw::util::StringHelper::toLowerInPlace(ext);
 
-        if (AUDIO_EXTENSIONS.count(ext) == 0)
+        if (!AUDIO_EXTENSIONS.contains(ext))
         {
             continue;
         }
 
-        auto fullPath = projectRoot + "/" + path;
+        // public files live under the workspace, so a public/ path resolves there rather than at the project root
+        auto fullPath = path.rfind("public/", 0) == 0 ? projectRoot + "/workspace/" + path : projectRoot + "/" + path;
+
+        // confine media to the project root so a crafted path cannot exfiltrate arbitrary files
+        if (!ionclaw::tool::builtin::ToolHelper::isPathWithinWorkspace(projectRoot, fullPath))
+        {
+            spdlog::warn("[AgentLoop] Media path escapes project root: {}", path);
+            continue;
+        }
 
         if (!fs::exists(fullPath) || !fs::is_regular_file(fullPath))
         {
-            spdlog::warn("[AgentLoop] media file not found: {}", fullPath);
+            spdlog::warn("[AgentLoop] Media file not found: {}", fullPath);
             continue;
         }
 
@@ -317,7 +334,7 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
 
             if (!provider)
             {
-                spdlog::warn("[AgentLoop] no provider found for '{}', skipping audio", providerName);
+                spdlog::warn("[AgentLoop] No provider found for '{}', skipping audio", providerName);
                 blocks.push_back({{"type", "warning"}, {"text", "Transcription provider '" + providerName + "' not found. Audio was ignored."}});
                 continue;
             }
@@ -327,7 +344,8 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
 
             if (!f.is_open())
             {
-                spdlog::warn("[AgentLoop] failed to open: {}", fullPath);
+                spdlog::warn("[AgentLoop] Failed to open: {}", fullPath);
+                blocks.push_back({{"type", "warning"}, {"text", "Could not open the audio file '" + path + "' for transcription."}});
                 continue;
             }
 
@@ -336,7 +354,8 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
 
             if (audioData.empty())
             {
-                spdlog::warn("[AgentLoop] empty audio file: {}", fullPath);
+                spdlog::warn("[AgentLoop] Empty audio file: {}", fullPath);
+                blocks.push_back({{"type", "warning"}, {"text", "The audio file '" + path + "' is empty and could not be transcribed."}});
                 continue;
             }
 
@@ -355,22 +374,24 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
                 }
                 else
                 {
-                    spdlog::warn("[AgentLoop] empty result for: {}", fullPath);
+                    spdlog::warn("[AgentLoop] Empty result for: {}", fullPath);
+                    blocks.push_back({{"type", "warning"}, {"text", "Transcription of the audio file '" + path + "' returned no text (the transcription service may have failed or the audio was silent)."}});
                 }
             }
             catch (const std::exception &e)
             {
-                spdlog::error("[AgentLoop] error: {}", e.what());
+                spdlog::error("[AgentLoop] Error: {}", e.what());
+                blocks.push_back({{"type", "warning"}, {"text", "Transcription of the audio file '" + path + "' failed: " + std::string(e.what())}});
             }
         }
         else
         {
-            spdlog::warn("[AgentLoop] no model configured, skipping audio: {}", fullPath);
+            spdlog::warn("[AgentLoop] No model configured, skipping audio: {}", fullPath);
             blocks.push_back({{"type", "warning"}, {"text", "No transcription model configured. Audio was ignored. Configure it in Settings."}});
         }
     }
 
-    spdlog::debug("[AgentLoop] resolved {} block(s)", blocks.size());
+    spdlog::debug("[AgentLoop] Resolved {} block(s)", blocks.size());
     return blocks;
 }
 
@@ -383,13 +404,22 @@ void UsageTracker::record(const nlohmann::json &usage)
         return;
     }
 
-    auto pt = std::max(int64_t{0}, usage.value("prompt_tokens", int64_t{0}));
-    auto ct = std::max(int64_t{0}, usage.value("completion_tokens", int64_t{0}));
-    auto tt = std::max(int64_t{0}, usage.value("total_tokens", int64_t{0}));
+    // a proxy may send a token field as null (e.g. cache_creation_input_tokens when caching is unused), and value()
+    // throws type_error.302 on an explicit null, so read each field only when it is actually an integer
+    // clang-format off
+    auto readInt = [&usage](const char *key) {
+        auto it = usage.find(key);
+        return it != usage.end() && it->is_number_integer() ? std::max(int64_t{0}, it->get<int64_t>()) : int64_t{0};
+    };
+    // clang-format on
+
+    auto pt = readInt("prompt_tokens");
+    auto ct = readInt("completion_tokens");
+    auto tt = readInt("total_tokens");
 
     // cache tokens (anthropic: cache_read_input_tokens / cache_creation_input_tokens)
-    auto crt = std::max(int64_t{0}, usage.value("cache_read_input_tokens", int64_t{0}));
-    auto cwt = std::max(int64_t{0}, usage.value("cache_creation_input_tokens", int64_t{0}));
+    auto crt = readInt("cache_read_input_tokens");
+    auto cwt = readInt("cache_creation_input_tokens");
 
     // last call (overwritten each time)
     lastCallPromptTokens = pt;
@@ -424,7 +454,14 @@ nlohmann::json UsageTracker::toJson() const
 
 // agent loop
 
-AgentLoop::AgentLoop(std::shared_ptr<ionclaw::provider::LlmProvider> provider, std::shared_ptr<ionclaw::tool::ToolRegistry> toolRegistry, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, const ionclaw::config::AgentConfig &agentConfig, const std::string &agentName) : provider(std::move(provider)) , toolRegistry(std::move(toolRegistry)) , sessionManager(std::move(sessionManager)) , taskManager(std::move(taskManager)) , dispatcher(std::move(dispatcher)) , agentConfig(agentConfig) , agentName(agentName)
+AgentLoop::AgentLoop(std::shared_ptr<ionclaw::provider::LlmProvider> provider, std::shared_ptr<ionclaw::tool::ToolRegistry> toolRegistry, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, const ionclaw::config::AgentConfig &agentConfig, const std::string &agentName)
+    : provider(std::move(provider))
+    , toolRegistry(std::move(toolRegistry))
+    , sessionManager(std::move(sessionManager))
+    , taskManager(std::move(taskManager))
+    , dispatcher(std::move(dispatcher))
+    , agentConfig(agentConfig)
+    , agentName(agentName)
 {
 }
 
@@ -434,7 +471,9 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
     auto sessionKey = (message.metadata.contains("agent_session_key") && message.metadata["agent_session_key"].is_string()) ? message.metadata["agent_session_key"].get<std::string>() : message.sessionKey();
     auto baseKey = message.sessionKey();
 
-    // per-turn state lives on the stack, safe for concurrent calls on shared AgentLoop
+    // per-turn state lives on the stack; the active-turn handle and session queue are still shared members, so this is
+    // safe only because the orchestrator serializes turns on one worker thread and never runs two turns on one AgentLoop
+    // at once. enabling real per-agent concurrency would require threading these through TurnState instead of the members.
     TurnState turnState;
     turnState.sessionQueuePtr = defaultSessionQueuePtr.load(std::memory_order_acquire);
     turnState.activeTurnHandle = defaultActiveTurnHandle.load(std::memory_order_acquire);
@@ -534,7 +573,8 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
     toolContext.hookRunner = hookRunnerPtr;
 
     // expose the turn's abort flag so long-running tools can stop when the user stops the turn
-    toolContext.isCancelled = [this]() {
+    toolContext.isCancelled = [this]()
+    {
         auto *handle = defaultActiveTurnHandle.load(std::memory_order_acquire);
         return handle != nullptr && handle->aborted.load();
     };
@@ -583,10 +623,19 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
             }
             else if (type == "warning")
             {
+                auto text = block.value("text", "");
+
+                // surface the media failure to the model so it does not assume the audio was understood
+                if (!text.empty())
+                {
+                    auto note = "[Media note]: " + text;
+                    effectiveContent = effectiveContent.empty() ? note : note + "\n\n" + effectiveContent;
+                }
+
                 AgentEvent warningEvent;
                 warningEvent.type = "chat:warning";
                 warningEvent.data = {
-                    {"content", block.value("text", "")},
+                    {"content", text},
                     {"chat_id", message.chatId},
                     {"agent_name", agentName},
                 };
@@ -632,10 +681,15 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
             {
                 auto cutoff = session.abortCutoffMessageIndex;
 
-                if (cutoff < static_cast<int>(history.size()))
+                // history holds only the last maxHistory messages, so map the full-array cutoff into history space
+                int offset = static_cast<int>(session.messages.size()) - static_cast<int>(history.size());
+                int rel = std::max(0, cutoff - offset);
+
+                if (rel < static_cast<int>(history.size()))
                 {
-                    history.erase(history.begin() + cutoff, history.end());
-                    spdlog::info("[AgentLoop] Trimmed {} post-abort messages from session {}", static_cast<int>(session.messages.size()) - cutoff, sessionKey);
+                    auto removed = static_cast<int>(history.size()) - rel;
+                    history.erase(history.begin() + rel, history.end());
+                    spdlog::info("[AgentLoop] Trimmed {} post-abort messages from session {}", removed, sessionKey);
                 }
 
                 sessionManager->clearAbortFlag(sessionKey);
@@ -703,13 +757,14 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
         }
 
         // run agent loop
-        auto [responseText, responseBlocks] = runAgentLoop(messages, taskId, baseKey, sessionKey, agentName, toolContext, callback, turnState);
+        auto responseText = runAgentLoop(messages, taskId, baseKey, sessionKey, agentName, toolContext, callback, turnState);
 
         // resolve empty/silent responses: prefer message-tool content from this turn,
         // then fall back to last sent content from a previous turn
         if (responseText == "[SILENT]")
         {
-            responseText = !messageToolDeliveredContent.empty() ? messageToolDeliveredContent : !turnState.lastSentContent.empty() ? turnState.lastSentContent : "";
+            responseText = !messageToolDeliveredContent.empty() ? messageToolDeliveredContent : !turnState.lastSentContent.empty() ? turnState.lastSentContent
+                                                                                                                                   : "";
         }
         else if (responseText.empty() && !messageToolDeliveredContent.empty())
         {
@@ -741,8 +796,8 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
 
         dispatcher->broadcast("sessions:updated", nlohmann::json::object());
 
-        // publish outbound for non-WebSocket channels
-        if (busPtr)
+        // the web ui receives replies over its websocket, so only the messaging channels get an outbound delivery
+        if (busPtr && message.channel != "web")
         {
             ionclaw::bus::OutboundMessage outbound;
             outbound.channel = message.channel;
@@ -826,7 +881,8 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
             auto providerName = slashPos != std::string::npos ? agentConfig.model.substr(0, slashPos) : agentConfig.model;
             errorText = "Could not connect to provider '" + providerName + "': the host was not found. "
                                                                            "Please check that the provider's base_url is correct and the service is reachable. "
-                                                                           "(model: " + agentConfig.model + ")";
+                                                                           "(model: " +
+                        agentConfig.model + ")";
         }
         else if (errorCategory == "auth")
         {
@@ -861,7 +917,7 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
             }
             catch (const std::exception &taskErr)
             {
-                spdlog::warn("[AgentLoop] taskManager update failed: {}", taskErr.what());
+                spdlog::warn("[AgentLoop] TaskManager update failed: {}", taskErr.what());
             }
         }
 
@@ -898,7 +954,7 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
     }
 }
 
-std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std::vector<ionclaw::provider::Message> &messages, const std::string &taskId, const std::string &chatId, const std::string &sessionKey, const std::string &effectiveName, const ionclaw::tool::ToolContext &toolContext, AgentEventCallback &callback, TurnState &turnState)
+std::string AgentLoop::runAgentLoop(std::vector<ionclaw::provider::Message> &messages, const std::string &taskId, const std::string &chatId, const std::string &sessionKey, const std::string &effectiveName, const ionclaw::tool::ToolContext &toolContext, AgentEventCallback &callback, TurnState &turnState)
 {
     auto maxIterations = agentConfig.agentParams.maxIterations;
 
@@ -919,6 +975,18 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
     int contextOverflowAttempts = 0;
     bool transientRetried = false;
     static constexpr int MAX_OVERFLOW_COMPACTION_ATTEMPTS = 3;
+
+    // resolve the tools this agent may actually execute so a hallucinated or injected call cannot escape the policy
+    auto allowedToolList = agentConfig.tools.empty() ? toolRegistry->getToolNames() : agentConfig.tools;
+    allowedToolList = ionclaw::tool::ToolRegistry::applyToolPolicy(allowedToolList, agentConfig.toolPolicy);
+
+    std::set<std::string> allowedTools;
+    for (const auto &name : allowedToolList)
+    {
+        auto lower = name;
+        ionclaw::util::StringHelper::toLowerInPlace(lower);
+        allowedTools.insert(lower);
+    }
 
     // per-turn copy of model params so thinking downgrades don't persist across turns
     nlohmann::json turnModelParams = agentConfig.modelParams;
@@ -955,6 +1023,10 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
                 steerMsg.role = "user";
                 steerMsg.content = item.message.content;
                 messages.push_back(steerMsg);
+
+                // a steer_backlog message keeps a followup backup, now redundant since the steer copy was consumed here
+                auto backlogId = item.message.metadata.value("backlog_id", "");
+                turnState.sessionQueuePtr->removeFollowupByBacklogId(chatId, backlogId);
             }
         }
 
@@ -967,7 +1039,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
             }
             catch (const std::exception &e)
             {
-                spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
+                spdlog::warn("[AgentLoop] TaskManager update failed: {}", e.what());
             }
         }
 
@@ -1075,7 +1147,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
                 spdlog::warn("[AgentLoop] Role ordering error, clearing session (task {})", taskId);
                 sessionManager->clearSession(sessionKey);
                 dispatcher->broadcast("sessions:updated", nlohmann::json::object());
-                return {"I encountered a conversation format error. The session has been reset — please try again.", blocks};
+                return "I encountered a conversation format error. The session has been reset — please try again.";
             }
 
             // thinking constraint: graduated downgrade (high→medium→low→off)
@@ -1146,12 +1218,12 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
                 }
                 catch (const std::exception &e)
                 {
-                    spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
+                    spdlog::warn("[AgentLoop] TaskManager update failed: {}", e.what());
                 }
             }
 
             auto text = response.content.empty() ? "My response was cut short due to token limits." : response.content;
-            return {text, blocks};
+            return text;
         }
 
         if (!response.toolCalls.empty())
@@ -1159,7 +1231,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
             // the user stopped during the stream, so record the turn and skip executing this iteration's tools
             if (turnState.activeTurnHandle && turnState.activeTurnHandle->aborted.load())
             {
-                ContextBuilder::addAssistantMessage(messages, response.content, response.toolCalls, response.reasoningContent);
+                ContextBuilder::addAssistantMessage(messages, response.content, response.toolCalls, response.reasoningContent, response.reasoningBlocks);
                 flushAbandonedToolCalls(messages, response.toolCalls, "[Request interrupted by the user]");
                 spdlog::info("[AgentLoop] Turn aborted by interrupt before tool execution");
                 break;
@@ -1186,12 +1258,12 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
                     }
                     catch (const std::exception &e)
                     {
-                        spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
+                        spdlog::warn("[AgentLoop] TaskManager update failed: {}", e.what());
                     }
                 }
 
                 auto text = response.content.empty() ? "I seem to be repeating the same actions. Let me stop here." : response.content;
-                return {text, blocks};
+                return text;
             }
 
             if (loopResult.severity == LoopSeverity::Warning)
@@ -1205,7 +1277,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
             }
 
             // add assistant message with tool calls
-            ContextBuilder::addAssistantMessage(messages, response.content, response.toolCalls, response.reasoningContent);
+            ContextBuilder::addAssistantMessage(messages, response.content, response.toolCalls, response.reasoningContent, response.reasoningBlocks);
 
             // execute tools
             for (const auto &tc : response.toolCalls)
@@ -1218,7 +1290,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
                 // tool call deduplication: skip if identical call was already executed in this iteration
                 auto fingerprint = tc.name + ":" + tc.arguments.dump();
 
-                if (turnState.recentToolFingerprints.count(fingerprint) > 0)
+                if (turnState.recentToolFingerprints.contains(fingerprint))
                 {
                     spdlog::debug("[AgentLoop] Skipping duplicate tool call: {}", tc.name);
                     ContextBuilder::addToolResult(messages, tc.id, tc.name, "[duplicate call skipped]");
@@ -1266,6 +1338,17 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
                     }
                 }
 
+                // enforce the agent tool policy at execution time, not only when advertising tools to the model
+                auto requestedTool = tc.name;
+                ionclaw::util::StringHelper::toLowerInPlace(requestedTool);
+
+                if (!allowedTools.contains(requestedTool))
+                {
+                    spdlog::warn("[AgentLoop] Tool {} is not permitted for agent {}", tc.name, effectiveName);
+                    ContextBuilder::addToolResult(messages, tc.id, tc.name, "Error: tool '" + tc.name + "' is not available to this agent");
+                    continue;
+                }
+
                 auto result = toolRegistry->executeTool(tc.name, args, toolContext);
 
                 // fire AfterToolCall hook
@@ -1278,7 +1361,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
                     hookCtx.data = {
                         {"tool", tc.name},
                         {"arguments", args},
-                        {"success", result.text.rfind("Error", 0) != 0},
+                        {"success", !result.text.starts_with("Error")},
                     };
                     hookRunnerPtr->run(HookPoint::AfterToolCall, hookCtx);
                 }
@@ -1294,11 +1377,11 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
                     }
                     catch (const std::exception &e)
                     {
-                        spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
+                        spdlog::warn("[AgentLoop] TaskManager update failed: {}", e.what());
                     }
                 }
 
-                std::string toolSummary = formatToolSummary(tc.name, tc.arguments);
+                std::string toolSummary = formatToolSummary(tc.name, args);
 
                 // emit tool use event via callback for forwarding support
                 AgentEvent toolEvent;
@@ -1350,7 +1433,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
                 }
                 catch (const std::exception &e)
                 {
-                    spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
+                    spdlog::warn("[AgentLoop] TaskManager update failed: {}", e.what());
                 }
             }
 
@@ -1389,7 +1472,7 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
                 }
             }
 
-            return {finalText, blocks};
+            return finalText;
         }
     }
 
@@ -1402,12 +1485,19 @@ std::pair<std::string, std::vector<nlohmann::json>> AgentLoop::runAgentLoop(std:
         }
         catch (const std::exception &e)
         {
-            spdlog::warn("[AgentLoop] taskManager update failed: {}", e.what());
+            spdlog::warn("[AgentLoop] TaskManager update failed: {}", e.what());
         }
     }
 
+    // a turn that ended via user stop or interrupt did not hit the processing limit, so it returns no text and lets the caller add the interruption marker
+    if (stopped.load() || (turnState.activeTurnHandle && turnState.activeTurnHandle->aborted.load()))
+    {
+        spdlog::info("[AgentLoop] Agent loop ended due to stop/abort");
+        return "";
+    }
+
     spdlog::warn("[AgentLoop] Agent loop hit max iterations ({})", maxIterations);
-    return {"I've reached my processing limit. Please try again or simplify your request.", blocks};
+    return "I've reached my processing limit. Please try again or simplify your request.";
 }
 
 StreamResult AgentLoop::consumeStream(const std::vector<ionclaw::provider::Message> &messages, const std::string &taskId, const std::string &chatId, const std::string &effectiveName, UsageTracker &usageTracker, AgentEventCallback &callback, const nlohmann::json &modelParams, const ActiveTurnHandle *activeTurnHandle)
@@ -1417,6 +1507,8 @@ StreamResult AgentLoop::consumeStream(const std::vector<ionclaw::provider::Messa
 
     std::vector<std::string> contentParts;
     std::vector<std::string> reasoningParts;
+    std::string thinkingSignature;
+    auto redactedThinking = nlohmann::json::array();
 
     // build request
     ionclaw::provider::ChatCompletionRequest request;
@@ -1424,8 +1516,14 @@ StreamResult AgentLoop::consumeStream(const std::vector<ionclaw::provider::Messa
     request.model = agentConfig.model;
     auto baseTools = agentConfig.tools.empty() ? toolRegistry->getToolNames() : agentConfig.tools;
     auto effectiveTools = ionclaw::tool::ToolRegistry::applyToolPolicy(baseTools, agentConfig.toolPolicy);
+
+    // do not advertise the vision tool to a model the capability table knows cannot see images (permissive when unknown)
+    if (!ionclaw::provider::ModelCapabilities::supportsVision(agentConfig.model))
+    {
+        effectiveTools.erase(std::remove(effectiveTools.begin(), effectiveTools.end(), "vision"), effectiveTools.end());
+    }
+
     request.tools = toolRegistry->getOpenAiDefinitions(effectiveTools);
-    request.stream = true;
     request.modelParams = modelParams;
 
     // process stream chunks as they arrive
@@ -1455,6 +1553,14 @@ StreamResult AgentLoop::consumeStream(const std::vector<ionclaw::provider::Messa
         else if (chunk.type == "thinking" && !chunk.content.empty())
         {
             reasoningParts.push_back(chunk.content);
+        }
+        else if (chunk.type == "thinking_signature")
+        {
+            thinkingSignature = chunk.content;
+        }
+        else if (chunk.type == "redacted_thinking")
+        {
+            redactedThinking.push_back({{"type", "redacted_thinking"}, {"data", chunk.content}});
         }
         else if (chunk.type == "tool_call")
         {
@@ -1495,7 +1601,7 @@ StreamResult AgentLoop::consumeStream(const std::vector<ionclaw::provider::Messa
     // diagnostic: log when stream produced no content and no tool calls
     if (contentParts.empty() && result.toolCalls.empty())
     {
-        spdlog::warn("[AgentLoop] consumeStream returned empty: no content, no tool calls (finishReason={})", result.finishReason);
+        spdlog::warn("[AgentLoop] ConsumeStream returned empty: no content, no tool calls (finishReason={})", result.finishReason);
     }
 
     // assemble reasoning
@@ -1507,6 +1613,25 @@ StreamResult AgentLoop::consumeStream(const std::vector<ionclaw::provider::Messa
     }
 
     result.reasoningContent = reasoningStream.str();
+
+    // rebuild the provider-native reasoning blocks so the next tool-loop turn can replay them with their signature
+    // a streamed assistant turn carries a single thinking block, so the accumulated text pairs with the single signature
+    auto reasoningBlocks = nlohmann::json::array();
+
+    if (!result.reasoningContent.empty() && !thinkingSignature.empty())
+    {
+        reasoningBlocks.push_back({{"type", "thinking"}, {"thinking", result.reasoningContent}, {"signature", thinkingSignature}});
+    }
+
+    for (const auto &redacted : redactedThinking)
+    {
+        reasoningBlocks.push_back(redacted);
+    }
+
+    if (!reasoningBlocks.empty())
+    {
+        result.reasoningBlocks = reasoningBlocks;
+    }
 
     // emit thinking event via callback for forwarding support
     if (!result.reasoningContent.empty())
@@ -1578,7 +1703,6 @@ bool AgentLoop::tryMemoryFlush(std::vector<ionclaw::provider::Message> &messages
             0.7,
             2048,
             tools,
-            false,
             modelParams,
         });
 
@@ -1639,7 +1763,15 @@ void AgentLoop::compactWithHooks(std::vector<ionclaw::provider::Message> &messag
         }
     }
 
-    messages = Compaction::compact(messages, provider, agentConfig.model, modelParams);
+    auto compactionResult = Compaction::compactWithResult(messages, provider, agentConfig.model, modelParams);
+
+    // surface a compaction failure so a silently un-shrunk context is diagnosable instead of invisible
+    if (compactionResult.failure != ionclaw::agent::CompactionFailure::None)
+    {
+        spdlog::error("[AgentLoop] Compaction failed, context left unshrunk: {}", compactionResult.failureReason);
+    }
+
+    messages = compactionResult.messages;
 
     if (hookRunnerPtr)
     {

@@ -21,8 +21,6 @@ struct QueuedItem
 {
     InboundMessage message;
     QueueMode mode;
-    std::chrono::steady_clock::time_point enqueuedAt;
-    std::string summaryLine;
 };
 
 struct QueueSettings
@@ -48,6 +46,9 @@ public:
 
     std::vector<QueuedItem> drainSteer(const std::string &sessionKey);
     std::vector<QueuedItem> drainFollowup(const std::string &sessionKey);
+
+    // drops the followup backup twin of a steer_backlog message once its steer copy has been consumed, so it is not replayed as a duplicate turn
+    void removeFollowupByBacklogId(const std::string &sessionKey, const std::string &backlogId);
 
     int clear(const std::string &sessionKey);
 

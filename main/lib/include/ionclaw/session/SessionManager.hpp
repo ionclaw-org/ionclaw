@@ -53,7 +53,6 @@ struct Session
 
     bool abortedLastRun = false;
     int abortCutoffMessageIndex = -1;
-    std::string abortCutoffTimestamp;
 
     // transient flag: the user stopped the previous run, consumed once to prime the next turn
     bool stoppedByUser = false;
@@ -81,7 +80,6 @@ public:
     void clearStoppedByUser(const std::string &sessionKey);
 
     void updateLiveStateField(const std::string &sessionKey, const std::string &field, const nlohmann::json &value);
-    void updateLastMessageContent(const std::string &sessionKey, const std::string &content);
 
     void setMaxCapacity(int capacity) { maxCapacity.store(capacity); }
     void setIdleTtlSeconds(int ttl) { idleTtlSeconds.store(ttl); }

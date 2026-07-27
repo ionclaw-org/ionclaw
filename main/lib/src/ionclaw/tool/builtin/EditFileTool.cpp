@@ -8,6 +8,7 @@
 #include <sstream>
 
 #include "ionclaw/tool/builtin/ToolHelper.hpp"
+#include "ionclaw/util/FileHelper.hpp"
 
 namespace ionclaw
 {
@@ -120,34 +121,12 @@ ToolResult EditFileTool::execute(const nlohmann::json &params, const ToolContext
 
     content.replace(pos, oldText.length(), newText);
 
-    // atomic write: write to temp file, then rename to avoid data loss on crash
-    auto tempPath = resolvedPath + ".tmp";
+    // atomic write via a unique temp file then rename, so concurrent writers never share a temp and a crash never leaves a torn file
+    auto writeError = ionclaw::util::FileHelper::atomicWrite(resolvedPath, content);
 
+    if (!writeError.empty())
     {
-        std::ofstream outFile(tempPath, std::ios::binary | std::ios::trunc);
-
-        if (!outFile.is_open())
-        {
-            return "Error: cannot write to file: " + rawPath;
-        }
-
-        outFile << content;
-        outFile.flush();
-
-        if (outFile.fail())
-        {
-            std::filesystem::remove(tempPath);
-            return "Error: write failed (disk full or I/O error): " + rawPath;
-        }
-    }
-
-    std::error_code ec;
-    std::filesystem::rename(tempPath, resolvedPath, ec);
-
-    if (ec)
-    {
-        std::filesystem::remove(tempPath);
-        return "Error: failed to finalize file write: " + ec.message();
+        return "Error: " + writeError;
     }
 
     return "File edited successfully: " + rawPath;

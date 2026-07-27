@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -17,6 +18,7 @@ class HeartbeatService
 {
 public:
     HeartbeatService(std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, const std::string &workspacePath, int interval, bool enabled, const std::string &agent);
+    ~HeartbeatService();
 
     void start();
     void stop();
@@ -25,6 +27,8 @@ public:
 private:
     static const char *HEARTBEAT_PROMPT;
 
+    void startLocked();
+    void stopLocked();
     void runLoop();
     void tick();
     std::string readHeartbeatFile() const;
@@ -40,6 +44,7 @@ private:
     std::atomic<bool> running{false};
     std::thread loopThread;
     std::mutex agentMutex;
+    std::mutex lifecycleMutex;
 };
 
 } // namespace heartbeat

@@ -440,16 +440,20 @@ std::string StringHelper::redactSensitive(const std::string &text)
             auto &match = *it;
             processed += result.substr(lastPos, static_cast<size_t>(match.position()) - lastPos);
 
-            // replace only the captured group within the full match
+            // replace only the captured group, using its exact offset so a value that also appears earlier in the match is not masked instead
             auto fullMatch = match.str();
-            auto captured = match.str(group);
-            auto capturedPos = fullMatch.find(captured);
 
-            if (capturedPos != std::string::npos)
+            if (match[group].matched)
             {
+                auto captured = match.str(group);
+                auto capturedPos = static_cast<size_t>(match.position(group) - match.position(0));
                 processed += fullMatch.substr(0, capturedPos);
                 processed += maskToken(captured);
                 processed += fullMatch.substr(capturedPos + captured.size());
+            }
+            else
+            {
+                processed += fullMatch;
             }
 
             lastPos = static_cast<size_t>(match.position()) + fullMatch.size();

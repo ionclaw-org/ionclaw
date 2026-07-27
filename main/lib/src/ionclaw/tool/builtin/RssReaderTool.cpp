@@ -1,5 +1,7 @@
 #include "ionclaw/tool/builtin/RssReaderTool.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <regex>
 #include <sstream>
 
@@ -27,7 +29,7 @@ std::string RssReaderTool::getElementText(Poco::XML::Element *parent, const std:
         return "";
     }
 
-    auto nodes = parent->getElementsByTagName(tagName);
+    Poco::AutoPtr<Poco::XML::NodeList> nodes(parent->getElementsByTagName(tagName));
 
     if (nodes->length() == 0)
     {
@@ -105,18 +107,28 @@ ToolResult RssReaderTool::execute(const nlohmann::json &params, const ToolContex
             return "Error: feed too large (max 2MB)";
         }
 
+        // reject a doctype so internal entity definitions cannot drive an expansion (billion laughs) attack, as real feeds never carry one
+        static const std::string doctype = "<!doctype";
+        auto doctypePos = std::search(response.body.begin(), response.body.end(), doctype.begin(), doctype.end(),
+                                      [](char a, char b) { return std::tolower(static_cast<unsigned char>(a)) == b; });
+
+        if (doctypePos != response.body.end())
+        {
+            return "Error: feed contains a DOCTYPE declaration, which is not allowed";
+        }
+
         // parse xml
         Poco::XML::DOMParser parser;
         parser.setFeature(Poco::XML::DOMParser::FEATURE_FILTER_WHITESPACE, true);
 
         std::istringstream xmlStream(response.body);
         Poco::XML::InputSource source(xmlStream);
-        auto doc = parser.parse(&source);
+        Poco::AutoPtr<Poco::XML::Document> doc(parser.parse(&source));
 
         nlohmann::json entries = nlohmann::json::array();
 
         // try rss 2.0 format first (channel/item)
-        auto items = doc->getElementsByTagName("item");
+        Poco::AutoPtr<Poco::XML::NodeList> items(doc->getElementsByTagName("item"));
 
         if (items->length() > 0)
         {
@@ -146,7 +158,7 @@ ToolResult RssReaderTool::execute(const nlohmann::json &params, const ToolContex
         else
         {
             // try atom format (entry)
-            auto atomEntries = doc->getElementsByTagName("entry");
+            Poco::AutoPtr<Poco::XML::NodeList> atomEntries(doc->getElementsByTagName("entry"));
 
             for (unsigned long i = 0; i < atomEntries->length() && static_cast<int>(i) < count; ++i)
             {
@@ -175,7 +187,7 @@ ToolResult RssReaderTool::execute(const nlohmann::json &params, const ToolContex
 
                 // get link from link element's href attribute
                 std::string link;
-                auto linkNodes = entry->getElementsByTagName("link");
+                Poco::AutoPtr<Poco::XML::NodeList> linkNodes(entry->getElementsByTagName("link"));
 
                 if (linkNodes->length() > 0)
                 {

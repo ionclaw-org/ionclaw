@@ -1,5 +1,6 @@
 #pragma once
 
+#include <condition_variable>
 #include <functional>
 #include <map>
 #include <mutex>
@@ -27,6 +28,9 @@ private:
     std::vector<EventHandler> handlers;
     std::map<std::string, EventHandler> namedHandlers;
     std::mutex mutex;
+    std::condition_variable idle;
+    int broadcasting = 0;
+    static thread_local int broadcastDepth;
 };
 
 } // namespace bus

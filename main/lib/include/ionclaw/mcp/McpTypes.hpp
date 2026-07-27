@@ -34,8 +34,8 @@ struct JsonRpcRequest
     static JsonRpcRequest parse(const nlohmann::json &j)
     {
         JsonRpcRequest req;
-        req.jsonrpc = j.value("jsonrpc", "");
-        req.method = j.value("method", "");
+        req.jsonrpc = j.contains("jsonrpc") && j["jsonrpc"].is_string() ? j["jsonrpc"].get<std::string>() : "";
+        req.method = j.contains("method") && j["method"].is_string() ? j["method"].get<std::string>() : "";
         if (j.contains("id"))
         {
             req.id = j["id"];

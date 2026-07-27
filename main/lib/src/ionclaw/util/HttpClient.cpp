@@ -1,14 +1,22 @@
 #include "ionclaw/util/HttpClient.hpp"
 
+#include <fstream>
 #include <istream>
 #include <memory>
+#include <stdexcept>
 
+#include "Poco/Exception.h"
 #include "Poco/Net/HTTPClientSession.h"
 #include "Poco/Net/HTTPRequest.h"
 #include "Poco/Net/HTTPResponse.h"
+#include "Poco/Net/SocketAddress.h"
+#include "Poco/Net/StreamSocket.h"
 #include "Poco/StreamCopier.h"
 #include "Poco/URI.h"
 #include "spdlog/spdlog.h"
+
+#include "ionclaw/util/SsrfGuard.hpp"
+#include "ionclaw/util/StringHelper.hpp"
 
 #ifdef IONCLAW_HAS_SSL
 #include "Poco/Net/Context.h"
@@ -31,6 +39,27 @@ void HttpClient::setHeader(const std::string &key, const std::string &value)
     defaultHeaders[key] = value;
 }
 
+std::string HttpClient::systemCaLocation()
+{
+    // openssl on macos and linux does not know where the system ca store lives, so point it at the common bundles
+    static const char *candidates[] = {
+        "/etc/ssl/cert.pem",                  // macos, alpine, freebsd
+        "/etc/ssl/certs/ca-certificates.crt", // debian, ubuntu
+        "/etc/pki/tls/certs/ca-bundle.crt",   // rhel, fedora
+        "/etc/ssl/ca-bundle.pem",             // opensuse
+    };
+
+    for (const auto *path : candidates)
+    {
+        if (std::ifstream(path).good())
+        {
+            return path;
+        }
+    }
+
+    return "";
+}
+
 std::unique_ptr<Poco::Net::HTTPClientSession> HttpClient::createSession(const Poco::URI &uri, int timeoutSeconds, const std::string &proxy)
 {
     std::unique_ptr<Poco::Net::HTTPClientSession> session;
@@ -40,9 +69,11 @@ std::unique_ptr<Poco::Net::HTTPClientSession> HttpClient::createSession(const Po
 #ifdef IONCLAW_HAS_SSL
         // use Poco::Net::Context::Ptr (AutoPtr) for exception-safe ownership
 #ifdef _WIN32
+        // netsslwin verifies against the windows system certificate store
         Poco::Net::Context::Ptr context = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "");
 #else
-        Poco::Net::Context::Ptr context = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "", "", "", Poco::Net::Context::VERIFY_NONE, 9, true, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
+        auto caLocation = systemCaLocation();
+        Poco::Net::Context::Ptr context = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "", "", caLocation, Poco::Net::Context::VERIFY_RELAXED, 9, true, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
 #endif
 
         session = std::make_unique<Poco::Net::HTTPSClientSession>(uri.getHost(), uri.getPort(), context);
@@ -97,10 +128,44 @@ std::unique_ptr<Poco::Net::HTTPClientSession> HttpClient::createSession(const Po
     return session;
 }
 
+bool HttpClient::hasHeaderControlChar(const std::string &text)
+{
+    return text.find_first_of(std::string("\r\n\0", 3)) != std::string::npos;
+}
+
+void HttpClient::stripSensitiveHeaders(std::map<std::string, std::string> &headers)
+{
+    // credentials that must never travel to a different origin after a redirect
+    static const std::string sensitive[] = {"authorization", "cookie", "proxy-authorization"};
+
+    for (auto it = headers.begin(); it != headers.end();)
+    {
+        auto lower = StringHelper::toLower(it->first);
+        bool drop = false;
+
+        for (const auto &name : sensitive)
+        {
+            if (lower == name)
+            {
+                drop = true;
+                break;
+            }
+        }
+
+        it = drop ? headers.erase(it) : std::next(it);
+    }
+}
+
 void HttpClient::applyHeaders(Poco::Net::HTTPRequest &request, const std::map<std::string, std::string> &headers)
 {
     for (const auto &pair : headers)
     {
+        // reject header injection: control characters would let a caller split the request or inject headers
+        if (hasHeaderControlChar(pair.first) || hasHeaderControlChar(pair.second))
+        {
+            throw std::runtime_error("[HttpClient] Invalid characters in request header: " + pair.first);
+        }
+
         request.set(pair.first, pair.second);
     }
 }
@@ -214,8 +279,22 @@ void HttpClient::postStream(const std::string &path, const std::string &body, St
 
     if (status < 200 || status >= 300)
     {
+        // bound the error body so a misbehaving endpoint cannot stream an unbounded payload into memory
+        static constexpr size_t MAX_ERROR_BODY_BYTES = 1 * 1024 * 1024;
         std::string errorBody;
-        Poco::StreamCopier::copyToString(rs, errorBody);
+        char errBuf[8192];
+
+        while (rs.good() && errorBody.size() < MAX_ERROR_BODY_BYTES)
+        {
+            rs.read(errBuf, sizeof(errBuf));
+            auto bytesRead = rs.gcount();
+
+            if (bytesRead > 0)
+            {
+                errorBody.append(errBuf, static_cast<size_t>(bytesRead));
+            }
+        }
+
         throw std::runtime_error("[HttpClient] HTTP " + std::to_string(status) + ": " + errorBody);
     }
 
@@ -241,7 +320,7 @@ void HttpClient::postStream(const std::string &path, const std::string &body, St
         }
 
         // parse SSE data lines
-        if (line.rfind("data: ", 0) == 0)
+        if (line.starts_with("data: "))
         {
             auto data = line.substr(6);
             callback(data);
@@ -260,6 +339,13 @@ HttpResponse HttpClient::request(const std::string &method, const std::string &u
     for (int redirect = 0; redirect <= MAX_REDIRECTS; ++redirect)
     {
         Poco::URI uri(currentUrl);
+
+        // re-validate right before connecting so a dns rebind cannot swap in a private address after the caller's initial check
+        if (redirectValidator)
+        {
+            redirectValidator(currentUrl);
+        }
+
         auto session = createSession(uri, timeoutSeconds, proxy);
 
         auto requestPath = uri.getPathAndQuery();
@@ -270,7 +356,17 @@ HttpResponse HttpClient::request(const std::string &method, const std::string &u
         }
 
         Poco::Net::HTTPRequest request(activeMethod, requestPath, Poco::Net::HTTPMessage::HTTP_1_1);
-        request.set("Host", uri.getHost());
+
+        // include a non-default port in the host header so virtual-host routing and signed requests stay correct
+        auto hostHeader = uri.getHost();
+        bool defaultPort = (uri.getScheme() == "http" && uri.getPort() == 80) || (uri.getScheme() == "https" && uri.getPort() == 443);
+
+        if (!defaultPort && uri.getPort() != 0)
+        {
+            hostHeader += ":" + std::to_string(uri.getPort());
+        }
+
+        request.set("Host", hostHeader);
         applyHeaders(request, activeHeaders);
 
         if (!activeBody.empty())
@@ -291,6 +387,12 @@ HttpResponse HttpClient::request(const std::string &method, const std::string &u
             session->sendRequest(request);
         }
 
+        // revalidate the ip we actually connected to, closing the dns-rebinding window for ssrf callers and blocking any redirect into a private range
+        if (redirectValidator || redirect > 0)
+        {
+            SsrfGuard::validatePeerAddress(session->socket().peerAddress().host());
+        }
+
         Poco::Net::HTTPResponse response;
         auto &rs = session->receiveResponse(response);
 
@@ -306,18 +408,27 @@ HttpResponse HttpClient::request(const std::string &method, const std::string &u
                 return readResponse(response, rs);
             }
 
-            // resolve relative redirects
+            // resolve relative redirects, rejecting a malformed location instead of throwing out of the loop
             Poco::URI prevUri(currentUrl);
+            Poco::URI nextUri;
 
-            if (location.rfind("http", 0) != 0)
+            try
             {
-                Poco::URI resolved(prevUri, location);
-                currentUrl = resolved.toString();
+                if (!location.starts_with("http"))
+                {
+                    nextUri = Poco::URI(prevUri, location);
+                }
+                else
+                {
+                    nextUri = Poco::URI(location);
+                }
             }
-            else
+            catch (const Poco::Exception &e)
             {
-                currentUrl = location;
+                throw std::runtime_error("[HttpClient] Malformed redirect location '" + location + "': " + e.displayText());
             }
+
+            currentUrl = nextUri.toString();
 
             // validate redirect destination if validator is set
             if (redirectValidator)
@@ -325,12 +436,10 @@ HttpResponse HttpClient::request(const std::string &method, const std::string &u
                 redirectValidator(currentUrl);
             }
 
-            // strip authorization on cross-domain redirects to prevent credential leak
-            Poco::URI nextUri(currentUrl);
-            if (nextUri.getHost() != prevUri.getHost())
+            // drop credentials on any host, scheme, or port change so they never leak across origins or over a downgrade to http
+            if (nextUri.getHost() != prevUri.getHost() || nextUri.getScheme() != prevUri.getScheme() || nextUri.getPort() != prevUri.getPort())
             {
-                activeHeaders.erase("Authorization");
-                activeHeaders.erase("authorization");
+                stripSensitiveHeaders(activeHeaders);
             }
 
             // rfc 7231: downgrade method to GET and drop body on 301/302/303

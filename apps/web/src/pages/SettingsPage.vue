@@ -52,9 +52,12 @@ const tools = ref({
 const storage = ref({ type: 'local' })
 const imageConfig = ref({ model: '', aspect_ratio: '', size: '' })
 const transcriptionConfig = ref({ model: '' })
+const embeddingsConfig = ref({ model: '' })
 const agentsConfig = ref({})
 const telegram = ref({ enabled: false, credential: '', allowed_users: '', proxy: '', reply_to_message: false })
 const mcp = ref({ enabled: false, require_auth: false, credential: '' })
+const whatsappZapi = ref({ enabled: false, allowed_users: '', instance_id: '', instance_token: '', client_token: '' })
+const whatsappMeta = ref({ enabled: false, allowed_users: '', phone_number_id: '', access_token: '', verify_token: '', app_secret: '', graph_version: 'v23.0' })
 const environmentVars = ref([])
 const activeTab = ref('info')
 const rawYaml = ref('')
@@ -266,6 +269,11 @@ function mapConfigToLocal() {
     model: tr.model || '',
   }
 
+  const emb = configStore.config.embeddings || {}
+  embeddingsConfig.value = {
+    model: emb.model || '',
+  }
+
   const cfgAgents = configStore.config.agents || {}
   const parsedAgents = {}
   for (const [name, agent] of Object.entries(cfgAgents)) {
@@ -295,6 +303,27 @@ function mapConfigToLocal() {
     enabled: mcpCh.enabled || false,
     require_auth: mcpCh.require_auth || false,
     credential: mcpCh.credential || '',
+  }
+
+  // secrets are left empty on load; an empty value keeps the stored one so it is never shown
+  const wz = configStore.config.channels?.whatsapp_zapi || {}
+  whatsappZapi.value = {
+    enabled: wz.enabled || false,
+    allowed_users: (wz.allowed_users || []).join(', '),
+    instance_id: wz.instance_id || '',
+    instance_token: '',
+    client_token: '',
+  }
+
+  const wm = configStore.config.channels?.whatsapp_meta || {}
+  whatsappMeta.value = {
+    enabled: wm.enabled || false,
+    allowed_users: (wm.allowed_users || []).join(', '),
+    phone_number_id: wm.phone_number_id || '',
+    access_token: '',
+    verify_token: '',
+    app_secret: '',
+    graph_version: wm.graph_version || 'v23.0',
   }
 }
 
@@ -559,6 +588,40 @@ async function toggleTelegram(running) {
   }
 }
 
+// the public base plus the provider path is what the user pastes into the provider console
+const webhookBase = computed(() => (serverConfig.value.public_url || `http://localhost:${serverConfig.value.port || 8080}`).replace(/\/$/, ''))
+
+function splitNumbers(value) {
+  return value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+async function saveWhatsappChannel(name, form) {
+  try {
+    await channelsStore.updateChannel(name, { ...form, allowed_users: splitNumbers(form.allowed_users) })
+    toast.add({ severity: 'success', summary: 'Saved', detail: 'WhatsApp config updated. Restart the channel to apply.', life: 2500 })
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
+  }
+}
+
+async function toggleWhatsappChannel(name, running) {
+  try {
+    if (running) {
+      await channelsStore.stopChannel(name)
+      toast.add({ severity: 'success', summary: 'Stopped', detail: 'WhatsApp channel stopped', life: 2000 })
+    } else {
+      await channelsStore.startChannel(name)
+      toast.add({ severity: 'success', summary: 'Started', detail: 'WhatsApp channel started', life: 2000 })
+    }
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
+    await channelsStore.loadChannels()
+  }
+}
+
 async function saveMcp() {
   try {
     await channelsStore.updateChannel('mcp', {
@@ -621,6 +684,7 @@ async function toggleMcp(running) {
           <Tab value="tools">Tools</Tab>
           <Tab value="image">Image</Tab>
           <Tab value="transcription">Transcription</Tab>
+          <Tab value="embeddings">Embeddings</Tab>
           <Tab value="advanced">Advanced</Tab>
         </TabList>
         <TabPanels :pt="{ root: { style: { flex: '1' } } }">
@@ -944,6 +1008,66 @@ async function toggleMcp(running) {
 
               <div class="item-block">
                 <div class="item-header">
+                  <i class="pi pi-whatsapp"></i>
+                  <strong>WhatsApp (Z-API)</strong>
+                  <Tag
+                    :value="channelsStore.channels?.whatsapp_zapi?.running ? 'running' : 'stopped'"
+                    :severity="channelsStore.channels?.whatsapp_zapi?.running ? 'success' : 'danger'"
+                  />
+                </div>
+                <p class="item-desc" style="margin-bottom: 0.75rem">
+                  Set the Z-API "on message received" webhook to <code>{{ webhookBase }}/webhook/whatsapp-zapi</code>.
+                </p>
+                <DynamicForm
+                  v-if="formSchemas.channels_whatsapp_zapi"
+                  v-model="whatsappZapi"
+                  :schema="formSchemas.channels_whatsapp_zapi"
+                  :references="references"
+                />
+                <div class="button-row">
+                  <Button label="Save" icon="pi pi-save" size="small" severity="secondary" @click="saveWhatsappChannel('whatsapp_zapi', whatsappZapi)" />
+                  <Button
+                    :label="channelsStore.channels?.whatsapp_zapi?.running ? 'Stop' : 'Start'"
+                    :icon="channelsStore.channels?.whatsapp_zapi?.running ? 'pi pi-stop' : 'pi pi-play'"
+                    :severity="channelsStore.channels?.whatsapp_zapi?.running ? 'danger' : 'success'"
+                    size="small"
+                    @click="toggleWhatsappChannel('whatsapp_zapi', channelsStore.channels?.whatsapp_zapi?.running)"
+                  />
+                </div>
+              </div>
+
+              <div class="item-block">
+                <div class="item-header">
+                  <i class="pi pi-whatsapp"></i>
+                  <strong>WhatsApp (Cloud API)</strong>
+                  <Tag
+                    :value="channelsStore.channels?.whatsapp_meta?.running ? 'running' : 'stopped'"
+                    :severity="channelsStore.channels?.whatsapp_meta?.running ? 'success' : 'danger'"
+                  />
+                </div>
+                <p class="item-desc" style="margin-bottom: 0.75rem">
+                  Set the Meta webhook callback URL to <code>{{ webhookBase }}/webhook/whatsapp-meta</code> and subscribe to the <code>messages</code> field.
+                </p>
+                <DynamicForm
+                  v-if="formSchemas.channels_whatsapp_meta"
+                  v-model="whatsappMeta"
+                  :schema="formSchemas.channels_whatsapp_meta"
+                  :references="references"
+                />
+                <div class="button-row">
+                  <Button label="Save" icon="pi pi-save" size="small" severity="secondary" @click="saveWhatsappChannel('whatsapp_meta', whatsappMeta)" />
+                  <Button
+                    :label="channelsStore.channels?.whatsapp_meta?.running ? 'Stop' : 'Start'"
+                    :icon="channelsStore.channels?.whatsapp_meta?.running ? 'pi pi-stop' : 'pi pi-play'"
+                    :severity="channelsStore.channels?.whatsapp_meta?.running ? 'danger' : 'success'"
+                    size="small"
+                    @click="toggleWhatsappChannel('whatsapp_meta', channelsStore.channels?.whatsapp_meta?.running)"
+                  />
+                </div>
+              </div>
+
+              <div class="item-block">
+                <div class="item-header">
                   <i class="pi pi-share-alt"></i>
                   <strong>MCP</strong>
                   <Tag
@@ -1055,6 +1179,24 @@ async function toggleMcp(running) {
                 icon="pi pi-save"
                 size="small"
                 @click="saveSection('transcription', transcriptionConfig)"
+              />
+            </div>
+          </TabPanel>
+
+          <!-- Embeddings -->
+          <TabPanel value="embeddings" :pt="{ root: { style: { minHeight: '100%' } } }">
+            <div class="tab-content">
+              <DynamicForm
+                v-if="formSchemas.embeddings"
+                v-model="embeddingsConfig"
+                :schema="formSchemas.embeddings"
+                :references="references"
+              />
+              <Button
+                label="Save"
+                icon="pi pi-save"
+                size="small"
+                @click="saveSection('embeddings', embeddingsConfig)"
               />
             </div>
           </TabPanel>

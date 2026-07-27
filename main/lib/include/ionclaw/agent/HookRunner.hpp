@@ -47,7 +47,6 @@ using HookCallback = std::function<void(HookContext &ctx)>;
 class HookRunner
 {
 public:
-    void registerHook(HookPoint point, HookCallback callback);
     void run(HookPoint point, HookContext &ctx) const;
 
 private:

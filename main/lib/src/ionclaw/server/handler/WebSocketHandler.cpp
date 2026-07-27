@@ -1,5 +1,7 @@
 #include "ionclaw/server/handler/WebSocketHandler.hpp"
 
+#include <vector>
+
 #include "Poco/Net/HTTPServerRequest.h"
 #include "Poco/Net/HTTPServerResponse.h"
 #include "Poco/Net/WebSocket.h"
@@ -17,10 +19,9 @@ namespace server
 namespace handler
 {
 
-WebSocketHandler::WebSocketHandler(std::shared_ptr<Auth> auth, std::shared_ptr<WebSocketManager> wsManager, std::shared_ptr<Routes> routes)
+WebSocketHandler::WebSocketHandler(std::shared_ptr<Auth> auth, std::shared_ptr<WebSocketManager> wsManager)
     : auth(auth)
     , wsManager(wsManager)
-    , routes(routes)
 {
 }
 
@@ -30,16 +31,37 @@ void WebSocketHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Ne
 
     try
     {
-        // extract token from query parameter
-        Poco::URI uri(req.getURI());
+        // read the token from the websocket subprotocol so it never lands in a url or an access log
         std::string token;
+        auto protoHeader = req.get("Sec-WebSocket-Protocol", "");
 
-        for (const auto &param : uri.getQueryParameters())
+        // the client offers the marker protocol followed by the bearer token as the second entry
+        std::vector<std::string> protocols;
+        std::string current;
+
+        for (char c : protoHeader)
         {
-            if (param.first == "token")
+            if (c == ',')
             {
-                token = param.second;
+                protocols.push_back(current);
+                current.clear();
+                continue;
             }
+
+            if (c != ' ' && c != '\t')
+            {
+                current += c;
+            }
+        }
+
+        if (!current.empty())
+        {
+            protocols.push_back(current);
+        }
+
+        if (protocols.size() >= 2 && protocols[0] == "access_token")
+        {
+            token = protocols[1];
         }
 
         // verify authentication
@@ -50,9 +72,15 @@ void WebSocketHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Ne
             return;
         }
 
+        // echo the marker protocol so the browser accepts the negotiated subprotocol
+        resp.set("Sec-WebSocket-Protocol", "access_token");
+
         // upgrade to websocket
         Poco::Net::WebSocket ws(req, resp);
-        ws.setReceiveTimeout(Poco::Timespan(0, 0));
+
+        // a finite timeout turns a silently dead peer into a periodic wakeup so the handler thread is never pinned forever
+        ws.setReceiveTimeout(Poco::Timespan(60, 0));
+        ws.setSendTimeout(Poco::Timespan(10, 0));
 
         connectionId = ionclaw::util::UniqueId::uuid();
         auto conn = std::make_shared<WebSocketConnection>(std::move(ws), connectionId);
@@ -68,10 +96,25 @@ void WebSocketHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Ne
             {
                 int received = conn->socket.receiveFrame(buffer, sizeof(buffer), flags);
 
-                if (received <= 0 || (flags & Poco::Net::WebSocket::FRAME_OP_BITMASK) == Poco::Net::WebSocket::FRAME_OP_CLOSE)
+                int opcode = flags & Poco::Net::WebSocket::FRAME_OP_BITMASK;
+
+                if (received <= 0 || opcode == Poco::Net::WebSocket::FRAME_OP_CLOSE)
                 {
-                    spdlog::info("[WebSocketHandler] Connection {} closed (received={}, opcode={})", connectionId, received, flags & Poco::Net::WebSocket::FRAME_OP_BITMASK);
+                    spdlog::info("[WebSocketHandler] Connection {} closed (received={}, opcode={})", connectionId, received, opcode);
                     break;
+                }
+
+                // answer a client ping and ignore its pong so control frames are never parsed as application json
+                if (opcode == Poco::Net::WebSocket::FRAME_OP_PING)
+                {
+                    std::lock_guard<std::mutex> lock(conn->sendMutex);
+                    conn->socket.sendFrame(buffer, received, Poco::Net::WebSocket::FRAME_FLAG_FIN | Poco::Net::WebSocket::FRAME_OP_PONG);
+                    continue;
+                }
+
+                if (opcode == Poco::Net::WebSocket::FRAME_OP_PONG)
+                {
+                    continue;
                 }
 
                 std::string message(buffer, static_cast<size_t>(received));
@@ -96,6 +139,18 @@ void WebSocketHandler::handleRequest(Poco::Net::HTTPServerRequest &req, Poco::Ne
             }
             catch (const Poco::TimeoutException &)
             {
+                // probe the peer so a dropped connection surfaces as a send failure instead of blocking a thread indefinitely
+                try
+                {
+                    std::lock_guard<std::mutex> lock(conn->sendMutex);
+                    conn->socket.sendFrame(nullptr, 0, Poco::Net::WebSocket::FRAME_FLAG_FIN | Poco::Net::WebSocket::FRAME_OP_PING);
+                }
+                catch (const std::exception &e)
+                {
+                    spdlog::info("[WebSocketHandler] Connection {} unreachable on keepalive ping: {}", connectionId, e.what());
+                    break;
+                }
+
                 continue;
             }
             catch (const std::exception &e)

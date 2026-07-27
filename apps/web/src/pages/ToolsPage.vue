@@ -5,9 +5,11 @@ import Tag from 'primevue/tag'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import { useApi } from '../composables/useApi'
+import { useToast } from 'primevue/usetoast'
 import { humanizeToolName } from '../utils/format'
 
 const api = useApi()
+const toast = useToast()
 const tools = ref([])
 const search = ref('')
 const selectedTool = ref(null)
@@ -23,6 +25,8 @@ const filteredTools = computed(() => {
 onMounted(async () => {
   try {
     tools.value = await api.get('/tools')
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
   } finally {
     loading.value = false
   }

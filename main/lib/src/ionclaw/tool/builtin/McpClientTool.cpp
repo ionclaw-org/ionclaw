@@ -92,7 +92,7 @@ nlohmann::json McpClientTool::sendRpcRequest(const std::string &url, const nlohm
                 line.pop_back();
             }
 
-            if (line.rfind("data: ", 0) == 0)
+            if (line.starts_with("data: "))
             {
                 lastData = line.substr(6);
             }
@@ -188,15 +188,25 @@ ToolResult McpClientTool::execute(const nlohmann::json &params, const ToolContex
             return actionListTools(url, sessionId, authToken, timeout);
         if (action == "call_tool")
         {
-            auto toolName = params.at("tool_name").get<std::string>();
-            auto toolArgs = params.value("tool_arguments", nlohmann::json::object());
+            if (!params.contains("tool_name") || !params["tool_name"].is_string())
+            {
+                return "Error: tool_name is required for call_tool";
+            }
+
+            auto toolName = params["tool_name"].get<std::string>();
+            auto toolArgs = params.contains("tool_arguments") && params["tool_arguments"].is_object() ? params["tool_arguments"] : nlohmann::json::object();
             return actionCallTool(url, sessionId, authToken, toolName, toolArgs, timeout);
         }
         if (action == "list_resources")
             return actionListResources(url, sessionId, authToken, timeout);
         if (action == "read_resource")
         {
-            auto resourceUri = params.at("resource_uri").get<std::string>();
+            if (!params.contains("resource_uri") || !params["resource_uri"].is_string())
+            {
+                return "Error: resource_uri is required for read_resource";
+            }
+
+            auto resourceUri = params["resource_uri"].get<std::string>();
             return actionReadResource(url, sessionId, authToken, resourceUri, timeout);
         }
         if (action == "ping")
@@ -255,7 +265,7 @@ ToolResult McpClientTool::actionInitialize(const std::string &url, const std::st
     }
     catch (const std::exception &e)
     {
-        spdlog::warn("[McpClientTool] notifications/initialized failed (non-fatal): {}", e.what());
+        spdlog::warn("[McpClientTool] Notifications/initialized failed (non-fatal): {}", e.what());
     }
 
     auto output = nlohmann::json{

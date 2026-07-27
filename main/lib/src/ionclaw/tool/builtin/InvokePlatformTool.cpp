@@ -37,6 +37,12 @@ ToolSchema InvokePlatformTool::schema() const
          {"required", nlohmann::json::array({"function"})}}};
 }
 
+std::set<std::string> InvokePlatformTool::supportedPlatforms() const
+{
+    // only the native mobile embeddings register a real platform handler, so the tool is hidden elsewhere
+    return {"ios", "android"};
+}
+
 } // namespace builtin
 } // namespace tool
 } // namespace ionclaw

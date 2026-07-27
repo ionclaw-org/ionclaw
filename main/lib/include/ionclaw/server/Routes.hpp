@@ -14,8 +14,11 @@
 #include "ionclaw/agent/SkillsLoader.hpp"
 #include "ionclaw/bus/EventDispatcher.hpp"
 #include "ionclaw/bus/MessageBus.hpp"
+#include "ionclaw/channel/WebhookDedup.hpp"
+#include "ionclaw/channel/WhatsAppWebhook.hpp"
 #include "ionclaw/channel/ChannelManager.hpp"
 #include "ionclaw/config/Config.hpp"
+#include "ionclaw/config/ConfigStore.hpp"
 #include "ionclaw/cron/CronService.hpp"
 #include "ionclaw/heartbeat/HeartbeatService.hpp"
 #include "ionclaw/server/Auth.hpp"
@@ -31,9 +34,13 @@ namespace server
 class Routes
 {
 public:
-    Routes(std::shared_ptr<ionclaw::config::Config> config, std::shared_ptr<Auth> auth, std::shared_ptr<ionclaw::agent::Orchestrator> orchestrator, std::shared_ptr<ionclaw::channel::ChannelManager> channelManager, std::shared_ptr<ionclaw::heartbeat::HeartbeatService> heartbeatService, std::shared_ptr<ionclaw::cron::CronService> cronService, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, std::shared_ptr<WebSocketManager> wsManager, const std::string &webDir, const std::string &projectRoot, const std::string &publicDir, const std::string &workspaceDir);
+    Routes(std::shared_ptr<ionclaw::config::ConfigStore> configStore, std::shared_ptr<Auth> auth, std::shared_ptr<ionclaw::agent::Orchestrator> orchestrator, std::shared_ptr<ionclaw::channel::ChannelManager> channelManager, std::shared_ptr<ionclaw::heartbeat::HeartbeatService> heartbeatService, std::shared_ptr<ionclaw::cron::CronService> cronService, std::shared_ptr<ionclaw::session::SessionManager> sessionManager, std::shared_ptr<ionclaw::task::TaskManager> taskManager, std::shared_ptr<ionclaw::bus::MessageBus> bus, std::shared_ptr<ionclaw::bus::EventDispatcher> dispatcher, std::shared_ptr<WebSocketManager> wsManager, const std::string &webDir, const std::string &projectRoot, const std::string &publicDir, const std::string &workspaceDir);
 
     void handleAuthLogin(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
+
+    // inbound whatsapp webhooks (unauthenticated; verified by provider signature/token)
+    void handleWhatsAppZApiWebhook(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
+    void handleWhatsAppMetaWebhook(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
 
     void handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
     void handleChatUpload(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
@@ -101,7 +108,7 @@ public:
     void handleSchedulerDelete(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp, const std::string &id);
 
 private:
-    std::shared_ptr<ionclaw::config::Config> config;
+    std::shared_ptr<ionclaw::config::ConfigStore> configStore;
     std::shared_ptr<Auth> auth;
     std::shared_ptr<ionclaw::agent::Orchestrator> orchestrator;
     std::shared_ptr<ionclaw::channel::ChannelManager> channelManager;
@@ -117,7 +124,17 @@ private:
     std::string publicDir;
     std::string workspaceDir;
 
-    std::mutex configMutex;
+    // serializes channel start/stop so two concurrent requests cannot both pass the running check
+    std::mutex channelMutex;
+
+    // deduplicates redelivered inbound webhook messages across both whatsapp providers
+    ionclaw::channel::WebhookDedup webhookDedup;
+
+    // builds and publishes an inbound whatsapp message onto the bus
+    void publishWhatsAppInbound(const ionclaw::channel::ParsedWebhookMessage &msg);
+
+    // downloads inbound webhook media into public/media and sets its workspace-relative localPath
+    void downloadWhatsAppMedia(ionclaw::channel::WebhookMedia &media, const std::string &accessToken, const std::string &graphVersion);
 
     static const std::set<std::string> PROTECTED_FILES;
     static const std::set<std::string> SYSTEM_FILES;
@@ -142,6 +159,7 @@ private:
     static bool isSystemFile(const std::string &name);
 
     static bool isValidMarketplaceSegment(const std::string &s);
+    static bool looksLikeSecretField(const std::string &name);
 
     std::string resolveFilePath(const std::string &relativePath) const;
 

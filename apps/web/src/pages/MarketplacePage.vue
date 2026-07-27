@@ -169,11 +169,16 @@ async function viewLicense(skill) {
   }
 }
 
-async function handleInstall(skill) {
+function handleInstall(skill) {
   confirmTarget.value = skill
-  confirmReplace.value = false
-  selectedTarget.value = targets.value.length ? targets.value[0].value : ''
   confirmDialogVisible.value = true
+}
+
+function resetInstall() {
+  confirmTarget.value = null
+  confirmReplace.value = false
+  confirmChecking.value = false
+  selectedTarget.value = targets.value.length ? targets.value[0].value : ''
 }
 
 watch(selectedTarget, () => {
@@ -184,12 +189,12 @@ watch(selectedTarget, () => {
 async function confirmInstall() {
   const skill = confirmTarget.value
   if (!skill) return
+  const agent = selectedTarget.value || ''
 
   // first click: check if already installed
   if (!confirmReplace.value) {
     confirmChecking.value = true
     try {
-      const agent = selectedTarget.value || ''
       const check = await api.get(
         `/marketplace/check/${encodeURIComponent(skill.source)}/${encodeURIComponent(skill.name)}?agent=${encodeURIComponent(agent)}`,
       )
@@ -205,12 +210,11 @@ async function confirmInstall() {
     }
   }
 
-  // proceed with install
+  // proceed with install; closing the dialog resets the form via resetInstall
   installing.value = skill.name
   confirmDialogVisible.value = false
-  confirmReplace.value = false
   try {
-    await doInstall(skill)
+    await doInstall(skill, agent)
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Error', detail: e.message, life: 3000 })
   } finally {
@@ -218,8 +222,7 @@ async function confirmInstall() {
   }
 }
 
-async function doInstall(skill) {
-  const agent = selectedTarget.value || ''
+async function doInstall(skill, agent) {
   const result = await api.post('/marketplace/install', { source: skill.source, name: skill.name, agent })
   if (result.error) {
     toast.add({ severity: 'error', summary: 'Error', detail: result.error, life: 3000 })
@@ -352,6 +355,7 @@ async function doInstall(skill) {
       :modal="true"
       :style="{ width: '26rem' }"
       :breakpoints="{ '768px': '90vw' }"
+      @hide="resetInstall"
     >
       <div class="install-dialog">
         <p v-if="confirmReplace">

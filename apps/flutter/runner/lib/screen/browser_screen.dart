@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:ionclaw_runner/theme/app_colors.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
@@ -60,12 +61,12 @@ class _BrowserScreenState extends State<BrowserScreen> {
   }
 
   Future<void> _downloadFile(Uri uri) async {
+    final client = HttpClient();
     try {
-      final client = HttpClient();
       final request = await client.getUrl(uri);
       final response = await request.close();
 
-      // Extract filename from Content-Disposition or URL path
+      // extract filename from Content-Disposition or URL path
       final disposition =
           response.headers.value('content-disposition') ?? '';
       String filename;
@@ -77,17 +78,30 @@ class _BrowserScreenState extends State<BrowserScreen> {
         filename = Uri.decodeComponent(uri.pathSegments.last);
       }
 
-      // Save to temp directory
+      filename = _sanitizeFilename(filename);
+
+      // save to temp directory
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/$filename');
       final sink = file.openWrite();
       await response.pipe(sink);
 
-      // Present share sheet so user can save/share
+      // present share sheet so user can save/share
       await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
     } catch (e) {
       debugPrint('Download failed: $e');
+    } finally {
+      client.close();
     }
+  }
+
+  // strip directory components to prevent path traversal
+  String _sanitizeFilename(String name) {
+    final base = name.replaceAll('\\', '/').split('/').last.trim();
+    if (base.isEmpty || base == '.' || base == '..') {
+      return 'download';
+    }
+    return base;
   }
 
   Future<void> _onPermissionRequest(WebViewPermissionRequest request) async {
@@ -144,8 +158,6 @@ class _BrowserScreenState extends State<BrowserScreen> {
     }
   }
 
-  static const _headerBg = Color(0xFF1A1A2E);
-
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
@@ -157,7 +169,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
         await _onBackInvoked();
       },
       child: Scaffold(
-        backgroundColor: _headerBg,
+        backgroundColor: AppColors.header,
         appBar: AppBar(
           title: Image.asset('assets/logo-dark.png', height: 32),
           actions: [

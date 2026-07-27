@@ -18,29 +18,61 @@ To add a custom provider, you need three things in your `config.yml`:
 
 ---
 
+## Built-in Providers
+
+These provider names ship with a default base URL, so you can omit `base_url` and just supply a credential (the local ones need none). Any other name is still accepted as a custom provider as long as you give it a `base_url`.
+
+| Provider prefix | Default base URL |
+|-----------------|------------------|
+| `anthropic` | `https://api.anthropic.com` (native, not OpenAI-compatible) |
+| `openai` | `https://api.openai.com/v1` |
+| `openrouter` | `https://openrouter.ai/api/v1` |
+| `deepseek` | `https://api.deepseek.com/v1` |
+| `grok` / `xai` | `https://api.x.ai/v1` |
+| `google` / `gemini` | `https://generativelanguage.googleapis.com/v1beta/openai` |
+| `kimi` / `moonshot` | `https://api.moonshot.cn/v1` |
+| `groq` | `https://api.groq.com/openai/v1` |
+| `mistral` | `https://api.mistral.ai/v1` |
+| `together` / `togetherai` | `https://api.together.xyz/v1` |
+| `fireworks` / `fireworks_ai` | `https://api.fireworks.ai/inference/v1` |
+| `deepinfra` | `https://api.deepinfra.com/v1/openai` |
+| `perplexity` | `https://api.perplexity.ai` |
+| `cerebras` | `https://api.cerebras.ai/v1` |
+| `sambanova` | `https://api.sambanova.ai/v1` |
+| `nvidia` / `nvidia_nim` | `https://integrate.api.nvidia.com/v1` |
+| `ollama` | `http://localhost:11434/v1` (local, no credential) |
+| `lm_studio` | `http://localhost:1234/v1` (local, no credential) |
+
+```yaml
+credentials:
+  groq: { type: simple, key: "gsk-..." }
+
+providers:
+  groq: { credential: groq }   # base_url resolved automatically
+
+agents:
+  main:
+    model: "groq/llama-3.3-70b-versatile"
+```
+
+---
+
 ## Examples
 
 ### Ollama (Local)
 
-[Ollama](https://ollama.com) runs models locally and exposes an OpenAI-compatible API on port 11434.
+[Ollama](https://ollama.com) runs models locally and exposes an OpenAI-compatible API on port 11434. `ollama` is a built-in provider: it needs no credential and defaults to `http://localhost:11434/v1`, so a bare provider entry is enough.
 
 ```yaml
-credentials:
-  ollama:
-    type: simple
-    key: "ollama"  # Ollama ignores the key, but a value is required
-
 providers:
-  ollama:
-    credential: ollama
-    base_url: http://localhost:11434/v1
+  ollama: {}   # defaults to http://localhost:11434/v1, no credential needed
 
 agents:
   main:
     model: "ollama/llama3.3"
 ```
 
-> Ollama does not require an API key. Use any non-empty string.
+Pull the model first with `ollama pull llama3.3`, then check what is installed with `ollama list`. Point a remote Ollama server at a different host by setting `base_url`.
 
 ### LM Studio (Local)
 
@@ -151,6 +183,21 @@ agents:
   main:
     model: "vllm/meta-llama/Llama-3.3-70B-Instruct"
 ```
+
+---
+
+## Claude Code CLI (Subscription)
+
+The built-in `claude-cli` provider drives the local `claude` binary (Claude Code) instead of the API, so responses come from your logged-in subscription without spending API tokens. It is resolved by the `claude-cli/` prefix and needs no credential or provider entry.
+
+```yaml
+agents:
+  main:
+    model: "claude-cli/opus"
+    tools: []   # the cli answers in a single text turn, so leave tools empty
+```
+
+Install and authenticate Claude Code first (run `claude` and sign in). The provider runs the binary with the prompt on stdin and API-key environment variables stripped, so the subscription answers. It is text-only and single-turn: it does not stream tokens or call tools, so agents using it must have no tools configured. The model after the prefix is passed to `--model` (e.g. `opus`, `sonnet`, `haiku`, or a full model id).
 
 ---
 
@@ -279,4 +326,5 @@ providers:
 - The provider name in `config.yml` is arbitrary — it just needs to match the prefix in your model string.
 - All OpenAI-compatible providers support text and image input, streaming, and tool use.
 - Audio input is supported for providers that implement the OpenAI audio format.
+- Capabilities are gated by the embedded model table: for a model the table marks as lacking a feature, the reasoning/thinking params, the `vision` tool, and the `tools` payload are dropped before the request goes out (with a logged warning) instead of being sent and rejected with a 400. Unknown models are treated permissively (features left enabled). The Anthropic `cache_control` prompt-caching breakpoint is the exception — it is added only for a model the table confirms supports caching, and omitted for unknown models, since a wrongly-sent breakpoint can be rejected.
 - Environment variables (`${VAR_NAME}`) can be used anywhere in the config. Use a `.env` file to keep keys out of version control.

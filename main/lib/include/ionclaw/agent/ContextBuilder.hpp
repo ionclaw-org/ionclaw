@@ -33,7 +33,7 @@ public:
 
     static void addToolResult(std::vector<ionclaw::provider::Message> &messages, const std::string &toolCallId, const std::string &toolName, const std::string &result, const nlohmann::json &media = nlohmann::json());
 
-    static void addAssistantMessage(std::vector<ionclaw::provider::Message> &messages, const std::string &content, const std::vector<ionclaw::provider::ToolCall> &toolCalls = {}, const std::string &reasoningContent = "");
+    static void addAssistantMessage(std::vector<ionclaw::provider::Message> &messages, const std::string &content, const std::vector<ionclaw::provider::ToolCall> &toolCalls = {}, const std::string &reasoningContent = "", const nlohmann::json &reasoningBlocks = nlohmann::json());
 
     static std::string buildSubagentContext(int depth, int maxDepth);
     static void enforceToolResultBudget(std::vector<ionclaw::provider::Message> &messages, int maxTotalChars);
@@ -56,6 +56,7 @@ private:
 
     static std::string getChannelGuidance(const std::string &channel);
     static std::string contentToText(const nlohmann::json &content);
+    static bool hasImportantTail(const std::string &content, size_t scanBytes = 2000);
 
     std::string readProjectFile(const std::string &filename) const;
     std::string buildDirectoryContext() const;

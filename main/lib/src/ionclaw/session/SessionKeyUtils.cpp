@@ -100,7 +100,7 @@ std::string SessionKeyUtils::extractChatId(const std::string &key)
 
 bool SessionKeyUtils::isAgentScoped(const std::string &key)
 {
-    return key.size() > 6 && key.rfind(AGENT_PREFIX, 0) == 0;
+    return key.size() > 6 && key.starts_with(AGENT_PREFIX);
 }
 
 } // namespace session

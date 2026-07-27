@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "ionclaw/provider/AnthropicProvider.hpp"
+#include "ionclaw/provider/ClaudeCliProvider.hpp"
 #include "ionclaw/provider/FailoverProvider.hpp"
 #include "ionclaw/provider/LlamaProvider.hpp"
 #include "ionclaw/provider/OpenAiProvider.hpp"
@@ -18,11 +19,8 @@ namespace ionclaw
 namespace provider
 {
 
-namespace
-{
-
 // llama runs a local gguf file pointed to by base_url, so it bypasses the credential-based flow
-std::shared_ptr<LlmProvider> makeLlamaProvider(const std::string &modelPath, const nlohmann::json &params)
+std::shared_ptr<LlmProvider> ProviderFactory::makeLlamaProvider(const std::string &modelPath, const nlohmann::json &params)
 {
 #ifdef IONCLAW_HAS_LLAMA_CPP
     if (modelPath.empty())
@@ -38,13 +36,13 @@ std::shared_ptr<LlmProvider> makeLlamaProvider(const std::string &modelPath, con
 #endif
 }
 
-std::string fileNameOf(const std::string &path)
+std::string ProviderFactory::fileNameOf(const std::string &path)
 {
     auto pos = path.find_last_of("/\\");
     return pos == std::string::npos ? path : path.substr(pos + 1);
 }
 
-bool startsWithCaseInsensitive(const std::string &text, const std::string &prefix)
+bool ProviderFactory::startsWithCaseInsensitive(const std::string &text, const std::string &prefix)
 {
     if (prefix.size() > text.size())
     {
@@ -62,7 +60,7 @@ bool startsWithCaseInsensitive(const std::string &text, const std::string &prefi
     return true;
 }
 
-bool isModelFile(const std::string &fileName)
+bool ProviderFactory::isModelFile(const std::string &fileName)
 {
     static const std::string suffix = ".gguf";
 
@@ -75,7 +73,7 @@ bool isModelFile(const std::string &fileName)
 }
 
 // finds the provider whose base_url file name matches the term after "llama/", skipping anything that is not a model file
-const ionclaw::config::ProviderConfig &resolveLlamaProvider(const ionclaw::config::Config &config, const std::string &requested)
+const ionclaw::config::ProviderConfig &ProviderFactory::resolveLlamaProvider(const ionclaw::config::Config &config, const std::string &requested)
 {
     for (const auto &[key, provider] : config.providers)
     {
@@ -97,8 +95,6 @@ const ionclaw::config::ProviderConfig &resolveLlamaProvider(const ionclaw::confi
     throw std::runtime_error("[ProviderFactory] no provider has a model file matching 'llama/" + requested + "'");
 }
 
-} // namespace
-
 std::string ProviderFactory::defaultBaseUrl(const std::string &providerName)
 {
     static const std::map<std::string, std::string> defaults = {
@@ -107,10 +103,26 @@ std::string ProviderFactory::defaultBaseUrl(const std::string &providerName)
         {"openrouter", "https://openrouter.ai/api/v1"},
         {"deepseek", "https://api.deepseek.com/v1"},
         {"grok", "https://api.x.ai/v1"},
+        {"xai", "https://api.x.ai/v1"},
         {"google", "https://generativelanguage.googleapis.com/v1beta/openai"},
         {"gemini", "https://generativelanguage.googleapis.com/v1beta/openai"},
         {"kimi", "https://api.moonshot.cn/v1"},
         {"moonshot", "https://api.moonshot.cn/v1"},
+        {"ollama", "http://localhost:11434/v1"},
+        // additional openai-compatible providers (litellm-equivalent thin configs)
+        {"groq", "https://api.groq.com/openai/v1"},
+        {"mistral", "https://api.mistral.ai/v1"},
+        {"together", "https://api.together.xyz/v1"},
+        {"togetherai", "https://api.together.xyz/v1"},
+        {"fireworks", "https://api.fireworks.ai/inference/v1"},
+        {"fireworks_ai", "https://api.fireworks.ai/inference/v1"},
+        {"deepinfra", "https://api.deepinfra.com/v1/openai"},
+        {"perplexity", "https://api.perplexity.ai"},
+        {"cerebras", "https://api.cerebras.ai/v1"},
+        {"sambanova", "https://api.sambanova.ai/v1"},
+        {"nvidia", "https://integrate.api.nvidia.com/v1"},
+        {"nvidia_nim", "https://integrate.api.nvidia.com/v1"},
+        {"lm_studio", "http://localhost:1234/v1"},
     };
 
     auto it = defaults.find(providerName);
@@ -129,7 +141,7 @@ std::shared_ptr<LlmProvider> ProviderFactory::create(const std::string &provider
     }
 
     // all other providers use OpenAI-compatible API
-    if (providerName == "openai" || providerName == "openrouter" || providerName == "deepseek" || providerName == "grok" || providerName == "google" || providerName == "gemini" || providerName == "kimi" || providerName == "moonshot")
+    if (providerName == "openai" || providerName == "openrouter" || providerName == "deepseek" || providerName == "grok" || providerName == "google" || providerName == "gemini" || providerName == "kimi" || providerName == "moonshot" || providerName == "ollama")
     {
         return std::make_shared<OpenAiProvider>(apiKey, resolvedUrl, timeout, extraHeaders);
     }
@@ -155,6 +167,19 @@ std::shared_ptr<LlmProvider> ProviderFactory::createFromModel(const std::string 
         const auto &provider = resolveLlamaProvider(config, requested);
 
         return makeLlamaProvider(provider.baseUrl, provider.modelParams);
+    }
+
+    // the "claude-cli/" prefix drives the local claude binary, so it needs no credential or base_url
+    if (providerName == "claude-cli")
+    {
+        auto cliModel = slashPos != std::string::npos ? model.substr(slashPos + 1) : std::string();
+
+        if (cliModel.empty())
+        {
+            throw std::runtime_error("[ProviderFactory] claude-cli provider requires a model after the prefix, e.g. 'claude-cli/opus'");
+        }
+
+        return std::make_shared<ClaudeCliProvider>(cliModel);
     }
 
     // resolve provider config from the model string for everything else

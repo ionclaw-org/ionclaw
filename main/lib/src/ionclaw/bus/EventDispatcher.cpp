@@ -7,6 +7,8 @@ namespace ionclaw
 namespace bus
 {
 
+thread_local int EventDispatcher::broadcastDepth = 0;
+
 void EventDispatcher::addHandler(EventHandler handler)
 {
     std::lock_guard<std::mutex> lock(mutex);
@@ -21,8 +23,17 @@ void EventDispatcher::addNamedHandler(const std::string &id, EventHandler handle
 
 void EventDispatcher::removeHandler(const std::string &id)
 {
-    std::lock_guard<std::mutex> lock(mutex);
+    std::unique_lock<std::mutex> lock(mutex);
     namedHandlers.erase(id);
+
+    // a handler removing itself mid-broadcast on this thread cannot wait for its own broadcast to finish
+    if (broadcastDepth > 0)
+    {
+        return;
+    }
+
+    // wait for in-flight broadcasts to drain so a removed handler is never invoked on a destroyed owner
+    idle.wait(lock, [this]() { return broadcasting == 0; });
 }
 
 void EventDispatcher::broadcast(const std::string &eventType, const nlohmann::json &data)
@@ -37,7 +48,10 @@ void EventDispatcher::broadcast(const std::string &eventType, const nlohmann::js
         {
             namedCopy.push_back(h);
         }
+        ++broadcasting;
     }
+
+    ++broadcastDepth;
 
     for (const auto &handler : handlersCopy)
     {
@@ -47,7 +61,12 @@ void EventDispatcher::broadcast(const std::string &eventType, const nlohmann::js
         }
         catch (const std::exception &e)
         {
-            spdlog::error("[EventDispatcher] handler exception: {}", e.what());
+            spdlog::error("[EventDispatcher] Handler exception: {}", e.what());
+        }
+        catch (...)
+        {
+            // never let a handler escape, or the broadcasting counter would leak and drain() would hang forever
+            spdlog::error("[EventDispatcher] Handler threw a non-standard exception");
         }
     }
 
@@ -59,8 +78,22 @@ void EventDispatcher::broadcast(const std::string &eventType, const nlohmann::js
         }
         catch (const std::exception &e)
         {
-            spdlog::error("[EventDispatcher] named handler exception: {}", e.what());
+            spdlog::error("[EventDispatcher] Named handler exception: {}", e.what());
         }
+        catch (...)
+        {
+            // never let a handler escape, or the broadcasting counter would leak and drain() would hang forever
+            spdlog::error("[EventDispatcher] Named handler threw a non-standard exception");
+        }
+    }
+
+    --broadcastDepth;
+
+    std::lock_guard<std::mutex> lock(mutex);
+
+    if (--broadcasting == 0)
+    {
+        idle.notify_all();
     }
 }
 

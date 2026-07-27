@@ -182,12 +182,12 @@ int Application::cmdInit(int argc, char *argv[])
 
     if (success)
     {
-        // create workspace directories
+        // orchestrator state lives at the project root; the agent workspace holds the agent's own files, including public/
         std::error_code ec;
-        std::filesystem::create_directories(targetDir + "/workspace/sessions", ec);
+        std::filesystem::create_directories(targetDir + "/sessions", ec);
         std::filesystem::create_directories(targetDir + "/workspace/skills", ec);
         std::filesystem::create_directories(targetDir + "/workspace/memory", ec);
-        std::filesystem::create_directories(targetDir + "/public", ec);
+        std::filesystem::create_directories(targetDir + "/workspace/public", ec);
         std::filesystem::create_directories(targetDir + "/skills", ec);
 
         std::cout << "Project initialized successfully.\n";

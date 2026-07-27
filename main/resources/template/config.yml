@@ -2,6 +2,9 @@ bot:
   name: "My Assistant"
   description: "A helpful AI assistant"
 
+# iana timezone for the assistant clock in the prompt and the default for cron jobs, empty uses the server local zone
+# timezone: "America/Sao_Paulo"
+
 server:
   host: "0.0.0.0"
   port: 8080
@@ -70,7 +73,9 @@ credentials:
 #   openrouter - Multi-model router (OpenAI-compatible)
 #   kimi       - Moonshot Kimi models (OpenAI-compatible)
 #   deepseek   - DeepSeek models (OpenAI-compatible)
+#   ollama     - Local models via Ollama (OpenAI-compatible, offline, no credential)
 #   llama      - Local GGUF models via llama.cpp (offline, no credential)
+#   claude-cli - Local Claude Code binary using the logged-in subscription (text only, no tools)
 #
 # Model format: "provider/model-name" (e.g., "anthropic/claude-sonnet-4-6")
 # All providers support text and image input, streaming and non-streaming.
@@ -106,6 +111,15 @@ providers:
   deepseek:
     credential: deepseek
     # base_url: https://api.deepseek.com/v1
+
+  # ollama - local inference via a running Ollama server, no credential needed
+  # pull a model first with "ollama pull <name>" and select it with "ollama/<name>"
+  # ollama:
+  #   base_url: http://localhost:11434/v1
+
+  # claude-cli - runs the local claude binary with the logged-in subscription (no api tokens)
+  # install and authenticate Claude Code first, then select it with "claude-cli/<model>" (e.g. "claude-cli/opus")
+  # it answers in a single turn with text only, so agents using it should have no tools configured
 
   # llama - local inference via llama.cpp (requires building with -DIONCLAW_LLAMA_CPP=ON)
   # declare one provider per .gguf file, base_url is the file path and no credential is used

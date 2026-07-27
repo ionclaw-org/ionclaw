@@ -17,7 +17,6 @@
 #include "ionclaw/agent/ContextBuilder.hpp"
 #include "ionclaw/agent/HookRunner.hpp"
 #include "ionclaw/agent/MemoryStore.hpp"
-#include "ionclaw/agent/SkillsLoader.hpp"
 #include "ionclaw/agent/SubagentRegistry.hpp"
 #include "ionclaw/bus/EventDispatcher.hpp"
 #include "ionclaw/bus/MessageBus.hpp"
@@ -38,7 +37,6 @@ struct ActiveTurnHandle
 {
     std::string agentName;
     std::string taskId;
-    std::chrono::steady_clock::time_point startedAt;
     std::atomic<bool> aborted{false};
 };
 
@@ -53,15 +51,13 @@ public:
 
     void setCronService(std::shared_ptr<ionclaw::cron::CronService> cs);
 
-    std::vector<nlohmann::json> getToolDefinitions() const;
     std::vector<nlohmann::json> getFlatToolDefinitions() const;
-    std::vector<std::string> getAgentNames() const;
 
     bool isSessionActive(const std::string &sessionKey) const;
     std::shared_ptr<ActiveTurnHandle> getActiveTurn(const std::string &sessionKey) const;
     bool stopSession(const std::string &sessionKey, const std::string &reason);
 
-    ionclaw::bus::SessionQueue *getSessionQueue() const { return sessionQueue.get(); }
+    std::shared_ptr<ionclaw::bus::SessionQueue> getSessionQueue() const;
 
 private:
     std::shared_ptr<ionclaw::bus::MessageBus> bus;
@@ -76,7 +72,6 @@ private:
     std::map<std::string, std::shared_ptr<AgentLoop>> agentLoops;
     std::map<std::string, std::shared_ptr<ionclaw::provider::LlmProvider>> providers;
     std::map<std::string, std::unique_ptr<ContextBuilder>> contextBuilders;
-    std::map<std::string, std::shared_ptr<SkillsLoader>> skillsLoaders;
 
     std::shared_ptr<SubagentRegistry> subagentRegistry;
     std::shared_ptr<AnnounceQueue> announceQueue;
@@ -85,6 +80,8 @@ private:
 
     std::atomic<bool> running{false};
     std::thread workerThread;
+
+    mutable std::mutex lifecycleMutex;
 
     std::map<std::string, std::shared_ptr<ActiveTurnHandle>> activeTurns;
     mutable std::mutex activeTurnsMutex;
