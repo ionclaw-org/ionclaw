@@ -29,7 +29,7 @@ public:
     // returns the record for a model (exact key, then after stripping a provider/ prefix), or nullopt if unknown
     static std::optional<ModelInfo> lookup(const std::string &model);
 
-    // capability queries; an unknown model defaults to permissive so a valid but unlisted model is never silently degraded
+    // capability queries default an unknown model to permissive so a valid but unlisted model is never silently degraded
     static bool supportsVision(const std::string &model, bool defaultIfUnknown = true);
     static bool supportsReasoning(const std::string &model, bool defaultIfUnknown = true);
     static bool supportsFunctionCalling(const std::string &model, bool defaultIfUnknown = true);

@@ -3,8 +3,7 @@ import Foundation
 import UserNotifications
 
 // bridges the native invoke_platform tool to apple platform features.
-// the agent calls invoke_platform("local-notification.send", {title, message}) and the core
-// forwards it here via the async c callback; we must respond exactly once per request.
+// the core forwards each invoke_platform call here via the async c callback, and we respond exactly once per request.
 final class IonClawPlatform: NSObject, UNUserNotificationCenterDelegate {
     static let shared = IonClawPlatform()
 
@@ -36,7 +35,7 @@ final class IonClawPlatform: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().requestAuthorization(options: options) { _, _ in }
     }
 
-    // dispatches a request coming from the native core. runs on a core thread and must not block;
+    // dispatches a request from the native core on a core thread and must not block.
     // the response is delivered later from the async completion handler.
     func handle(requestId: Int64, function: String, paramsJson: String) {
         switch function {

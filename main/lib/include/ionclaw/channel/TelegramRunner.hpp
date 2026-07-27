@@ -53,7 +53,7 @@ private:
     void sendTextMessage(const std::string &chatId, const std::string &text, int replyToMessageId = 0);
     void sendChunkedMessage(const std::string &chatId, const std::string &text, int replyToMessageId = 0);
 
-    // sends a media attachment by public url; kind is image|audio|video|document
+    // sends a media attachment by public url with kind image, audio, video, or document
     void sendMediaByUrl(const std::string &chatId, const std::string &kind, const std::string &url, const std::string &caption, int replyToMessageId = 0);
 
     // turns a workspace media path into its public url, passing absolute urls through unchanged

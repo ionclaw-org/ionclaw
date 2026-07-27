@@ -48,7 +48,7 @@ if(IONCLAW_BUILD_SHARED)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
 
-# Apple platform deployment targets
+# apple platform deployment targets
 if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "iOS deployment target")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "watchOS")

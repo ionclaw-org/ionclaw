@@ -568,7 +568,7 @@ private:
     ChromeManager() = default;
     ~ChromeManager() { shutdown(); }
 
-    // terminate the browser we launched and forget it; caller must hold mutex
+    // terminate the browser we launched and forget it, with the caller holding the mutex
     bool terminateProcessLocked()
     {
         if (pid <= 0)
@@ -3773,8 +3773,7 @@ static std::string actionSetTimezone(CdpTab &tab, const nlohmann::json &params)
 
     if (timezone.empty())
     {
-        // cdp requires a valid timezone id; use utc to effectively "clear" the override,
-        // then reload to apply the system timezone via a fresh page load
+        // cdp requires a valid timezone id, so use utc to clear the override and reload to apply the system timezone
         tab.sendCommand(cdp::emulation::SetTimezoneOverride, {{"timezoneId", "Etc/UTC"}});
         return "Timezone override set to UTC. To fully restore the system timezone, reload the page after clearing.";
     }

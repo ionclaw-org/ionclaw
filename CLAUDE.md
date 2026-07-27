@@ -33,6 +33,7 @@ Code and comments are in English. The code must read as if an experienced produc
 
 ### Comments
 
+- These rules apply to every language in the repo, not just C++: `//` in C++, Swift, Kotlin, and Dart, and `#` in CMake, Makefile, YAML, and shell all follow the same standard. No `====`/`----` banner rows and no capitalized section headers anywhere, including build files.
 - Comments are rare and used only where naming cannot carry the meaning. If it is obvious, decorative, or restates the code, delete it.
 - A comment explains intent or context, not the literal code.
 - Never add artificial section separators like `helpers`, `validators`, or `public methods`. Never write header comments that describe a method, a member, or a section.

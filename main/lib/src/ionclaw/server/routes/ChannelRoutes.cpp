@@ -63,7 +63,7 @@ void Routes::handleChannelGet(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSer
             out["require_auth"] = ch.raw["require_auth"].get<bool>();
         }
 
-        // whatsapp string fields; secrets are masked so they are never echoed back to the client
+        // whatsapp string fields with secrets masked so they are never echoed back to the client
         static const std::vector<std::pair<std::string, bool>> whatsAppFields = {{"instance_id", false}, {"instance_token", true}, {"client_token", true}, {"access_token", true}, {"phone_number_id", false}, {"verify_token", true}, {"app_secret", true}, {"graph_version", false}};
 
         for (const auto &[key, secret] : whatsAppFields)
@@ -87,7 +87,7 @@ void Routes::handleChannelUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::H
         auto configData = body.value("config", nlohmann::json::object());
 
         {
-            // the whatsapp channels can be created from the api on first configuration; other unknown names are rejected
+            // the whatsapp channels can be created from the api on first configuration while other unknown names are rejected
             auto config = configStore->snapshot();
             if (name != "whatsapp_zapi" && name != "whatsapp_meta" && config->channels.find(name) == config->channels.end())
             {
@@ -137,7 +137,7 @@ void Routes::handleChannelUpdate(Poco::Net::HTTPServerRequest &req, Poco::Net::H
                 ch.raw["require_auth"] = configData["require_auth"].get<bool>();
             }
 
-            // whatsapp string fields; a masked or empty secret keeps the stored value so it is not wiped
+            // whatsapp string fields where a masked or empty secret keeps the stored value so it is not wiped
             static const std::vector<std::pair<std::string, bool>> whatsAppFields = {{"instance_id", false}, {"instance_token", true}, {"client_token", true}, {"access_token", true}, {"phone_number_id", false}, {"verify_token", true}, {"app_secret", true}, {"graph_version", false}};
 
             for (const auto &[key, secret] : whatsAppFields)

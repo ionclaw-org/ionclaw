@@ -38,7 +38,7 @@ public:
 
     void handleAuthLogin(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
 
-    // inbound whatsapp webhooks (unauthenticated; verified by provider signature/token)
+    // inbound whatsapp webhooks that are unauthenticated but verified by the provider signature or token
     void handleWhatsAppZApiWebhook(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
     void handleWhatsAppMetaWebhook(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPServerResponse &resp);
 

@@ -140,8 +140,7 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
             inbound.queueMode = ionclaw::bus::SessionQueue::normalizeQueueMode(body["queue_mode"].get<std::string>());
         }
 
-        // steer bypass: if session has an active turn and mode is steer_compatible,
-        // inject directly into SessionQueue (bypasses MessageBus which blocks during turns)
+        // steer a session that has an active turn straight into the SessionQueue, bypassing the MessageBus that blocks during turns
         auto config = configStore->snapshot();
         if (inbound.queueMode.has_value() && orchestrator && config && orchestrator->isSessionActive(sessionKey))
         {

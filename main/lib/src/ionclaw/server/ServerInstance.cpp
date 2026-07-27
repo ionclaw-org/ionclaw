@@ -128,7 +128,7 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
 
         configStore = std::make_shared<ionclaw::config::ConfigStore>(cfg);
 
-        // create core components; orchestrator state lives at the project root, outside the agent's workspace
+        // create the core components whose state lives at the project root, outside the agent workspace
         dispatcher = std::make_shared<ionclaw::bus::EventDispatcher>();
         bus = std::make_shared<ionclaw::bus::MessageBus>();
         sessionManager = std::make_shared<ionclaw::session::SessionManager>(resolvedPath + "/sessions", cfg.sessionBudget.maxDiskBytes, cfg.sessionBudget.highWaterRatio);
@@ -244,7 +244,7 @@ ServerResult ServerInstance::start(const std::string &projectPath, const std::st
         heartbeatService = std::make_shared<ionclaw::heartbeat::HeartbeatService>(bus, sessionManager, defaultWorkspace, cfg.heartbeat.interval, cfg.heartbeat.enabled, cfg.heartbeat.agent);
         heartbeatService->start();
 
-        // create and start cron service; its job store lives at the project root, outside the agent's workspace
+        // create and start the cron service whose job store lives at the project root, outside the agent workspace
         cronService = std::make_shared<ionclaw::cron::CronService>(bus, taskManager, resolvedPath);
         cronService->start();
 

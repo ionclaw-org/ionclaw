@@ -296,7 +296,7 @@ nlohmann::json AgentLoop::resolveMedia(const std::vector<std::string> &paths, co
 
     for (const auto &path : paths)
     {
-        // only process audio files for transcription; images are handled via vision tool
+        // only audio files are transcribed here, images go through the vision tool
         auto ext = fs::path(path).extension().string();
         ionclaw::util::StringHelper::toLowerInPlace(ext);
 
@@ -404,8 +404,7 @@ void UsageTracker::record(const nlohmann::json &usage)
         return;
     }
 
-    // a proxy may send a token field as null (e.g. cache_creation_input_tokens when caching is unused), and value()
-    // throws type_error.302 on an explicit null, so read each field only when it is actually an integer
+    // a proxy may send a token field as an explicit null, so read each field only when it is actually an integer
     // clang-format off
     auto readInt = [&usage](const char *key) {
         auto it = usage.find(key);
@@ -471,9 +470,8 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
     auto sessionKey = (message.metadata.contains("agent_session_key") && message.metadata["agent_session_key"].is_string()) ? message.metadata["agent_session_key"].get<std::string>() : message.sessionKey();
     auto baseKey = message.sessionKey();
 
-    // per-turn state lives on the stack; the active-turn handle and session queue are still shared members, so this is
-    // safe only because the orchestrator serializes turns on one worker thread and never runs two turns on one AgentLoop
-    // at once. enabling real per-agent concurrency would require threading these through TurnState instead of the members.
+    // per-turn state lives on the stack and is safe only because the orchestrator serializes turns on one worker thread.
+    // per-agent concurrency would require threading the shared active-turn handle and session queue through TurnState.
     TurnState turnState;
     turnState.sessionQueuePtr = defaultSessionQueuePtr.load(std::memory_order_acquire);
     turnState.activeTurnHandle = defaultActiveTurnHandle.load(std::memory_order_acquire);
@@ -643,10 +641,8 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
             }
         }
 
-        // save user message to the agent-scoped session
-        // channels pre-save under base key for immediate persistence; we also persist
-        // under the agent-scoped key so each agent has its own conversation history
-        // skip synthetic messages (steer injections, wake prompts) — not real user input
+        // channels pre-save under the base key, and this also persists under the agent-scoped key so each agent keeps its own history
+        // skip synthetic messages like steer injections and wake prompts that are not real user input
         bool isSynthetic = message.metadata.contains("synthetic") && message.metadata["synthetic"].is_boolean() && message.metadata["synthetic"].get<bool>();
 
         if (!isSynthetic)
@@ -759,8 +755,7 @@ void AgentLoop::processMessage(const ionclaw::bus::InboundMessage &message, cons
         // run agent loop
         auto responseText = runAgentLoop(messages, taskId, baseKey, sessionKey, agentName, toolContext, callback, turnState);
 
-        // resolve empty/silent responses: prefer message-tool content from this turn,
-        // then fall back to last sent content from a previous turn
+        // for an empty or silent response prefer message-tool content from this turn, then the last sent content from a previous turn
         if (responseText == "[SILENT]")
         {
             responseText = !messageToolDeliveredContent.empty() ? messageToolDeliveredContent : !turnState.lastSentContent.empty() ? turnState.lastSentContent
@@ -1437,8 +1432,7 @@ std::string AgentLoop::runAgentLoop(std::vector<ionclaw::provider::Message> &mes
                 }
             }
 
-            // assemble final text: use last iteration's content if non-empty,
-            // otherwise fall back to accumulated text from all iterations
+            // use the last iteration's content when non-empty, otherwise the text accumulated across all iterations
             std::string finalText = response.content;
 
             if (finalText.empty() && iteration > 0)

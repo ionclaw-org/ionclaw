@@ -145,8 +145,7 @@ Session &SessionManager::getOrCreateLocked(const std::string &sessionKey)
         loadFromDisk(sessionKey);
     }
 
-    // covers both a missing file and an existing file that failed to load; a bare cache[key] here would default-construct
-    // a session with an empty key and empty timestamps that masks the real file, so build a properly keyed session instead
+    // a bare cache[key] would default-construct a session with an empty key that masks the real file, so build a properly keyed one
     if (cache.find(sessionKey) == cache.end())
     {
         Session session;
@@ -273,7 +272,7 @@ bool SessionManager::addMessage(const std::string &sessionKey, const SessionMess
 
         if (it == cache.end())
         {
-            // session was evicted between ensureSession and here; reload from disk to preserve timestamps
+            // the session was evicted between ensureSession and here, so reload from disk to preserve timestamps
             auto filePath = sessionFilePath(sessionKey);
 
             if (fs::exists(filePath))

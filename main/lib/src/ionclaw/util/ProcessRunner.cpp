@@ -164,7 +164,7 @@ ProcessResult ProcessRunner::run(const std::string &, int, size_t, const std::fu
     return result;
 }
 
-#else // POSIX (Linux, macOS)
+#else // posix branch for linux and macos
 
 void ProcessRunner::collectExitStatus(ProcessResult &result, int status)
 {

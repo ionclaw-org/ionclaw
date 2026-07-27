@@ -332,7 +332,7 @@ nlohmann::json OpenAiProvider::buildRequestBody(const ChatCompletionRequest &req
                 m["name"] = msg.name;
             }
 
-            // the tool message keeps only text; images are moved to a following user message so openai accepts the request
+            // the tool message keeps only text and moves images to a following user message so openai accepts the request
             if (msg.contentBlocks.is_array() && !msg.contentBlocks.empty())
             {
                 std::string toolText;

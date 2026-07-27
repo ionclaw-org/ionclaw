@@ -90,7 +90,7 @@ void Orchestrator::start()
     // create hook runner
     hookRunner = std::make_shared<HookRunner>();
 
-    // create subagent registry and announce queue; orchestrator state lives at the project root, outside the agent's workspace
+    // create the subagent registry and announce queue whose state lives at the project root, outside the agent workspace
     auto newSubagentRegistry = std::make_shared<SubagentRegistry>(config.projectPath);
     newSubagentRegistry->load();
     newSubagentRegistry->recoverStaleRuns();
@@ -146,7 +146,7 @@ void Orchestrator::start()
             // prefix-based providers (e.g. claude-cli) have no config entry and no provider-level params
             if (providerConfig && providerConfig->modelParams.is_object() && !providerConfig->modelParams.empty())
             {
-                // provider params are the base; agent params override
+                // provider params are the base and agent params override them
                 auto merged = providerConfig->modelParams;
                 if (resolvedAgentConfig.modelParams.is_object())
                 {
@@ -916,8 +916,7 @@ void Orchestrator::processMessageDirect(const ionclaw::bus::InboundMessage &mess
         handleSubagentCompletion(subagentRunId, outcome, turnAborted);
     }
 
-    // if this parent turn spawned children that are still running,
-    // keep the task in Doing so the UI shows the agent is still working
+    // keep the task in Doing while this parent turn still has children running so the ui shows the agent is working
     if (subagentRunId.empty() && subagentRegistry && !turnHandle->taskId.empty() && !subagentRegistry->allChildrenTerminal(sessionKey))
     {
         // re-mark task as Doing (processMessage already set it to Done)

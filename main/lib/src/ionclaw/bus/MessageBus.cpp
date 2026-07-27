@@ -25,7 +25,7 @@ bool MessageBus::isDuplicate(const InboundMessage &msg)
 
     purgeExpiredDedup();
 
-    // test only; the key is recorded once the message is actually accepted so a rejected retry is not swallowed
+    // test only, since the key is recorded once the message is accepted so a rejected retry is not swallowed
     auto it = recentInbound.find(dedupKey(msg));
 
     if (it != recentInbound.end())
@@ -91,7 +91,7 @@ bool MessageBus::exceedsSessionRate(const InboundMessage &msg)
         times.pop_front();
     }
 
-    // test only; the timestamp is recorded on accept so a message dropped by a later check does not burn a rate slot
+    // test only, since the timestamp is recorded on accept so a message dropped by a later check does not burn a rate slot
     return times.size() >= MAX_PER_SESSION_IN_WINDOW;
 }
 
