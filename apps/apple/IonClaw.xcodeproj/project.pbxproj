@@ -679,6 +679,7 @@
 				);
 				INFOPLIST_FILE = watchOS/Resources/Info.plist;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.watch;
+				PRODUCT_NAME = "IonClaw Watch App";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = 4;
@@ -715,6 +716,7 @@
 				);
 				INFOPLIST_FILE = watchOS/Resources/Info.plist;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.watch;
+				PRODUCT_NAME = "IonClaw Watch App";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = 4;

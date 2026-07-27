@@ -78,6 +78,7 @@ targets:
       - path: watchOS/Resources/Assets.xcassets
     settings:
       base:
+        PRODUCT_NAME: "IonClaw Watch App"
         PRODUCT_BUNDLE_IDENTIFIER: com.ionclaw.app.watch
         INFOPLIST_FILE: watchOS/Resources/Info.plist
         TARGETED_DEVICE_FAMILY: "4"
