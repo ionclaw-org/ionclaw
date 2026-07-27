@@ -678,7 +678,7 @@
 					"\"../../build/xcframework\"",
 				);
 				INFOPLIST_FILE = watchOS/Resources/Info.plist;
-				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.watchkitapp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.watch;
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = 4;
@@ -714,7 +714,7 @@
 					"\"../../build/xcframework\"",
 				);
 				INFOPLIST_FILE = watchOS/Resources/Info.plist;
-				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.watchkitapp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ionclaw.app.watch;
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = 4;

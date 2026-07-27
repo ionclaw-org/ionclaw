@@ -78,7 +78,7 @@ targets:
       - path: watchOS/Resources/Assets.xcassets
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ionclaw.app.watchkitapp
+        PRODUCT_BUNDLE_IDENTIFIER: com.ionclaw.app.watch
         INFOPLIST_FILE: watchOS/Resources/Info.plist
         TARGETED_DEVICE_FAMILY: "4"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
