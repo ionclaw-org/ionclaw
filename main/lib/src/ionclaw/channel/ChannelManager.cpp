@@ -58,9 +58,26 @@ void ChannelManager::stopChannel(const std::string &name)
 
 void ChannelManager::stopAll()
 {
-    std::lock_guard<std::mutex> lock(mutex);
-    stopTelegram();
-    stopWhatsApp();
+    std::unique_ptr<TelegramRunner> telegram;
+    std::unique_ptr<WhatsAppRunner> whatsApp;
+
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        telegram = std::move(telegramRunner);
+        whatsApp = std::move(whatsAppRunner);
+    }
+
+    // join the runners outside the lock so a 32s telegram long-poll cannot hold the manager mutex for its whole window
+    if (telegram)
+    {
+        telegram->stop();
+    }
+
+    if (whatsApp)
+    {
+        whatsApp->stop();
+    }
+
     stopMcp();
 }
 

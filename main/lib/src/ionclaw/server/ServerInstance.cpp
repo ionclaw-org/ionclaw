@@ -347,6 +347,12 @@ ServerResult ServerInstance::stop()
         // set abort cutoff on all active sessions before shutdown
         sessionManager->setAbortCutoffAll();
 
+        // disable the mcp channel first so a parked streaming handler releases its pool thread before we join the http pool
+        if (mcpDispatcher)
+        {
+            mcpDispatcher->disable();
+        }
+
         // shutdown services
         httpServer->stop();
 

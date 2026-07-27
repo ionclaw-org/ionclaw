@@ -178,39 +178,63 @@ void CronService::tick()
 {
     auto nowMs = ionclaw::util::TimeHelper::epochMs();
 
-    std::lock_guard<std::mutex> lock(mutex);
-
-    std::vector<std::string> toDelete;
-    bool dirty = false;
-
-    for (auto &job : jobs)
+    struct DueJob
     {
-        if (job.state.status != "active")
+        std::string id;
+        std::string name;
+        CronPayload payload;
+        CronSchedule schedule;
+        bool oneShot = false;
+    };
+
+    // collect the jobs due now under the lock, then release it before any task creation, broadcast, or persistence
+    std::vector<DueJob> due;
+
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+
+        for (const auto &job : jobs)
         {
-            continue;
+            if (job.state.status != "active" || job.state.nextRunMs > nowMs)
+            {
+                continue;
+            }
+
+            due.push_back({job.id, job.name, job.payload, job.schedule, job.deleteAfterRun || job.schedule.kind == "at"});
         }
+    }
 
-        if (job.state.nextRunMs > nowMs)
-        {
-            continue;
-        }
+    if (due.empty())
+    {
+        return;
+    }
 
-        spdlog::info("[CronService] Executing job: {} (id: {})", job.name, job.id);
+    struct RunResult
+    {
+        std::string id;
+        bool ok = false;
+        bool oneShot = false;
+        int64_t nextRunMs = 0;
+    };
 
-        // publish inbound message to trigger agent processing
+    std::vector<RunResult> results;
+
+    for (const auto &d : due)
+    {
+        spdlog::info("[CronService] Executing job: {} (id: {})", d.name, d.id);
+
         try
         {
             // route through the originating channel so the response reaches the right place
-            auto effectiveChannel = job.payload.channel.empty() ? "web" : job.payload.channel;
-            auto effectiveChatId = job.payload.to.empty() ? "cron_" + job.id + "_" + ionclaw::util::UniqueId::shortId() : job.payload.to;
+            auto effectiveChannel = d.payload.channel.empty() ? "web" : d.payload.channel;
+            auto effectiveChatId = d.payload.to.empty() ? "cron_" + d.id + "_" + ionclaw::util::UniqueId::shortId() : d.payload.to;
 
-            // create task for board tracking
             std::string taskId;
 
             if (taskManager)
             {
-                auto taskTitle = "[cron] " + ionclaw::util::StringHelper::utf8SafeTruncate(job.name, 80);
-                auto task = taskManager->createTask(taskTitle, job.payload.message, effectiveChannel, effectiveChatId);
+                auto taskTitle = "[cron] " + ionclaw::util::StringHelper::utf8SafeTruncate(d.name, 80);
+                auto task = taskManager->createTask(taskTitle, d.payload.message, effectiveChannel, effectiveChatId);
                 taskId = task.id;
             }
 
@@ -218,8 +242,8 @@ void CronService::tick()
             msg.channel = effectiveChannel;
             msg.senderId = "cron";
             msg.chatId = effectiveChatId;
-            msg.content = job.payload.message;
-            msg.metadata = {{"cron_job_id", job.id}, {"cron_job_name", job.name}};
+            msg.content = d.payload.message;
+            msg.metadata = {{"cron_job_id", d.id}, {"cron_job_name", d.name}};
 
             if (!taskId.empty())
             {
@@ -228,29 +252,48 @@ void CronService::tick()
 
             bus->publishInbound(msg);
 
-            job.state.lastRunMs = nowMs;
-            job.state.runCount++;
-            dirty = true;
-
-            // handle one-shot jobs
-            if (job.deleteAfterRun || job.schedule.kind == "at")
-            {
-                toDelete.push_back(job.id);
-            }
-            else
-            {
-                job.state.nextRunMs = computeNextRunMs(job.schedule);
-            }
+            results.push_back({d.id, true, d.oneShot, d.oneShot ? 0 : computeNextRunMs(d.schedule)});
         }
         catch (const std::exception &e)
         {
-            spdlog::error("[CronService] Job {} failed: {}", job.id, e.what());
-            job.state.errors++;
-            dirty = true;
+            spdlog::error("[CronService] Job {} failed: {}", d.id, e.what());
+            results.push_back({d.id, false, false, 0});
         }
     }
 
-    // remove completed one-shot jobs
+    // reacquire the lock and commit onto the shared jobs, which may have been edited while it was released
+    std::lock_guard<std::mutex> lock(mutex);
+
+    std::vector<std::string> toDelete;
+
+    for (const auto &r : results)
+    {
+        auto it = std::find_if(jobs.begin(), jobs.end(), [&r](const CronJob &j) { return j.id == r.id; });
+
+        if (it == jobs.end())
+        {
+            continue;
+        }
+
+        if (!r.ok)
+        {
+            it->state.errors++;
+            continue;
+        }
+
+        it->state.lastRunMs = nowMs;
+        it->state.runCount++;
+
+        if (r.oneShot)
+        {
+            toDelete.push_back(r.id);
+        }
+        else
+        {
+            it->state.nextRunMs = r.nextRunMs;
+        }
+    }
+
     for (const auto &id : toDelete)
     {
         // clang-format off
@@ -258,10 +301,7 @@ void CronService::tick()
         // clang-format on
     }
 
-    if (dirty || !toDelete.empty())
-    {
-        persist();
-    }
+    persist();
 }
 
 void CronService::load()
