@@ -10,6 +10,7 @@
 #include "ionclaw/session/SessionManager.hpp"
 #include "ionclaw/util/FileHelper.hpp"
 #include "ionclaw/util/HttpClient.hpp"
+#include "ionclaw/util/RandomHelper.hpp"
 #include "ionclaw/util/StringHelper.hpp"
 #include "ionclaw/util/TimeHelper.hpp"
 #include "ionclaw/util/UniqueId.hpp"
@@ -152,6 +153,7 @@ void Routes::handleWhatsAppZApiWebhook(Poco::Net::HTTPServerRequest &req, Poco::
 
     bool enabled = false;
     std::vector<std::string> allowedUsers;
+    std::string webhookToken;
     {
         auto config = configStore->snapshot();
         auto it = config->channels.find("whatsapp_zapi");
@@ -160,6 +162,13 @@ void Routes::handleWhatsAppZApiWebhook(Poco::Net::HTTPServerRequest &req, Poco::
         {
             enabled = true;
             allowedUsers = it->second.allowedUsers;
+
+            const auto &raw = it->second.raw;
+
+            if (raw.is_object() && raw.contains("webhook_token") && raw["webhook_token"].is_string())
+            {
+                webhookToken = raw["webhook_token"].get<std::string>();
+            }
         }
     }
 
@@ -168,6 +177,29 @@ void Routes::handleWhatsAppZApiWebhook(Poco::Net::HTTPServerRequest &req, Poco::
         resp.setStatus(Poco::Net::HTTPResponse::HTTP_NOT_FOUND);
         sendJson(resp, {{"error", "z-api channel is not enabled"}});
         return;
+    }
+
+    // z-api cannot sign its webhooks, so a configured shared token in the url is the only authenticity check available
+    if (!webhookToken.empty())
+    {
+        std::string provided;
+
+        for (const auto &[key, value] : Poco::URI(req.getURI()).getQueryParameters())
+        {
+            if (key == "token")
+            {
+                provided = value;
+                break;
+            }
+        }
+
+        if (!ionclaw::util::RandomHelper::constantTimeEquals(provided, webhookToken))
+        {
+            spdlog::warn("[Routes] Z-api webhook token verification failed");
+            resp.setStatus(Poco::Net::HTTPResponse::HTTP_FORBIDDEN);
+            sendJson(resp, {{"error", "invalid token"}});
+            return;
+        }
     }
 
     try

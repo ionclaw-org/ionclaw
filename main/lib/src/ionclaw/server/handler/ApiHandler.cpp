@@ -92,7 +92,7 @@ void ApiHandler::routeRequest(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTP
         return;
     }
 
-    // version (public)
+    // version
     if (path == "/api/version" && method == "GET")
     {
         routes->handleVersion(req, resp);

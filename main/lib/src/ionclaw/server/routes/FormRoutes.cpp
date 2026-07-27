@@ -70,6 +70,7 @@ nlohmann::json Routes::buildFormSchemas()
         {{"name", "instance_id"}, {"type", "text"}, {"label", "Instance ID"}},
         {{"name", "instance_token"}, {"type", "secret"}, {"label", "Instance Token"}},
         {{"name", "client_token"}, {"type", "secret"}, {"label", "Account Client-Token"}},
+        {{"name", "webhook_token"}, {"type", "secret"}, {"label", "Webhook Token (append ?token= to the webhook url)"}},
     });
 
     schemas["channels_whatsapp_meta"] = json::array({

@@ -1,6 +1,7 @@
 #include "ionclaw/server/Routes.hpp"
 
 #include <filesystem>
+#include <stdexcept>
 
 #include "spdlog/spdlog.h"
 
@@ -274,8 +275,6 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
         auto body = nlohmann::json::parse(readBody(req));
         auto data = body.value("data", nlohmann::json::object());
 
-        std::string validationError;
-
         // clang-format off
         configStore->update([&](ionclaw::config::Config &config) {
         if (section == "bot")
@@ -303,8 +302,7 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
 
                 if (port < 1 || port > 65535)
                 {
-                    validationError = "Port must be between 1 and 65535";
-                    return;
+                    throw std::invalid_argument("Port must be between 1 and 65535");
                 }
 
                 config.server.port = port;
@@ -687,8 +685,7 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
         }
         else
         {
-            validationError = "Invalid section: " + section;
-            return;
+            throw std::invalid_argument("Invalid section: " + section);
         }
 
         // persist changes to disk
@@ -697,13 +694,13 @@ void Routes::handleConfigSection(Poco::Net::HTTPServerRequest &req, Poco::Net::H
         });
         // clang-format on
 
-        if (!validationError.empty())
-        {
-            sendError(resp, validationError);
-            return;
-        }
-
         sendJson(resp, {{"status", "ok"}});
+    }
+    catch (const std::invalid_argument &e)
+    {
+        // a rejected edit throws out of the mutator, so ConfigStore discards the copy and nothing is partially applied
+        sendError(resp, e.what());
+        return;
     }
     catch (const std::exception &e)
     {

@@ -30,7 +30,6 @@ agent::SkillsLoader Routes::createSkillsLoader(const config::Config &cfg, const 
     return agent::SkillsLoader(cfg.projectPath, workspacePath);
 }
 
-// the caller must hold configMutex, as this reads config->agents and the config passed to the loader
 std::string Routes::resolveWorkspaceForSkill(const std::string &skillName) const
 {
     auto config = configStore->snapshot();

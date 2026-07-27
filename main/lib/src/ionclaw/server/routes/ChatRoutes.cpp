@@ -153,12 +153,7 @@ void Routes::handleChatSend(Poco::Net::HTTPServerRequest &req, Poco::Net::HTTPSe
 
                 if (sq)
                 {
-                    ionclaw::bus::QueueSettings settings;
-
-                    {
-                        std::lock_guard<std::mutex> lock(configMutex);
-                        settings = ionclaw::bus::SessionQueue::resolveQueueSettings(*config, channel, inbound.queueMode);
-                    }
+                    auto settings = ionclaw::bus::SessionQueue::resolveQueueSettings(*config, channel, inbound.queueMode);
 
                     // tag both copies with a shared id so the followup backup is dropped if the steer copy is consumed
                     if (mode == ionclaw::bus::QueueMode::SteerBacklog)

@@ -124,8 +124,8 @@ private:
     std::string publicDir;
     std::string workspaceDir;
 
-    // guards the remaining config reads that are not yet on ConfigStore snapshots
-    std::mutex configMutex;
+    // serializes channel start/stop so two concurrent requests cannot both pass the running check
+    std::mutex channelMutex;
 
     // deduplicates redelivered inbound webhook messages across both whatsapp providers
     ionclaw::channel::WebhookDedup webhookDedup;

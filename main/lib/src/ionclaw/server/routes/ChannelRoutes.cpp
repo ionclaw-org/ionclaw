@@ -171,6 +171,9 @@ void Routes::handleChannelStart(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPS
 {
     try
     {
+        // serialize the check-and-set so two concurrent starts cannot both pass the running check and double-bind the channel
+        std::lock_guard<std::mutex> lock(channelMutex);
+
         {
             auto config = configStore->snapshot();
             auto it = config->channels.find(name);
@@ -213,6 +216,9 @@ void Routes::handleChannelStop(Poco::Net::HTTPServerRequest &, Poco::Net::HTTPSe
 {
     try
     {
+        // serialize with start so a concurrent start/stop pair cannot interleave their check and set
+        std::lock_guard<std::mutex> lock(channelMutex);
+
         {
             auto config = configStore->snapshot();
             auto it = config->channels.find(name);
