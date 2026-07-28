@@ -14,6 +14,8 @@ BUILD_TVOS_ARM64        := build/tvos-arm64
 BUILD_TVOS_SIM_ARM64    := build/tvos-sim-arm64
 BUILD_TVOS_SIM_X86      := build/tvos-sim-x86_64
 BUILD_WATCHOS_ARM64     := build/watchos-arm64
+BUILD_WATCHOS_ARM64_32  := build/watchos-arm64_32
+BUILD_WATCHOS_ARM64_64  := build/watchos-arm64-64
 BUILD_WATCHOS_SIM_ARM64 := build/watchos-sim-arm64
 BUILD_WATCHOS_SIM_X86   := build/watchos-sim-x86_64
 BUILD_XCFRAMEWORK       := build/xcframework
@@ -254,13 +256,27 @@ build-tvos-sim-x86: ## Build tvOS simulator x86_64 shared library
 	@echo "==> Done: $(BUILD_TVOS_SIM_X86)/lib/"
 
 .PHONY: build-watchos-arm64
-build-watchos-arm64: ## Build watchOS arm64_32 shared library
-	@echo "==> Building watchOS arm64_32..."
-	cmake -B $(BUILD_WATCHOS_ARM64) $(CMAKE_SHARED_FLAGS) \
+build-watchos-arm64: ## Build watchOS device shared library (arm64_32 + arm64)
+	@echo "==> Building watchOS device arm64_32..."
+	cmake -B $(BUILD_WATCHOS_ARM64_32) $(CMAKE_SHARED_FLAGS) \
 		-DCMAKE_SYSTEM_NAME=watchOS \
 		-DCMAKE_OSX_ARCHITECTURES=arm64_32 \
 		-DCMAKE_OSX_SYSROOT=watchos
-	cmake --build $(BUILD_WATCHOS_ARM64) -j$(NPROC)
+	cmake --build $(BUILD_WATCHOS_ARM64_32) -j$(NPROC)
+	@echo "==> Building watchOS device arm64..."
+	cmake -B $(BUILD_WATCHOS_ARM64_64) $(CMAKE_SHARED_FLAGS) \
+		-DCMAKE_SYSTEM_NAME=watchOS \
+		-DCMAKE_OSX_ARCHITECTURES=arm64 \
+		-DCMAKE_OSX_SYSROOT=watchos
+	cmake --build $(BUILD_WATCHOS_ARM64_64) -j$(NPROC)
+	@echo "==> Creating watchOS device fat framework (arm64_32 + arm64)..."
+	rm -rf $(BUILD_WATCHOS_ARM64)/lib/ionclaw.framework
+	mkdir -p $(BUILD_WATCHOS_ARM64)/lib
+	cp -R $(BUILD_WATCHOS_ARM64_32)/lib/ionclaw.framework $(BUILD_WATCHOS_ARM64)/lib/ionclaw.framework
+	lipo -create \
+		$(BUILD_WATCHOS_ARM64_32)/lib/ionclaw.framework/ionclaw \
+		$(BUILD_WATCHOS_ARM64_64)/lib/ionclaw.framework/ionclaw \
+		-output $(BUILD_WATCHOS_ARM64)/lib/ionclaw.framework/ionclaw
 	@echo "==> Done: $(BUILD_WATCHOS_ARM64)/lib/"
 
 .PHONY: build-watchos-sim-arm64

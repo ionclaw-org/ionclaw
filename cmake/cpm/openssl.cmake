@@ -55,6 +55,9 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "watchOS")
             set(_ossl_target "watchossimulator-arm64-xcrun")
         endif()
         list(APPEND _ossl_options "-mwatchos-simulator-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    elseif(_ossl_arch STREQUAL "arm64")
+        set(_ossl_target "watchos-arm64-xcrun")
+        list(APPEND _ossl_options "-mwatchos-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
     else()
         set(_ossl_target "watchos-arm64_32-xcrun")
         list(APPEND _ossl_options "-mwatchos-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
@@ -150,6 +153,12 @@ my %targets = (
         CC             => "xcrun -sdk watchos cc",
         cflags         => add("-arch arm64_32 -fno-common"),
         bn_ops         => "SIXTY_FOUR_BIT",
+    },
+    "watchos-arm64-xcrun" => {
+        inherit_from   => [ "watchos-common" ],
+        CC             => "xcrun -sdk watchos cc",
+        cflags         => add("-arch arm64 -fno-common"),
+        bn_ops         => "SIXTY_FOUR_BIT_LONG",
     },
     "watchossimulator-arm64-xcrun" => {
         inherit_from   => [ "watchos-common" ],

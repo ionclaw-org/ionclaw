@@ -11,7 +11,7 @@ options:
 settings:
   base:
     PRODUCT_NAME: IonClaw
-    MARKETING_VERSION: "1.0.0"
+    MARKETING_VERSION: "1.0.6"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     CODE_SIGN_STYLE: Automatic
@@ -85,3 +85,5 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # watchos app targets default to an empty runpath, so point it at the embedded framework
         LD_RUNPATH_SEARCH_PATHS: "@executable_path/Frameworks"
+        # apple requires arm64 for watchos, and arm64_32 keeps the older series 4-8 watches supported
+        ARCHS: "arm64_32 arm64"
