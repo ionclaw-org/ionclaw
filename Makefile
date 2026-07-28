@@ -21,7 +21,6 @@ BUILD_WATCHOS_SIM_X86   := build/watchos-sim-x86_64
 BUILD_XCFRAMEWORK       := build/xcframework
 APPLE_APP_DIR           := apps/apple
 BUILD_ANDROID_ARM64     := build/android-arm64-v8a
-BUILD_ANDROID_ARMV7     := build/android-armeabi-v7a
 BUILD_ANDROID_X86_64    := build/android-x86_64
 BUILD_ANDROID_X86       := build/android-x86
 WEB_SRC_DIR             := apps/web
@@ -42,7 +41,7 @@ CMAKE_SHARED_FLAGS := $(CMAKE_FLAGS) -DIONCLAW_BUILD_SHARED=ON
 ANDROID_NDK        ?= $(ANDROID_NDK_ROOT)
 ANDROID_API        := 24
 ANDROID_TOOLCHAIN   = $(ANDROID_NDK)/build/cmake/android.toolchain.cmake
-ANDROID_ABIS       := arm64-v8a armeabi-v7a x86_64 x86
+ANDROID_ABIS       := arm64-v8a x86_64 x86
 
 # --- helpers ---
 NPROC := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu)
@@ -345,17 +344,6 @@ build-android-arm64: ## Build Android arm64-v8a shared library
 	cmake --build $(BUILD_ANDROID_ARM64) -j$(NPROC)
 	@echo "==> Done: $(BUILD_ANDROID_ARM64)/lib/"
 
-.PHONY: build-android-armv7
-build-android-armv7: ## Build Android armeabi-v7a shared library
-	@echo "==> Building Android armeabi-v7a..."
-	cmake -B $(BUILD_ANDROID_ARMV7) $(CMAKE_SHARED_FLAGS) \
-		-DCMAKE_TOOLCHAIN_FILE=$(ANDROID_TOOLCHAIN) \
-		-DANDROID_ABI=armeabi-v7a \
-		-DANDROID_PLATFORM=android-$(ANDROID_API) \
-		-DANDROID_STL=c++_static
-	cmake --build $(BUILD_ANDROID_ARMV7) -j$(NPROC)
-	@echo "==> Done: $(BUILD_ANDROID_ARMV7)/lib/"
-
 .PHONY: build-android-x86_64
 build-android-x86_64: ## Build Android x86_64 shared library
 	@echo "==> Building Android x86_64..."
@@ -379,7 +367,7 @@ build-android-x86: ## Build Android x86 shared library
 	@echo "==> Done: $(BUILD_ANDROID_X86)/lib/"
 
 .PHONY: build-android
-build-android: build-android-arm64 build-android-armv7 build-android-x86_64 build-android-x86 ## Build Android shared libraries for all ABIs
+build-android: build-android-arm64 build-android-x86_64 build-android-x86 ## Build Android shared libraries for all ABIs
 	@echo "==> All Android ABIs built."
 
 .PHONY: build-all
@@ -569,7 +557,7 @@ clean-ios: ## Remove iOS/tvOS/watchOS/XCFramework build directories
 
 .PHONY: clean-android
 clean-android: ## Remove Android build directories and jniLibs
-	rm -rf $(BUILD_ANDROID_ARM64) $(BUILD_ANDROID_ARMV7) $(BUILD_ANDROID_X86_64) $(BUILD_ANDROID_X86)
+	rm -rf $(BUILD_ANDROID_ARM64) $(BUILD_ANDROID_X86_64) $(BUILD_ANDROID_X86)
 	rm -rf $(ANDROID_AAR_JNILIBS)
 	rm -rf $(BUILD_ANDROID_AAR)
 

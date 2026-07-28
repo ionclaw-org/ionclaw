@@ -71,11 +71,11 @@ Generates the Apple Xcode project (`apps/apple/IonClaw.xcodeproj`) from `apps/ap
 
 ### `make build-android`
 
-Builds `libionclaw.so` for **all Android ABIs** (arm64-v8a, armeabi-v7a, x86_64, x86) using the Android NDK CMake toolchain. Output: `build/android-{ABI}/lib/`.
+Builds `libionclaw.so` for the **Android ABIs** (arm64-v8a, x86_64, x86) using the Android NDK CMake toolchain. Output: `build/android-{ABI}/lib/`.
 
 Requires `ANDROID_NDK_ROOT` environment variable or `ANDROID_NDK=...` argument. Targets API level 21. Uses `c++_static` STL to avoid shipping libc++_shared.so separately.
 
-Individual ABI targets are also available: `build-android-arm64`, `build-android-armv7`, `build-android-x86_64`, `build-android-x86`.
+Individual ABI targets are also available: `build-android-arm64`, `build-android-x86_64`, `build-android-x86`.
 
 ### `make build-android-aar`
 
@@ -188,7 +188,6 @@ Formats **all C/C++/ObjC source files** (`.cpp`, `.hpp`, `.c`, `.h`, `.m`, `.mm`
 | `build/ios-sim-x86_64/` | iOS simulator x86_64 library |
 | `build/xcframework/` | Combined iOS XCFramework |
 | `build/android-arm64-v8a/` | Android arm64 library |
-| `build/android-armeabi-v7a/` | Android armv7 library |
 | `build/android-x86_64/` | Android x86_64 library (emulator) |
 | `build/android-x86/` | Android x86 library (emulator) |
 | `build/android-aar/` | Standalone `ionclaw.aar` (native Android app) |
@@ -268,4 +267,4 @@ Triggered on tag push (`v*`). Produces downloadable artifacts:
 | `ionclaw-ios-xcframework.tar.gz` | XCFramework + ionclaw.h |
 | `ionclaw-android.tar.gz` | All 4 ABI .so files in jniLibs/ layout |
 
-Android builds all 4 ABIs sequentially (arm64-v8a, armeabi-v7a, x86_64, x86) then packages them together.
+Android builds the ABIs sequentially (arm64-v8a, x86_64, x86) then packages them together.
