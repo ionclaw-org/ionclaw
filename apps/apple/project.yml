@@ -11,8 +11,8 @@ options:
 settings:
   base:
     PRODUCT_NAME: IonClaw
-    MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "1.0.6"
+    CURRENT_PROJECT_VERSION: "7"
     SWIFT_VERSION: "5.0"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: 99AHAA343Q
@@ -30,6 +30,7 @@ targetTemplates:
     sources:
       - path: Shared/Sources
       - path: Shared/Resources/Assets.xcassets
+      - path: Shared/Resources/PrivacyInfo.xcprivacy
     dependencies:
       - framework: ../../build/xcframework/ionclaw.xcframework
         embed: true
@@ -44,6 +45,9 @@ targets:
       - path: iOS/Sources
       - path: iOS/Resources/Assets.xcassets
       - path: iOS/Resources/LaunchScreen.storyboard
+    dependencies:
+      - target: IonClaw-watchOS
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ionclaw.app
@@ -60,7 +64,7 @@ targets:
       - path: tvOS/Resources/Assets.xcassets
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ionclaw.app.tvos
+        PRODUCT_BUNDLE_IDENTIFIER: com.ionclaw.app
         INFOPLIST_FILE: tvOS/Resources/Info.plist
         TARGETED_DEVICE_FAMILY: "3"
         ASSETCATALOG_COMPILER_APPICON_NAME: "App Icon & Top Shelf Image"
@@ -74,7 +78,12 @@ targets:
       - path: watchOS/Resources/Assets.xcassets
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ionclaw.app.watchos
+        PRODUCT_NAME: "IonClaw Watch App"
+        PRODUCT_BUNDLE_IDENTIFIER: com.ionclaw.app.watch
         INFOPLIST_FILE: watchOS/Resources/Info.plist
         TARGETED_DEVICE_FAMILY: "4"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # watchos app targets default to an empty runpath, so point it at the embedded framework
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/Frameworks"
+        # apple requires arm64 for watchos, and arm64_32 keeps the older series 4-8 watches supported
+        ARCHS: "arm64_32 arm64"

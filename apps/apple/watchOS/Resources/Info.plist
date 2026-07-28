@@ -20,10 +20,8 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>WKApplication</key>
-	<true/>
-	<key>WKWatchOnly</key>
-	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
@@ -33,5 +31,9 @@
 	<string>IonClaw uses the local network to serve the AI agent interface.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>IonClaw uses the microphone to dictate messages.</string>
+	<key>WKApplication</key>
+	<true/>
+	<key>WKCompanionAppBundleIdentifier</key>
+	<string>com.ionclaw.app</string>
 </dict>
 </plist>

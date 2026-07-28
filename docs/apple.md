@@ -1,6 +1,6 @@
 # Apple App (iOS, tvOS, watchOS)
 
-IonClaw includes native SwiftUI apps for **iOS, tvOS, and watchOS**. Each target embeds the full C++ engine via the `ionclaw.xcframework` and runs the server locally on the device — no companion app or remote backend required.
+IonClaw includes native SwiftUI apps for **iOS, tvOS, and watchOS**. Each target embeds the full C++ engine via the `ionclaw.xcframework` and runs the server locally on the device with no remote backend. The watch app is distributed as a companion embedded in the iOS app, and tvOS is a Universal Purchase under the same App Store record, so all three share the bundle id `com.ionclaw.app` (the watch uses the nested `com.ionclaw.app.watchkitapp`).
 
 ## Requirements
 
@@ -73,3 +73,23 @@ Automatic signing is configured in `project.yml` via `DEVELOPMENT_TEAM`. Set it 
 - On **tvOS**, the project is stored under `Caches` (the only writable location on tvOS); the system may purge it under storage pressure, in which case the project is re-initialized on the next start.
 - App icons: iOS and watchOS use a single 1024×1024 master; tvOS ships layered Brand Assets (App Icon + Top Shelf).
 - The XCFramework is reused by the Flutter iOS plugin as well — see [Flutter](flutter.md).
+
+## Publishing (App Store)
+
+The targets are ready to archive and submit. iOS and tvOS share `com.ionclaw.app` for a Universal Purchase under one App Store Connect record, and the watch app (`com.ionclaw.app.watchkitapp`, `WKCompanionAppBundleIdentifier = com.ionclaw.app`) is a companion embedded in the iOS app, so it ships with the iOS build rather than as a separate app.
+
+Already in the repo:
+- `Shared/Resources/PrivacyInfo.xcprivacy` — declares no tracking and no data collection, plus the file-timestamp and UserDefaults required-reason APIs the engine and `AppConfig` use. Bundled into every target.
+- `ITSAppUsesNonExemptEncryption = false` in each `Info.plist` — the app uses only standard TLS, so it skips the export-compliance questionnaire.
+- Local-network and microphone usage descriptions.
+
+To publish:
+1. `make build-xcframework` builds the iOS, tvOS, and watchOS slices.
+2. Open `apps/apple/IonClaw.xcodeproj`, pick the target, select a device destination, and **Product → Archive**.
+3. In the Organizer, Validate then Distribute to App Store Connect.
+4. Add tvOS to the iOS app record with Add Platform (Universal Purchase), fill the App Privacy label, upload screenshots, and submit. The watch app ships inside the iOS build, so it needs no separate record or Add Platform entry.
+
+Screenshot sizes (App Store Connect, portrait for phone and watch, landscape for tv):
+- iPhone 6.9" 1320×2868, 6.5" 1242×2688, 5.5" 1242×2208; iPad 13" 2064×2752.
+- Apple Watch Ultra 49mm 410×502, 46mm 416×496, 45mm 396×484, 41mm 352×430.
+- Apple TV HD 1920×1080, 4K 3840×2160.
