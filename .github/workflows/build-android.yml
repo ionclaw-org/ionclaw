@@ -43,7 +43,6 @@ jobs:
           path: |
             ${{ env.CPM_SOURCE_CACHE }}
             build/android-arm64-v8a/_deps
-            build/android-armeabi-v7a/_deps
             build/android-x86_64/_deps
             build/android-x86/_deps
           key: cpm-android-${{ hashFiles('cmake/cpm/cpm-dependency.cmake') }}
@@ -59,14 +58,6 @@ jobs:
       - name: Verify library
         if: ${{ !inputs.release }}
         run: file build/android-arm64-v8a/lib/libionclaw.so
-
-      - name: Build armeabi-v7a
-        if: ${{ inputs.release }}
-        run: |
-          cmake -B build/android-armeabi-v7a -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DIONCLAW_BUILD_SHARED=ON \
-            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI=armeabi-v7a -DANDROID_PLATFORM=android-24 -DANDROID_STL=c++_static
-          cmake --build build/android-armeabi-v7a --config ${{ env.BUILD_TYPE }} -j$(nproc)
 
       - name: Build x86_64
         if: ${{ inputs.release }}
@@ -87,7 +78,7 @@ jobs:
       - name: Package libraries
         if: ${{ inputs.release }}
         run: |
-          for abi in arm64-v8a armeabi-v7a x86_64 x86; do
+          for abi in arm64-v8a x86_64 x86; do
             mkdir -p dist/jniLibs/$abi
             cp build/android-$abi/lib/libionclaw.so dist/jniLibs/$abi/
           done
