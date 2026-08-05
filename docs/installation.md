@@ -77,7 +77,7 @@ msiexec /x ionclaw-windows-x86_64.msi /qn
 
 ## Build from Source
 
-**Requirements:** CMake 3.20+, C++20 compiler, Node.js 18+ (for web client).
+**Requirements:** CMake 3.25+, C++20 compiler, Perl (for the OpenSSL build), Node.js 20.19+ (for web client).
 
 ### Linux / macOS / Windows
 
