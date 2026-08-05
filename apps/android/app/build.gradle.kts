@@ -15,15 +15,31 @@ android {
         applicationId = "com.ionclaw.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 7
+        versionName = "1.0.6"
+
+        // the native runtime ships 64-bit only, so keep the app to the abis it actually supports
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    // the upload key lives in the repo at extras/android and its password is public, so the release bundle signs with no extra setup
+    signingConfigs {
+        create("release") {
+            storeFile = file("../../../extras/android/upload-keystore.jks")
+            storePassword = "upload"
+            keyAlias = "upload"
+            keyPassword = "upload"
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
